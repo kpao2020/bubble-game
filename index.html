@@ -2,20 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Bubble Popping Game</title>
   <link rel="stylesheet" href="style.css">
-
-  <!--//////// p5js ////////-->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/addons/p5.sound.min.js"></script>
-
-  <!--//////// p5play js ////////-->
+  <!-- p5 and p5play -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://p5play.org/v3/planck.min.js"></script>
   <script src="https://p5play.org/v3/p5play.js"></script>
-  
+  <!-- defer sketch.js -->
+  <script defer src="sketch.js"></script>
 </head>
 <body>
-  <script src="sketch.js"></script>
+  
+  <!-- Mode Bar for game mode selection -->
+  <div id="modeBar">
+    <label for="modeSelect">Mode:</label>
+    <select id="modeSelect">
+      <option value="classic" selected>Classic</option>
+      <option value="challenge">Challenge</option>
+      <option value="bio">Bio-Responsive</option>
+    </select>
+    <button id="newGameBtn" class="secondary">New Game</button>
+  </div>
+
+  <!-- HUD -->
+  <div id="overlayUI"></div>
+    <div class="hud">
+      <span class="chip" id="scoreChip">Score: 0</span>
+      <span class="chip" id="timeChip">Time: 30</span>
+    </div>
+  </div>
+  <div id="center" class="centerMsg" style="display:none;"></div>
+  <button id="restartBtn" class="primary" style="display:none;">Play Again</button>
 </body>
 </html>
