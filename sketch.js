@@ -231,8 +231,10 @@ function draw() {
 
   // Bio chip update (center of top bar)
   const bioChip = document.getElementById('bioChip');
+  const camControls = document.getElementById('camControls');
 
   if (currentMode === 'bio') {
+    camControls.classList.remove('hiddenCamControls');
     bioChip.classList.remove('hiddenChip');   // show but keep layout stable
     const emo = dominantEmotion();
     bioChip.textContent = emo.toUpperCase();
@@ -241,6 +243,7 @@ function draw() {
     else if (emo === 'angry') bioChip.style.background = 'rgba(255,140,140,.85)';
     else bioChip.style.background = 'rgba(255,255,255,.85)';
   } else {
+    camControls.classList.add('hiddenCamControls');
     bioChip.classList.add('hiddenChip');      // hide but keep the middle column
     // optional: reset text/background
     bioChip.textContent = '';
@@ -363,13 +366,46 @@ async function loadFaceApiModels() {
       faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
       faceapi.nets.faceExpressionNet.loadFromUri('./models'),
       faceapi.nets.faceLandmark68Net.loadFromUri('./models')
-      // If you later add SSD MobileNet fallback:
+      // add SSD MobileNet fallback:
       // faceapi.nets.ssdMobilenetv1.loadFromUri('./models')
     ]);
   } catch (e) {
     console.warn('Model load error:', e);
   }
 }
+
+// camera UI
+let currentStream = null, deviceId = null;
+
+async function listCameras() {
+  const sel = document.getElementById('cameraSelect');
+  if (!navigator.mediaDevices?.enumerateDevices || !sel) return;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter(d => d.kind === 'videoinput');
+  sel.innerHTML = '';
+  cams.forEach((c,i) => {
+    const opt = document.createElement('option');
+    opt.value = c.deviceId;
+    opt.textContent = c.label || `Camera ${i+1}`;
+    sel.appendChild(opt);
+  });
+  const front = cams.find(c => /front|user|face|integrated/i.test(c.label));
+  deviceId = (front?.deviceId) || (cams[0]?.deviceId) || null;
+  if (deviceId) sel.value = deviceId;
+
+  sel.onchange = () => { deviceId = sel.value; restartWebcam(); };
+
+  const previewToggle = document.getElementById('showPreview');
+  const v = document.getElementById('webcam');
+  if (previewToggle && v) {
+    previewToggle.onchange = () => {
+      if (previewToggle.checked) v.classList.remove('camHidden');
+      else v.classList.add('camHidden');
+    };
+  }
+}
+
+function restartWebcam() { startWebcam(true); }
 
 function startWebcam(isRestart=false) {
   const v = document.getElementById('webcam');
@@ -404,7 +440,7 @@ function startWebcam(isRestart=false) {
     v.addEventListener('loadeddata', startSampler, { once: true });
 
     // populate device list (labels appear after permission)
-    setTimeout(listCameras, 500);
+    setTimeout(listCameras, 400);
   }).catch(err => console.error('Webcam error:', err));
 }
 
@@ -477,32 +513,3 @@ async function sampleBio() {
 }
 
 
-
-let currentStream = null, deviceId = null;
-
-async function listCameras() {
-  const sel = document.getElementById('cameraSelect');
-  if (!navigator.mediaDevices?.enumerateDevices) return;
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const cams = devices.filter(d => d.kind === 'videoinput');
-  sel.innerHTML = '';
-  cams.forEach((c,i) => {
-    const opt = document.createElement('option');
-    opt.value = c.deviceId;
-    opt.textContent = c.label || `Camera ${i+1}`;
-    sel.appendChild(opt);
-  });
-  const front = cams.find(c => /front|user|face/i.test(c.label));
-  deviceId = (front?.deviceId) || (cams[0]?.deviceId) || null;
-  if (deviceId) sel.value = deviceId;
-  sel.onchange = () => { deviceId = sel.value; restartWebcam(); };
-
-  const previewToggle = document.getElementById('showPreview');
-  previewToggle.onchange = () => {
-    const v = document.getElementById('webcam');
-    if (previewToggle.checked) { v.classList.add('preview'); v.classList.remove('hiddenVideo'); }
-    else { v.classList.remove('preview'); v.classList.add('hiddenVideo'); }
-  };
-}
-
-function restartWebcam() { startWebcam(true); }

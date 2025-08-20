@@ -21,9 +21,10 @@ html, body {
   z-index: 10;
 
   display: grid;
-  grid-template-columns: 1fr 110px 1fr;  /* 👈 fixed middle width keeps layout stable */
+  grid-template-columns: 1fr auto auto auto;  /* left | bio | cam | right HUD */
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
 
   background: rgba(255,255,255,.85);
   backdrop-filter: blur(6px);
@@ -47,7 +48,7 @@ html, body {
   background: white;
 }
 button.secondary {
-  pointer-events: auto;
+  /* pointer-events: auto; */
   border: 0;
   border-radius: 10px;
   padding: 8px 12px;
@@ -67,6 +68,54 @@ button.secondary:active { transform: translateY(1px); }
   justify-self: center;        /* center column in #topBar grid */
 }
 
+/* Hidden state preserves layout space */
+.hiddenChip {
+  visibility: hidden;             /* hides text/background but keeps space */
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Middle-right: camera controls + preview */
+#camControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: center;
+  min-width: 210px;          /* keeps layout stable even when preview hidden */
+}
+#camControls.hiddenCamControls {
+  display: none !important;
+}
+
+#cameraSelect {
+  max-width: 180px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.15);
+  padding: 6px 8px;
+  background: #fff;
+}
+.previewToggle { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Preview video (mirrored like a selfie) */
+.camPreview {
+  width: 140px;              /* small preview in the bar */
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  transform: scaleX(-1);
+  transform-origin: center;
+  pointer-events: none;
+}
+
+/* Hidden preview: keep the element alive for detection but invisible/tiny */
+.camHidden {
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
 /* ===== Right: HUD (Score above Time) ===== */
 #overlayUI {
   pointer-events: none;        /* display-only */
@@ -77,9 +126,9 @@ button.secondary:active { transform: translateY(1px); }
   flex-direction: column;      /* stack Score above Time */
   gap: 6px;
   align-items: flex-end;       /* align to the right edge */
-  /* user-select: none;
+  user-select: none;
   font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0,0,0,.25); */
+  text-shadow: 0 1px 2px rgba(0,0,0,.25);
 }
 
 .chip {
@@ -89,12 +138,8 @@ button.secondary:active { transform: translateY(1px); }
   padding: 8px 12px;
 }
 
-/* Hidden state preserves layout space */
-.hiddenChip {
-  visibility: hidden;             /* hides text/background but keeps space */
-  opacity: 0;
-  pointer-events: none;
-}
+/* Screen-reader-only helper */
+.srOnly { position: absolute; left: -9999px; }
 
 /* ===== Centered end-game UI =====
    - Centers the "Game Over" text

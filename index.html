@@ -23,11 +23,11 @@
 <body>
 
   <!-- Debug camera tools -->
-<div id="camTools" style="position:fixed; left:16px; bottom:16px; z-index:9999; background:rgba(255,255,255,.9); padding:8px 10px; border-radius:10px; font:14px system-ui;">
-  <label>Camera:</label>
-  <select id="cameraSelect"></select>
-  <label style="margin-left:8px;"><input type="checkbox" id="showPreview"> Preview</label>
-</div>
+  <!-- <div id="camTools" style="position:fixed; left:16px; bottom:16px; z-index:9999; background:rgba(255,255,255,.9); padding:8px 10px; border-radius:10px; font:14px system-ui;">
+    <label>Camera:</label>
+    <select id="cameraSelect"></select>
+    <label style="margin-left:8px;"><input type="checkbox" id="showPreview"> Preview</label>
+  </div> -->
 
   <!-- ===== Unified Top Bar ===== -->
   <div id="topBar">
@@ -45,6 +45,17 @@
     <!-- Center: Bio indicator (only shown in Bio) -->
     <span class="chip" id="bioChip">NEUTRAL</span>
 
+    <!-- Middle-right: Camera controls + (optional) preview -->
+    <div id="camControls">
+      <label for="cameraSelect" class="srOnly">Camera</label>
+      <select id="cameraSelect" title="Camera"></select>
+      <label class="previewToggle">
+        <input type="checkbox" id="showPreview"> Preview
+      </label>
+      <!-- The preview; detection uses this element regardless of visibility -->
+      <video id="webcam" autoplay muted playsinline class="camPreview camHidden"></video>
+    </div>
+
     <!-- Right: HUD (Score above Time) -->
     <div id="overlayUI">
       <div class="hud">
@@ -57,9 +68,6 @@
   <!-- Centered end-game UI -->
   <div id="center" class="centerMsg" style="display:none;"></div>
   <button id="restartBtn" class="primary" style="display:none;">Play Again</button>
-
-  <!-- Webcam feed (offscreen but rendering; do NOT use display:none) -->
-  <video id="webcam" autoplay muted playsinline class="hiddenVideo"></video>
 
 </body>
 </html>
