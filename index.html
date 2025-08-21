@@ -2,37 +2,72 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Bubble Popping Game</title>
-  <link rel="stylesheet" href="style.css">
-  <!-- p5 and p5play -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-  <script src="https://p5play.org/v3/planck.min.js"></script>
-  <script src="https://p5play.org/v3/p5play.js"></script>
-  <!-- defer sketch.js -->
-  <script defer src="sketch.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bubble Bio Game</title>
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Libraries (load early but don't block parsing) -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/p5.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/addons/p5.sound.min.js" defer></script>
+  <script src="https://p5play.org/v3/planck.min.js" defer></script>
+  <script src="https://p5play.org/v3/p5play.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
+
+  <!-- Your game code -->
+  <script src="sketch.js" defer></script>
+
+  <!-- Quiet the favicon 404 in dev -->
+  <link rel="icon" href="data:,">
 </head>
 <body>
-  
-  <!-- Mode Bar for game mode selection -->
-  <div id="modeBar">
-    <label for="modeSelect">Mode:</label>
-    <select id="modeSelect">
-      <option value="classic" selected>Classic</option>
-      <option value="challenge">Challenge</option>
-      <option value="bio">Bio-Responsive</option>
-    </select>
-    <button id="newGameBtn" class="secondary">New Game</button>
-  </div>
 
-  <!-- HUD -->
-  <div id="overlayUI"></div>
-    <div class="hud">
-      <span class="chip" id="scoreChip">Score: 0</span>
-      <span class="chip" id="timeChip">Time: 30</span>
+  <!-- Debug camera tools -->
+  <!-- <div id="camTools" style="position:fixed; left:16px; bottom:16px; z-index:9999; background:rgba(255,255,255,.9); padding:8px 10px; border-radius:10px; font:14px system-ui;">
+    <label>Camera:</label>
+    <select id="cameraSelect"></select>
+    <label style="margin-left:8px;"><input type="checkbox" id="showPreview"> Preview</label>
+  </div> -->
+
+  <!-- ===== Unified Top Bar ===== -->
+  <div id="topBar">
+    <!-- Left: Mode selector -->
+    <div id="modeBar">
+      <label for="modeSelect">Mode:</label>
+      <select id="modeSelect">
+        <option value="classic" selected>Classic</option>
+        <option value="challenge">Challenge</option>
+        <option value="bio">Bio-Responsive</option>
+      </select>
+      <button id="newGameBtn" class="secondary">New Game</button>
+    </div>
+
+    <!-- Center: Bio indicator (only shown in Bio) -->
+    <span class="chip" id="bioChip">NEUTRAL</span>
+
+    <!-- Middle-right: Camera controls + (optional) preview -->
+    <div id="camControls">
+      <label for="cameraSelect" class="srOnly">Camera</label>
+      <select id="cameraSelect" title="Camera"></select>
+      <label class="previewToggle">
+        <input type="checkbox" id="showPreview"> Preview
+      </label>
+      <!-- The preview; detection uses this element regardless of visibility -->
+      <video id="webcam" autoplay muted playsinline class="camPreview camHidden"></video>
+    </div>
+
+    <!-- Right: HUD (Score above Time) -->
+    <div id="overlayUI">
+      <div class="hud">
+        <span class="chip" id="scoreChip">Score: 0</span>
+        <span class="chip" id="timeChip">Time: 30</span>
+      </div>
     </div>
   </div>
+
+  <!-- Centered end-game UI -->
   <div id="center" class="centerMsg" style="display:none;"></div>
   <button id="restartBtn" class="primary" style="display:none;">Play Again</button>
+
 </body>
 </html>

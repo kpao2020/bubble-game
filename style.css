@@ -1,69 +1,44 @@
+/* ===== Base page ===== */
 html, body {
-  margin: 0; padding: 0; height: 100%;
+  margin: 0;
+  padding: 0;
+  height: 100vh;                    /* desktop-safe; JS also resizes canvas to viewport */
   background: #cceeff;
   overflow: hidden;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
 }
 
-/* HUD to TOP-RIGHT */
-#overlayUI {
+/* ===== Unified Top Bar =====
+   Layout: [ left: modeBar ] [ center: bioChip ] [ right: HUD (score/time) ] */
+/* Top bar spans screen: [left: mode] [center: bio chip] [right: HUD] */
+#topBar {
   position: fixed;
   top: calc(10px + env(safe-area-inset-top));
-  right: 16px;
-  left: auto;
-  bottom: auto;
-  pointer-events: none; /* HUD is display-only */
-  z-index: 10;
-  width: auto;
-}
-
-/* Stack Score above Time */
-.hud { 
-  display: flex;
-  flex-direction: column;     /* vertical stack */
-  gap: 6px;                   /* space between Score and Time */
-  align-items: flex-end;      /* align to the right edge */
-
-  pointer-events: none;
-  user-select: none;
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0,0,0,.25);
-}
-
-.chip { 
-  background: rgba(255,255,255,.85); 
-  border-radius: 999px; 
-  padding: 8px 12px; 
-}
-
-.centerMsg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 28px; font-weight: 800; color: #00324d; text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,.25); }
-
-button.primary {
-  pointer-events: auto; 
-  position: fixed; 
-  right: 16px; 
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  border: 0; border-radius: 14px; padding: 12px 16px; font-size: 16px; font-weight: 700;
-  background: white; box-shadow: 0 8px 20px rgba(0,0,0,.15);
-}
-button.primary:active { transform: translateY(1px); }
-
-/* Mode bar at TOP-LEFT */
-#modeBar {
-  position: fixed;
   left: 16px;
-  top: calc(10px + env(safe-area-inset-top)); /* respect notches */
+  right: 16px;
   z-index: 10;
+
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;  /* left | bio | cam | right HUD */
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+
   background: rgba(255,255,255,.85);
   backdrop-filter: blur(6px);
   border-radius: 12px;
   padding: 8px 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+}
+
+/* ===== Left: Mode selector ===== */
+#modeBar {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+  justify-self: start;
 }
 #modeBar label { font-weight: 700; }
 #modeBar select {
@@ -73,8 +48,177 @@ button.primary:active { transform: translateY(1px); }
   background: white;
 }
 button.secondary {
-  pointer-events: auto;
-  border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 700;
-  background: #f2f7ff; box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  /* pointer-events: auto; */
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 700;
+  background: #f2f7ff;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  cursor: pointer;
 }
 button.secondary:active { transform: translateY(1px); }
+
+/* ===== Center: Bio indicator chip ===== */
+#bioChip {
+  display: inline-block;          /* important: not none */
+  min-width: 80px;
+  text-align: center;
+  font-weight: 800;
+  justify-self: center;        /* center column in #topBar grid */
+}
+
+/* Hidden state preserves layout space */
+.hiddenChip {
+  visibility: hidden;             /* hides text/background but keeps space */
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Middle-right: camera controls + preview */
+#camControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: center;
+  min-width: 210px;          /* keeps layout stable even when preview hidden */
+}
+#camControls.hiddenCamControls {
+  display: none !important;
+}
+
+#cameraSelect {
+  max-width: 180px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.15);
+  padding: 6px 8px;
+  background: #fff;
+}
+.previewToggle { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Preview video (mirrored like a selfie) */
+.camPreview {
+  width: 140px;              /* small preview in the bar */
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  transform: scaleX(-1);
+  transform-origin: center;
+  pointer-events: none;
+}
+
+/* Hidden preview: keep the element alive for detection but invisible/tiny */
+.camHidden {
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* ===== Right: HUD (Score above Time) ===== */
+#overlayUI {
+  pointer-events: none;        /* display-only */
+  justify-self: end;           /* right side of top bar */
+}
+.hud {
+  display: flex;
+  flex-direction: column;      /* stack Score above Time */
+  gap: 6px;
+  align-items: flex-end;       /* align to the right edge */
+  user-select: none;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
+
+.chip {
+  display: inline-block;
+  background: rgba(255,255,255,.85);
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+
+/* Screen-reader-only helper */
+.srOnly { position: absolute; left: -9999px; }
+
+/* ===== Centered end-game UI =====
+   - Centers the "Game Over" text
+   - Centers the "Play Again" button directly below it */
+.centerMsg {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -60%);  /* slightly higher so button fits below */
+  font-size: 28px;
+  font-weight: 800;
+  color: #00324d;
+  text-align: center;
+  text-shadow: 0 2px 6px rgba(0,0,0,.25);
+  z-index: 20;
+}
+
+/* Play Again button centered beneath the text */
+#restartBtn {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 24px);       /* directly below the centered text */
+  transform: translateX(-50%);
+  z-index: 20;
+
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 700;
+  background: white;
+  box-shadow: 0 8px 20px rgba(0,0,0,.15);
+  cursor: pointer;
+
+  /* hidden by default; shown via JS at endGame() */
+  display: none;
+}
+#restartBtn:active { transform: translateX(-50%) translateY(1px); }
+
+/* ===== Hidden webcam (rendering offscreen) =====
+   Important: do NOT use display:none; face-api needs real frames. */
+/* Offscreen but rendering (detection uses this element) */
+.hiddenVideo {
+  position: fixed;
+  left: -9999px;               /* move offscreen but keep rendering */
+  top: 0;
+  width: 320px;                /* force a concrete render size */
+  height: auto;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Optional: when you enable preview (for debugging), show the video */
+/* When preview is enabled, show it in the LOWER-RIGHT of the viewport */
+#webcam.preview {
+  position: fixed;       /* keep above the canvas */
+  right: 16px;
+  bottom: 16px;          /* 👈 lower-right corner */
+  top: auto;             /* reset any previous top */
+  opacity: 1;
+  width: 160px;          /* 👈 smaller preview; tweak as you like */
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.2);
+  transform: scaleX(-1); /* selfie mirror */
+  transform-origin: center;
+  pointer-events: none;  /* don’t intercept taps/clicks */
+  z-index: 9998;         /* above canvas, below top bar */
+}
+
+
+/* ===== Responsive tweaks ===== */
+@media (max-width: 420px) {
+  #topBar {
+    grid-template-columns: 1fr auto 1fr;
+    padding: 6px 8px;
+    gap: 8px;
+  }
+  .chip { padding: 6px 10px; }
+  .hud { gap: 4px; }
+  #webcam.preview { width: 180px; }
+}
