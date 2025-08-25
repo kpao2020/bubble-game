@@ -17,6 +17,7 @@ const CHALLENGE_TRICK_RATE = 0.22;   // ~22% trick bubbles (-1 score)
 // p5play groups + state
 let bubbles;     // dynamic group
 let walls;       // static edge walls
+let _lastSafeTop = 0; // helper var for func safeTopRx()
 
 let score = 0;
 let startTime = 0;
@@ -108,6 +109,14 @@ function fitCanvasToViewport() {
 }
 
 // ===== Walls (static colliders to keep sprites in-bounds) =====
+function safeTopPx() {
+  const bar = document.getElementById('topBar');
+  // +8px padding so bubbles don’t “kiss” the bar
+  const y = bar ? Math.ceil(bar.getBoundingClientRect().bottom) + 8 : 0;
+  _lastSafeTop = y;
+  return y;
+}
+
 function buildWalls() {
   if (walls) {
     for (let i = walls.length - 1; i >= 0; i--) walls[i].remove();
@@ -117,19 +126,24 @@ function buildWalls() {
   walls.color = color(255, 255, 255, 0);
 
   const T = 40; // thickness
+  const sTop = safeTopPx();
   // left, right, top, bottom
-  const wl = new Sprite(-T/2, height/2, T, height, 'static');
-  const wr = new Sprite(width+T/2, height/2, T, height, 'static');
-  const wt = new Sprite(width/2, -T/2, width, T, 'static');
-  const wb = new Sprite(width/2, height+T/2, width, T, 'static');
+  new Sprite(-T/2, height/2, T, height, 'static');         // left
+  new Sprite(width+T/2, height/2, T, height, 'static');    // right
+  new Sprite(width/2, sTop - T/2, width, T, 'static');     // top at safe line
+  new Sprite(width/2, height+T/2, width, T, 'static');     // bottom
 
-  walls.add(wl); walls.add(wr); walls.add(wt); walls.add(wb);
+  // add to group
+  for (const s of allSprites) if (s.collider === 'static') walls.add(s);
 }
+
 function rebuildWallsIfNeeded() {
-  if (!walls || walls.length < 4) { buildWalls(); return; }
-  // if size changed notably, rebuild
-  const any = walls[0];
-  if (Math.abs(any.y - height/2) > 2 || Math.abs(any.h - height) > 2) buildWalls();
+  const sTop = safeTopPx();
+  // If canvas size or safeTop changed, rebuild
+  const needs = !walls || walls.length < 4 ||
+                abs(walls[2].y - (sTop - 20)) > 1 || // ‘top’ wall index / position check
+                abs(walls[0].h - height) > 1 || abs(walls[1].h - height) > 1;
+  if (needs) buildWalls();
 }
 
 // ===== Helpers =====
@@ -387,8 +401,9 @@ function draw() {
     }
 
     // secondary manual clamp (walls are primary)
+    const sTop = safeTopPx();
     if (b.x < r) { b.x = r; b.direction = 180 - b.direction; }
-    if (b.x > width - r) { b.x = width - r; b.direction = 180 - b.direction; }
+    if (b.y < sTop + r) { b.y = sTop + r; b.direction = 360 - b.direction; }
     if (b.y < r) { b.y = r; b.direction = 360 - b.direction; }
     if (b.y > height - r) { b.y = height - r; b.direction = 360 - b.direction; }
 
@@ -409,6 +424,7 @@ function draw() {
 function spawnBubble() {
   const d = random(MIN_DIAM, MAX_DIAM);
   const r = d / 2;
+  const sTop = safeTopPx();
 
   let angle = random(TWO_PI);
   const HORIZ_EPS = 0.2; // nudge off near-horizontal starts
@@ -420,12 +436,12 @@ function spawnBubble() {
   let sx, sy;
   if (currentMode === 'bio') {
     const biasX = width  * bioState.gaze.x;
-    const biasY = height * bioState.gaze.y;
+    const biasY = constrain(height * bioState.gaze.y, sTop + r, height - r);
     sx = constrain(lerp(random(r, width - r),  biasX, 0.6), r, width - r);
-    sy = constrain(lerp(random(r, height - r), biasY, 0.6), r, height - r);
+    sy = constrain(lerp(random(sTop + r, height - r), biasY, 0.6), sTop + r, height - r);
   } else {
     sx = random(r, width - r);
-    sy = random(r, height - r);
+    sy = random(max(sTop + r, sTop + 1), height - r);
   }
 
   const b = new Sprite(sx, sy, d);
