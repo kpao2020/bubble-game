@@ -239,14 +239,21 @@ function setup() {
 
   // Modes UI hookup
   const modeSelect = document.getElementById('modeSelect');
-  if (modeSelect) currentMode = modeSelect.value;
-  const newGameBtn = document.getElementById('newGameBtn');
-  if (newGameBtn) {
-    newGameBtn.onclick = () => {
-      if (modeSelect) currentMode = modeSelect.value;
+  if (modeSelect) {
+    currentMode = modeSelect.value;
+    modeSelect.onchange = () => {
+      currentMode = modeSelect.value;
       restart(true);
-    };
+    }
   }
+  // *** Remove newGameBtn ***
+  // const newGameBtn = document.getElementById('newGameBtn');
+  // if (newGameBtn) {
+  //   newGameBtn.onclick = () => {
+  //     if (modeSelect) currentMode = modeSelect.value;
+  //     restart(true);
+  //   };
+  // }
 
   // Physics world
   world.gravity.y = 0;
