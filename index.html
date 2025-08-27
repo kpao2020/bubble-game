@@ -31,41 +31,59 @@
 
   <!-- ===== Unified Top Bar ===== -->
   <div id="topBar">
-    <!-- Left: Mode selector -->
-    <div id="modeBar">
-      <label for="modeSelect">Mode:</label>
-      <select id="modeSelect">
+    <!-- Left: compact mode selector -->
+    <div id="modeBar" class="compact">
+      <label for="modeSelect" class="srOnly">Mode</label>
+      <select id="modeSelect" title="Mode">
         <option value="classic" selected>Classic</option>
         <option value="challenge">Challenge</option>
         <option value="bio">Bio-Responsive</option>
       </select>
-      <!-- <button id="newGameBtn" class="secondary">New Game</button> -->
     </div>
 
-    <!-- Center: Bio indicator (only shown in Bio) -->
+    <!-- Center: Bio indicator (emoji-like text) -->
     <span class="chip" id="bioChip">NEUTRAL</span>
 
-    <!-- Hamburger button -->
-    <button id="menuBtn" aria-label="Camera menu" class="hamburger" type="button">
-      <span></span><span></span><span></span>
+    <!-- Middle-right: Camera icon (Bio mode only) -->
+    <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
+      <!-- simple camera glyph -->
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
+      </svg>
     </button>
 
-    <!-- Middle-right: Camera controls + (optional) preview -->
-    <div id="camControls" class="collapsed">
-      <label for="cameraSelect" class="srOnly">Camera</label>
-      <select id="cameraSelect" title="Camera"></select>
-      <label class="previewToggle">
-        <input type="checkbox" id="showPreview"> Preview
-      </label>
-      <!-- The preview; detection uses this element regardless of visibility -->
-      <video id="webcam" autoplay muted playsinline class="camPreview camHidden"></video>
-    </div>
-
-    <!-- Right: HUD (Score above Time) -->
+    <!-- Right: HUD (Score over Time) -->
     <div id="overlayUI">
       <div class="hud">
         <span class="chip" id="scoreChip">Score: 0</span>
         <span class="chip" id="timeChip">Time: 30</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera modal (Bio mode only) -->
+  <div id="cameraModal" class="modal hidden">
+    <div class="modalContent">
+      <div class="modalHeader">
+        <h3>Camera</h3>
+        <button id="modalClose" class="iconBtn small" aria-label="Close">
+          ✕
+        </button>
+      </div>
+
+      <div class="modalRow">
+        <label for="cameraSelect">Device</label>
+        <select id="cameraSelect"></select>
+      </div>
+
+      <div class="modalRow">
+        <label class="previewToggle">
+          <input type="checkbox" id="showPreview"> Show preview
+        </label>
+      </div>
+
+      <div class="previewWrap">
+        <video id="webcam" autoplay muted playsinline class="modalPreview camHidden"></video>
       </div>
     </div>
   </div>

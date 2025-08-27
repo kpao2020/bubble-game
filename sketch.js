@@ -41,31 +41,28 @@ let bioState = {
 
 // ===== Emotion thresholds & hysteresis =====
 const EMO = {
-  // show this emotion if its value >= on; keep it until it drops < off
-  HAPPY_ON: 0.28, HAPPY_OFF: 0.22,
-  SAD_ON:   0.24, SAD_OFF:   0.18,
-  ANGRY_ON: 0.26, ANGRY_OFF: 0.20,
+  HAPPY_ON: 0.22, HAPPY_OFF: 0.16,
+  SAD_ON:   0.20, SAD_OFF:   0.14,
+  ANGRY_ON: 0.21, ANGRY_OFF: 0.15,
 
-  // minimum to consider anything "dominant" at all
-  MIN_DOMINANT: 0.18
+  MIN_DOMINANT: 0.14
 };
 
 // ===== Emotion decision config (INCLUDING NEUTRAL) =====
-// We work on normalized shares over {happy, sad, angry, neutral}
 const EMO_CFG = {
-  // To switch INTO an emotion, its share must be >= ON and beat #2 by MARGIN
-  ON:           0.40,   // 0.38–0.46 (lower = more sensitive)
-  OFF:          0.33,   // 0.30–0.40 (lower = stickier once chosen)
-  NEUTRAL_ON:   0.58,   // neutral is "dominant" if >= this
-  NEUTRAL_OFF:  0.40,   // must drop below this before leaving neutral
-  MARGIN:       0.05,   // top - second >= margin
-  COOLDOWN_MS:  2200    // min time between switches (helps stability)
+  ON:           0.33,   // was 0.40
+  OFF:          0.28,   // was 0.33
+  NEUTRAL_ON:   0.48,   // was 0.58
+  NEUTRAL_OFF:  0.32,   // was 0.40
+  MARGIN:       0.04,   // was 0.05
+  COOLDOWN_MS:  1400    // was 2200
 };
-// Raw-force gates (post-EMA): if these are exceeded, allow the emotion even if margin is tight
+
+// Let strong raw signals punch through sooner
 const EMO_FORCE = {
-  SAD_RAW:   0.38,   // if smoothed sad ≥ 0.38, let SAD win unless neutral is extremely high
-  HAPPY_RAW: 0.42,
-  ANGRY_RAW: 0.40
+  SAD_RAW:   0.30,  // was 0.38
+  HAPPY_RAW: 0.34,  // was 0.42
+  ANGRY_RAW: 0.32   // was 0.40
 };
 let lastEmotion = 'neutral'; // remember last shown to apply hysteresis
 let lastSwitchMs = 0;
@@ -195,6 +192,18 @@ function wireHamburger() {
   });
 }
 
+function openCameraModal() {
+  const m = document.getElementById('cameraModal');
+  if (!m) return;
+  m.classList.remove('hidden');
+}
+
+function closeCameraModal() {
+  const m = document.getElementById('cameraModal');
+  if (!m) return;
+  m.classList.add('hidden');
+}
+
 // ===== Decision function =====
 function dominantEmotion() {
   // raw (already EMA-smoothed in sampleBio)
@@ -292,16 +301,36 @@ function setup() {
     modeSelect.onchange = () => {
       currentMode = modeSelect.value;
       restart(true);
-    }
+    };
   }
-  // *** Remove newGameBtn ***
-  // const newGameBtn = document.getElementById('newGameBtn');
-  // if (newGameBtn) {
-  //   newGameBtn.onclick = () => {
-  //     if (modeSelect) currentMode = modeSelect.value;
-  //     restart(true);
-  //   };
-  // }
+  
+  // Camera modal buttons
+  const camBtn = document.getElementById('cameraBtn');
+  const closeBtn = document.getElementById('modalClose');
+  camBtn.onclick = () => { if (currentMode === 'bio') openCameraModal(); };
+  closeBtn.onclick = closeCameraModal;
+
+  // Close modal on backdrop click
+  document.getElementById('cameraModal').addEventListener('click', (e) => {
+    if (e.target.id === 'cameraModal') closeCameraModal();
+  });
+
+  // Preview checkbox wiring (runs once)
+  (function wirePreviewToggle(){
+    const previewToggle = document.getElementById('showPreview');
+    const v = document.getElementById('webcam');
+    if (previewToggle && v) {
+      previewToggle.onchange = () => {
+        if (previewToggle.checked) {
+          v.classList.remove('camHidden');
+          v.classList.add('preview');   // NEW
+        } else {
+          v.classList.add('camHidden');
+          v.classList.remove('preview'); // NEW
+        }
+      };
+    }
+  })();
 
   // Physics world
   world.gravity.y = 0;
@@ -373,50 +402,47 @@ function draw() {
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
   document.getElementById('timeChip').textContent = `Time: ${timeLeft}`;
 
-  // ----- UI (Bio chip + camera controls) & per-frame speed multiplier -----
-  const bioChip = document.getElementById('bioChip');
-  const camControls = document.getElementById('camControls');
+  // ----- UI (Bio chip + camera icon) & per-frame speed multiplier -----
+  const bioChip  = document.getElementById('bioChip');
+  const camBtnEl = document.getElementById('cameraBtn');
 
-  let modeSpeedMult = 1.0;  // applied to each bubble below
+  let modeSpeedMult = 1.0; // applied per bubble below
+
   if (currentMode === 'classic') {
-    modeSpeedMult = CLASSIC_SPEED_SCALE;                 // e.g., 0.75
-    camControls?.classList.add('hiddenCamControls');
+    modeSpeedMult = CLASSIC_SPEED_SCALE; // e.g., 0.75
     bioChip?.classList.add('hiddenChip');
+    if (camBtnEl) camBtnEl.style.display = 'none';
   } else if (currentMode === 'challenge') {
     modeSpeedMult = 1.3;
-    camControls?.classList.add('hiddenCamControls');
     bioChip?.classList.add('hiddenChip');
+    if (camBtnEl) camBtnEl.style.display = 'none';
   } else if (currentMode === 'bio') {
-    camControls?.classList.remove('hiddenCamControls');
     bioChip?.classList.remove('hiddenChip');
+    if (camBtnEl) camBtnEl.style.display = 'inline-flex';
 
-    const emo = dominantEmotion();                       // your tuned function
+    const emo = dominantEmotion(); // uses your tuned thresholds/hysteresis
     bioChip.textContent = emo.toUpperCase();
+
     if (emo === 'happy') {
       bioChip.style.background = 'rgba(120,255,160,.85)';
       modeSpeedMult = 1.3;
     } else if (emo === 'sad') {
       bioChip.style.background = 'rgba(120,160,255,.85)';
-      modeSpeedMult = 0.7;
+      modeSpeedMult = 0.8; // slightly higher than 0.7 to reduce “stuck” feel
     } else if (emo === 'angry') {
-      bioChip.style.background = 'rgba(255,140,140,.85)';// size boost handled in currentRadius()
+      bioChip.style.background = 'rgba(255,140,140,.85)'; // size boost handled in currentRadius()
       modeSpeedMult = 1.0;
     } else {
       bioChip.style.background = 'rgba(255,255,255,.85)';
       modeSpeedMult = 1.0;
     }
-    // keep hamburger visible in Bio
-    document.getElementById('menuBtn').style.display = 'inline-flex';
-  } else {
-    camControls.classList.add('hiddenCamControls');
-    camControls.classList.remove('open');
-    camControls.classList.add('collapsed');
-    // hide hamburger outside Bio
-    document.getElementById('menuBtn').style.display = 'none';
   }
 
   // ----- SAFETY LINE under the top bar -----
-  const sTop = safeTopPx();   // px from top where play area starts (bar bottom + padding)
+  const sTop = safeTopPx(); // px from top where play area starts (bar bottom + padding)
+
+  // Optional speed floor fallback (won’t error if MIN_PLAY_SPEED not defined)
+  const MINF = (typeof MIN_PLAY_SPEED === 'number') ? MIN_PLAY_SPEED : 0.9;
 
   // ----- UPDATE & DRAW BUBBLES -----
   for (let i = 0; i < bubbles.length; i++) {
@@ -425,41 +451,34 @@ function draw() {
     // slight heading jitter so paths aren’t perfectly straight
     b.direction += random(-0.35, 0.35);
 
-    // radius (angry increases size inside currentRadius)
+    // radius (angry increases size via currentRadius)
     const r = currentRadius(b);
 
-    // per-mode speed
+    // per-mode speed (+ floor to avoid sticky grazing)
     if (currentMode === 'classic') {
-      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MIN_PLAY_SPEED);
+      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MINF);
     } else if (currentMode === 'challenge') {
-      b.speed = max(b._baseSpeed * modeSpeedMult, MIN_PLAY_SPEED);
+      b.speed = max(b._baseSpeed * modeSpeedMult, MINF);
     } else if (currentMode === 'bio') {
-      b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MIN_PLAY_SPEED);
+      b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MINF);
     }
 
     // manual clamps/bounces (walls are primary; this is a second safety)
-    // left
-    if (b.x < r) { 
-      b.x = r + 0.5; 
+    if (b.x < r) {
+      b.x = r + 0.5;
       b.direction = 180 - b.direction;
-      b.direction += random(-1.5, 1.5); 
+      b.direction += random(-1.5, 1.5);
     }
-
-    // right
-    if (b.x > width - r) { 
-      b.x = width - r - 0.5; 
+    if (b.x > width - r) {
+      b.x = width - r - 0.5;
       b.direction = 180 - b.direction;
-      b.direction += random(-1.5, 1.5); 
+      b.direction += random(-1.5, 1.5);
     }
-
-    // top
     if (b.y < sTop + r) {
-      b.y = sTop + r + 0.5;              // push just inside the play area
-      b.direction = 360 - b.direction;   // reflect vertical
-      b.direction += random(-1.5, 1.5);  // tiny angular jitter to avoid grazing
+      b.y = sTop + r + 0.5;
+      b.direction = 360 - b.direction;
+      b.direction += random(-1.5, 1.5);
     }
-
-    // bottom
     if (b.y > height - r) {
       b.y = height - r - 0.5;
       b.direction = 360 - b.direction;
@@ -474,21 +493,17 @@ function draw() {
     fill(255, 255, 255, 60);
     circle(b.x - drawD * 0.2, b.y - drawD * 0.2, drawD * 0.4);
 
-    // --- STUCK DETECTOR ---
+    // simple “stuck” detector & kick (safe if not initialized)
+    if (b._stuck == null) b._stuck = 0;
     const approxV = b.speed;
-    if (approxV < 0.15) b._stuck++;
-    else b._stuck = 0;
-
-    if (b._stuck > 18) {  // ~0.3s at 60fps
+    if (approxV < 0.15) b._stuck++; else b._stuck = 0;
+    if (b._stuck > 18) {
       b.direction = random(360);
-      b.speed = max(b._baseSpeed * 1.05, MIN_PLAY_SPEED + 0.2);
-
-      // tiny nudge away from edges so it doesn’t instantly stick again
+      b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
       if (b.y - r <= sTop + 1) b.y = sTop + r + 2;
       else if (b.y + r >= height - 1) b.y = height - r - 2;
       if (b.x - r <= 1) b.x = r + 2;
       else if (b.x + r >= width - 1) b.x = width - r - 2;
-
       b._stuck = 0;
     }
   }
@@ -664,8 +679,13 @@ function wirePreviewToggle() {
   const v = document.getElementById('webcam');
   if (previewToggle && v) {
     previewToggle.onchange = () => {
-      if (previewToggle.checked) v.classList.remove('camHidden');
-      else v.classList.add('camHidden');
+      if (previewToggle.checked) {
+        v.classList.remove('camHidden');
+        v.classList.add('preview');   // NEW
+      } else {
+        v.classList.add('camHidden');
+        v.classList.remove('preview'); // NEW
+      }
     };
   }
 }
@@ -736,7 +756,7 @@ async function startWebcam(isRestart = false) {
       bioTimerId = setInterval(() => {
         if (document.hidden) return;
         if (v.readyState >= 2) sampleBio();
-      }, 2000); // 1000 = every 1 second sampling
+      }, 500); // 500 = every 0.5 second sampling
     }
   };
   v.addEventListener('playing', startSampler, { once: true });
@@ -752,29 +772,31 @@ async function sampleBio() {
   const v = document.getElementById('webcam');
   if (!modelsReady || typeof faceapi === 'undefined' || !v || v.readyState < 2) return;
 
-  // Larger inputSize + low threshold = more robust
-  const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.15 });
-
+  // More robust: larger input and lower threshold for tiny model
   let detections = [];
   try {
+    const tinyOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.08 });
     detections = await faceapi
-      .detectAllFaces(v, opts)
+      .detectAllFaces(v, tinyOpts)
       .withFaceLandmarks()
       .withFaceExpressions();
   } catch (e) {
-    console.warn('detectAllFaces full pipeline error:', e);
-    return;
+    console.warn('tinyFace pipeline error:', e);
   }
 
-  console.log('faces detected:', detections.length);
   if (!detections.length) {
-    // decay toward neutral if no face this tick
-    bioState.happy = ema(bioState.happy || 0, 0, 0.3);
-    bioState.sad   = ema(bioState.sad   || 0, 0, 0.3);
-    bioState.angry = ema(bioState.angry || 0, 0, 0.3);
-    // clear overlay if showing
-    if (overlay) { octx.clearRect(0,0,overlay.width,overlay.height); }
-    return;
+    // Fallback once with SSD Mobilenet if available
+    try {
+      if (!faceapi.nets.ssdMobilenetv1.isLoaded) {
+        await faceapi.nets.ssdMobilenetv1.loadFromUri('./models');
+      }
+      detections = await faceapi
+        .detectAllFaces(v, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.15 }))
+        .withFaceLandmarks()
+        .withFaceExpressions();
+    } catch (e) {
+      console.warn('ssdMobilenet fallback error:', e);
+    }
   }
 
   // choose largest face
