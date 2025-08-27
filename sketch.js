@@ -1,77 +1,106 @@
-// ===== Game constants =====
-const GAME_DURATION = 30;            // seconds
-const START_BUBBLES = 24;
-const MIN_DIAM = 50, MAX_DIAM = 88;  // per your request
-const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
+// Bubble Bio Game — optimized build
+// - Detection runs only in Bio mode
+// - Sampler interval is configurable via BIO_SAMPLE_MS (default 1000ms)
+// - Cleaned up: removed hamburger/collapsed cam controls code
+// - Added JSDoc-style comments for key functions
 
-// Touch + classic tuning
-const TOUCH_HIT_PAD = 12;            // extra px on mobile hit radius
+/* =============================
+ *        Game constants
+ * ============================= */
+const GAME_DURATION = 30;             // seconds
+const START_BUBBLES = 24;
+const MIN_DIAM = 50, MAX_DIAM = 88;   // bubble size range
+const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
+const MIN_PLAY_SPEED = 0.9;           // floor after multipliers
+
+const BIO_SAMPLE_MS = 1000;           // face sampling cadence (ms)
+
+// Bio end-game behavior: 'pause' (sampler only) or 'stop' (sampler + camera)
+const BIO_STOP_STRATEGY = 'pause';
+const BIO_IDLE_STOP_MS = 45000;       // stop camera after idle timeout on Game Over
+let bioIdleStopTO = null;
+
+const TOUCH_HIT_PAD = 12;
 const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-const CLASSIC_SPEED_SCALE = 0.75;    // classic is friendlier on phones
+const CLASSIC_SPEED_SCALE = 0.75;
 const CLASSIC_SPEED_CAP   = 3.0;
 
-// Modes
 let currentMode = 'classic'; // 'classic' | 'challenge' | 'bio'
-const CHALLENGE_TRICK_RATE = 0.22;   // ~22% trick bubbles (-1 score)
+const CHALLENGE_TRICK_RATE = 0.22;
 
-// p5play groups + state
-let bubbles;     // dynamic group
-let walls;       // static edge walls
+let bubbles;               // p5play Group of bubbles
+let walls;                 // boundary walls
+let prevSafeTop = -1;      // last safe top for wall rebuild
 
 let score = 0;
 let startTime = 0;
 let gameOver = false;
 
-// camera UI
-let currentStream = null, deviceId = null, selectedDeviceId = null;
+// Camera state
+let currentStream = null;
+let selectedDeviceId = null;
 
-// Bio state
-let webcam, modelsReady = false, bioTimerId = null;
-let offCanvas = null, offCtx = null;
+// Bio (face-api) state
+let modelsReady = false;
+let bioTimerId = null;
+let overlay, octx;         // overlay canvas for green box
 
-let bioState = {
-  gaze:  { x: 0.5, y: 0.5 },
-  happy: 0,
-  sad:   0,
-  angry: 0
-};
+// Aggregated expression state (smoothed)
+const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, neutral: 1 };
 
-// ===== Emotion thresholds & hysteresis =====
-const EMO = {
-  // show this emotion if its value >= on; keep it until it drops < off
-  HAPPY_ON: 0.28, HAPPY_OFF: 0.22,
-  SAD_ON:   0.24, SAD_OFF:   0.18,
-  ANGRY_ON: 0.26, ANGRY_OFF: 0.20,
-
-  // minimum to consider anything "dominant" at all
-  MIN_DOMINANT: 0.18
-};
-
-// ===== Emotion decision config (INCLUDING NEUTRAL) =====
-// We work on normalized shares over {happy, sad, angry, neutral}
+// Emotion decision thresholds
 const EMO_CFG = {
-  // To switch INTO an emotion, its share must be >= ON and beat #2 by MARGIN
-  ON:           0.40,   // 0.38–0.46 (lower = more sensitive)
-  OFF:          0.33,   // 0.30–0.40 (lower = stickier once chosen)
-  NEUTRAL_ON:   0.58,   // neutral is "dominant" if >= this
-  NEUTRAL_OFF:  0.40,   // must drop below this before leaving neutral
-  MARGIN:       0.05,   // top - second >= margin
-  COOLDOWN_MS:  2200    // min time between switches (helps stability)
+  ON: 0.40, OFF: 0.33, NEUTRAL_ON: 0.58, NEUTRAL_OFF: 0.40, MARGIN: 0.05, COOLDOWN_MS: 2200
 };
-// Raw-force gates (post-EMA): if these are exceeded, allow the emotion even if margin is tight
-const EMO_FORCE = {
-  SAD_RAW:   0.38,   // if smoothed sad ≥ 0.38, let SAD win unless neutral is extremely high
-  HAPPY_RAW: 0.42,
-  ANGRY_RAW: 0.40
-};
-let lastEmotion = 'neutral'; // remember last shown to apply hysteresis
-let lastSwitchMs = 0;
+const EMO_FORCE = { HAPPY_RAW: 0.42, SAD_RAW: 0.38, ANGRY_RAW: 0.40 };
+let lastEmotion = 'neutral', lastSwitchMs = 0;
 
-// Overlay canvas that sits exactly on top of the preview video on screen
-let overlay, octx;
+/* =============================
+ *        UI helpers
+ * ============================= */
 
-function ensureOverlay() {
-  if (!overlay) {
+/** Get viewport width/height with visualViewport support */
+function viewportW(){ return (window.visualViewport ? Math.round(window.visualViewport.width)  : window.innerWidth); }
+function viewportH(){ return (window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight); }
+// ===== Viewport sizing =====
+function fitCanvasToViewport() {
+  const w = viewportW();
+  const h = viewportH();
+  if (width !== w || height !== h) resizeCanvas(w, h);
+  rebuildWallsIfNeeded();
+}
+/** Return the y-px of the safe play area's top (just below the top bar + padding) */
+function safeTopPx(){
+  const bar = document.getElementById('topBar');
+  const pad = 8;
+  return bar ? Math.ceil(bar.getBoundingClientRect().bottom) + pad : 0;
+}
+
+/** Ensure boundary walls match current viewport and top bar height */
+function buildWalls(){
+  if (walls) for (let i = walls.length - 1; i >= 0; i--) walls[i].remove();
+  walls = new Group();
+  walls.collider = 'static';
+  walls.color = color(255,255,255,0);
+
+  const T = 40, sTop = safeTopPx();
+  const wl = new Sprite(-T/2,         height/2, T, height, 'static');
+  const wr = new Sprite(width+T/2,    height/2, T, height, 'static');
+  const wt = new Sprite(width/2,      sTop - T/2, width, T, 'static');
+  const wb = new Sprite(width/2,      height+T/2, width, T, 'static');
+  walls.add(wl); walls.add(wr); walls.add(wt); walls.add(wb);
+  walls.visible = false;
+  prevSafeTop = sTop;
+}
+function rebuildWallsIfNeeded(){
+  const sTop = safeTopPx();
+  const need = !walls || walls.length < 4 || Math.abs(prevSafeTop - sTop) > 1;
+  if (need) buildWalls();
+}
+
+/** Create/position overlay canvas over the on-screen preview video */
+function ensureOverlay(){
+  if (!overlay){
     overlay = document.createElement('canvas');
     overlay.id = '__bioOverlay';
     overlay.style.position = 'fixed';
@@ -80,507 +109,311 @@ function ensureOverlay() {
     document.body.appendChild(overlay);
     octx = overlay.getContext('2d', { willReadFrequently: true });
   }
-  const vid = document.getElementById('webcam');
+  const vid = document.getElementById('webcamPreview');
+  if (!vid) return;
   const rect = vid.getBoundingClientRect();
-  // Match overlay to the *on-screen* preview box
   overlay.style.left = rect.left + 'px';
-  overlay.style.top  = rect.top + 'px';
-  overlay.style.width  = rect.width + 'px';
+  overlay.style.top = rect.top + 'px';
+  overlay.style.width = rect.width + 'px';
   overlay.style.height = rect.height + 'px';
-
-  // Use the video’s native pixels for drawing accuracy
-  overlay.width  = vid.videoWidth  || 640;
+  overlay.width = vid.videoWidth || 640;
   overlay.height = vid.videoHeight || 480;
 }
 
-// ===== Viewport sizing =====
-function viewportW() {
-  return (window.visualViewport ? Math.round(window.visualViewport.width) : window.innerWidth);
-}
-function viewportH() {
-  return (window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight);
-}
-function fitCanvasToViewport() {
-  const w = viewportW();
-  const h = viewportH();
-  if (width !== w || height !== h) resizeCanvas(w, h);
-  rebuildWallsIfNeeded();
+/** Simple EMA smoothing */
+function ema(prev, next, a = 0.75){ return prev == null ? next : (a*next + (1-a)*prev); }
+
+/** Is the UI in Bio mode? */
+function isBioMode(){
+  return (typeof currentMode !== 'undefined' && String(currentMode).toLowerCase() === 'bio');
 }
 
-// ===== Walls (static colliders to keep sprites in-bounds) =====
-function buildWalls() {
-  if (walls) {
-    for (let i = walls.length - 1; i >= 0; i--) walls[i].remove();
-  }
-  walls = new Group();
-  walls.collider = 'static';
-  walls.color = color(255, 255, 255, 0);
-
-  const T = 40; // thickness
-  // left, right, top, bottom
-  const wl = new Sprite(-T/2, height/2, T, height, 'static');
-  const wr = new Sprite(width+T/2, height/2, T, height, 'static');
-  const wt = new Sprite(width/2, -T/2, width, T, 'static');
-  const wb = new Sprite(width/2, height+T/2, width, T, 'static');
-
-  walls.add(wl); walls.add(wr); walls.add(wt); walls.add(wb);
-}
-function rebuildWallsIfNeeded() {
-  if (!walls || walls.length < 4) { buildWalls(); return; }
-  // if size changed notably, rebuild
-  const any = walls[0];
-  if (Math.abs(any.y - height/2) > 2 || Math.abs(any.h - height) > 2) buildWalls();
+/** Update the Bio chip text */
+function setEmotionChip(next){
+  const chip = document.getElementById('bioChip');
+  if (chip) chip.textContent = String(next || 'neutral').toUpperCase();
 }
 
-// ===== Helpers =====
-function ensureOffcanvas(w = 416, h = 416) {
-  if (!offCanvas) {
-    offCanvas = document.createElement('canvas');
-    offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
-  }
-
-  if (offCanvas.width !== w || offCanvas.height !== h) {
-    offCanvas.width = w;
-    offCanvas.height = h;
-  }
-
-  return offCanvas;
-}
-
-// ===== Decision function =====
-function dominantEmotion() {
-  // raw (already EMA-smoothed in sampleBio)
-  const h = Number(bioState.happy  || 0);
-  const s = Number(bioState.sad    || 0);
-  const a = Number(bioState.angry  || 0);
-
-  // neutral: prefer face-api's value if available; else derive as leftover
-  const nRaw = (bioState.neutral != null) ? Number(bioState.neutral) : 0;
-  const n = nRaw > 0 ? nRaw : Math.max(0, 1 - (h + s + a));
-
-  // normalized shares over all four
-  const sum = h + s + a + n + 1e-6;
-  const shares = [
-    { k: 'happy',   v: h / sum },
-    { k: 'sad',     v: s / sum },
-    { k: 'angry',   v: a / sum },
-    { k: 'neutral', v: n / sum }
-  ].sort((x, y) => y.v - x.v);
-
-  const now = (typeof millis === 'function') ? millis() : Date.now();
-  const inCooldown = (now - lastSwitchMs) < EMO_CFG.COOLDOWN_MS;
-  const neutralShare = shares.find(x => x.k === 'neutral').v;
-
-  // --- Hysteresis: hold current state when still above OFF thresholds ---
-  if (lastEmotion === 'neutral') {
-    if (neutralShare >= EMO_CFG.NEUTRAL_OFF) return 'neutral';
-  } else {
-    const curShare = shares.find(x => x.k === lastEmotion)?.v || 0;
-    if (curShare >= EMO_CFG.OFF) return lastEmotion;
-  }
-
-  // --- Strong neutral case ---
-  if (shares[0].k === 'neutral' && shares[0].v >= EMO_CFG.NEUTRAL_ON) {
-    if (!inCooldown || lastEmotion !== 'neutral') {
-      lastEmotion = 'neutral'; lastSwitchMs = now;
-    }
-    return 'neutral';
-  }
-
-  // --- Non-neutral decision with margin & raw punch-through ---
-  // Consider only H/S/A for ranking
-  const hsa = shares.filter(x => x.k !== 'neutral').sort((x,y)=>y.v-x.v);
-  const top = hsa[0], second = hsa[1];
-
-  // Raw-force gates (help break out of neutral when a raw signal is clearly high)
-  if (h >= EMO_FORCE.HAPPY_RAW && (!inCooldown || lastEmotion !== 'happy')) {
-    lastEmotion = 'happy'; lastSwitchMs = now; return 'happy';
-  }
-  if (s >= EMO_FORCE.SAD_RAW && (!inCooldown || lastEmotion !== 'sad')) {
-    lastEmotion = 'sad'; lastSwitchMs = now; return 'sad';
-  }
-  if (a >= EMO_FORCE.ANGRY_RAW && (!inCooldown || lastEmotion !== 'angry')) {
-    lastEmotion = 'angry'; lastSwitchMs = now; return 'angry';
-  }
-
-  // Normal threshold + margin
-  if (top.v >= EMO_CFG.ON && (top.v - second.v) >= EMO_CFG.MARGIN) {
-    if (!inCooldown || lastEmotion !== top.k) {
-      lastEmotion = top.k; lastSwitchMs = now;
-    }
-    return lastEmotion;
-  }
-
-  // Prefer neutral if it’s reasonably high
-  if (neutralShare >= EMO_CFG.NEUTRAL_OFF) {
-    if (!inCooldown || lastEmotion !== 'neutral') {
-      lastEmotion = 'neutral'; lastSwitchMs = now;
-    }
-    return 'neutral';
-  }
-
-  // Otherwise hold prior state on weak/ambiguous signals
-  return lastEmotion;
-}
-
-function currentRadius(b) {
-  const baseD    = (typeof b.diameter  === 'number' && isFinite(b.diameter))  ? b.diameter  : MIN_DIAM;
-  const hitScale = (typeof b._hitScale === 'number' && isFinite(b._hitScale)) ? b._hitScale : 1;
-  const angry    = (currentMode === 'bio') ? Number(bioState?.angry || 0) : 0;
-  const angryScale = 1 + 0.35 * constrain(angry, 0, 1);
-  const d = baseD * hitScale * angryScale;
-  return max(1, d * 0.5);
-}
-
-// ===== p5 lifecycle =====
-function setup() {
+/* =============================
+ *        Setup & Draw
+ * ============================= */
+function setup(){
   createCanvas(viewportW(), viewportH());
   noStroke();
+  world.gravity.y = 0;
 
-  // Modes UI hookup
+  // Mode selector wiring
   const modeSelect = document.getElementById('modeSelect');
-  if (modeSelect) currentMode = modeSelect.value;
-  const newGameBtn = document.getElementById('newGameBtn');
-  if (newGameBtn) {
-    newGameBtn.onclick = () => {
-      if (modeSelect) currentMode = modeSelect.value;
+  if (modeSelect){
+    currentMode = modeSelect.value;
+    modeSelect.onchange = async () => {
+      currentMode = modeSelect.value;
       restart(true);
+      if (isBioMode()){
+        await loadFaceApiModels();
+        await startWebcam(true);
+        startSampler();
+      }else{
+        stopSampler();
+        stopWebcam();
+      }
     };
   }
 
-  // Physics world
-  world.gravity.y = 0;
+  // Camera modal buttons
+  const camBtn = document.getElementById('cameraBtn');
+  const closeBtn = document.getElementById('modalClose');
+  if (camBtn) camBtn.onclick = () => { if (isBioMode()) openCameraModal(); };
+  if (closeBtn) closeBtn.onclick = closeCameraModal;
+  const cameraModal = document.getElementById('cameraModal');
+  if (cameraModal){
+    cameraModal.addEventListener('click', (e) => { if (e.target.id === 'cameraModal') closeCameraModal(); });
+  }
 
+  // Preview checkbox toggles the PREVIEW video
+  (function wirePreviewToggle(){
+    const previewToggle = document.getElementById('showPreview');
+    const vPrev = document.getElementById('webcamPreview');
+    if (previewToggle && vPrev){
+      previewToggle.onchange = () => {
+        if (previewToggle.checked){ vPrev.classList.remove('camHidden'); vPrev.classList.add('preview'); }
+        else { vPrev.classList.add('camHidden'); vPrev.classList.remove('preview'); }
+      };
+    }
+  })();
+
+  // Pointer popping (bulletproof across devices)
+  const cnv = _renderer?.canvas || document.querySelector('canvas');
+  if (cnv){
+    cnv.style.touchAction = 'none';
+    cnv.addEventListener('pointerdown', (e) => {
+      // ignore clicks on top bar
+      const ui = document.getElementById('topBar');
+      const r = ui?.getBoundingClientRect?.();
+      if (r && e.clientY >= r.top && e.clientY <= r.bottom && e.clientX >= r.left && e.clientX <= r.right) return;
+      const rect = cnv.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (width / rect.width);
+      const y = (e.clientY - rect.top)  * (height / rect.height);
+      handlePop(x, y);
+    }, { passive: true });
+  }
+
+  // Build bubbles
   bubbles = new Group();
   bubbles.collider = 'dynamic';
   bubbles.bounciness = 1;
   bubbles.friction = 0;
   bubbles.drag = 0;
-
   for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
 
-  score = 0;
-  startTime = millis();
-  gameOver = false;
-
-  // end-game UI hidden
-  const centerEl = document.getElementById('center');
+  score = 0; startTime = millis(); gameOver = false;
+  document.getElementById('center').style.display = 'none';
   const btn = document.getElementById('restartBtn');
-  if (centerEl) centerEl.style.display = 'none';
-  if (btn) {
-    btn.style.display = 'none';
-    btn.onclick = () => restart(false);
-  }
+  if (btn){ btn.style.display = 'none'; btn.onclick = () => restart(false); }
 
-  // Build edge walls
   buildWalls();
 
-  // Bio models + webcam
-  loadFaceApiModels();
-  startWebcam();
+  if (isBioMode()){
+    loadFaceApiModels();
+    startWebcam();
+    startSampler();
+  }
 
-  // Keep canvas in sync with visible viewport
-  if (window.visualViewport) {
+  // Resize safety
+  if (window.visualViewport){
     visualViewport.addEventListener('resize', fitCanvasToViewport);
     visualViewport.addEventListener('scroll', fitCanvasToViewport);
   }
-  wirePreviewToggle();
-  listCameras();
-  loop();
 
+  // Camera device selector
   const sel = document.getElementById('cameraSelect');
-  if (sel) {
-    sel.onchange = () => {
-      selectedDeviceId = sel.value;  // persist user choice
-      restartWebcam();
-    };
+  if (sel){
+    sel.onchange = () => { selectedDeviceId = sel.value; restartWebcam(); };
   }
-
-  // Watch for cameras being added/removed
-  if (navigator.mediaDevices?.addEventListener) {
+  if (navigator.mediaDevices?.addEventListener){
     navigator.mediaDevices.addEventListener('devicechange', async () => {
       await listCameras();
-      const sel = document.getElementById('cameraSelect');
       if (sel && selectedDeviceId) sel.value = selectedDeviceId;
     });
-  }  
-
+  }
+  listCameras();
 }
 
-function draw() {
+function draw(){
   fitCanvasToViewport();
-  background(200, 230, 255);
+  background(200,230,255);
 
-  // ----- TIMER / HUD -----
-  const timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime) / 1000));
+  const timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
-  document.getElementById('timeChip').textContent = `Time: ${timeLeft}`;
+  document.getElementById('timeChip').textContent  = `Time: ${timeLeft}`;
 
-  // ----- BIO UI + per-frame speed multiplier -----
-  const bioChip = document.getElementById('bioChip');
-  const camControls = document.getElementById('camControls');
-
-  // Default multiplier per mode; computed once per frame
+  const bioChip  = document.getElementById('bioChip');
+  const camBtnEl = document.getElementById('cameraBtn');
   let modeSpeedMult = 1.0;
 
-  if (currentMode === 'classic') {
-    // classic feels calmer on phones; cap will be applied per-bubble
-    modeSpeedMult = CLASSIC_SPEED_SCALE; // e.g., 0.75
-    camControls?.classList.add('hiddenCamControls');
+  if (currentMode === 'classic'){
+    modeSpeedMult = CLASSIC_SPEED_SCALE;
     bioChip?.classList.add('hiddenChip');
-  }
-  else if (currentMode === 'challenge') {
+    if (camBtnEl) camBtnEl.style.display = 'none';
+  }else if (currentMode === 'challenge'){
     modeSpeedMult = 1.3;
-    camControls?.classList.add('hiddenCamControls');
     bioChip?.classList.add('hiddenChip');
-  }
-  else if (currentMode === 'bio') {
-    // show camera controls + bio chip, and style chip by dominant emotion
-    camControls?.classList.remove('hiddenCamControls');
+    if (camBtnEl) camBtnEl.style.display = 'none';
+  }else{
     bioChip?.classList.remove('hiddenChip');
-
-    const emo = dominantEmotion(); // uses your thresholds/hysteresis
+    if (camBtnEl) camBtnEl.style.display = 'inline-flex';
+    const emo = dominantEmotion();
     bioChip.textContent = emo.toUpperCase();
-
-    if (emo === 'happy') {
-      bioChip.style.background = 'rgba(120,255,160,.85)';
-      modeSpeedMult = 1.3;
-    } else if (emo === 'sad') {
-      bioChip.style.background = 'rgba(120,160,255,.85)';
-      modeSpeedMult = 0.7;
-    } else if (emo === 'angry') {
-      // speed unchanged; size boost handled in currentRadius()
-      bioChip.style.background = 'rgba(255,140,140,.85)';
-      modeSpeedMult = 1.0;
-    } else {
-      // neutral
-      bioChip.style.background = 'rgba(255,255,255,.85)';
-      modeSpeedMult = 1.0;
-    }
+    if (emo === 'happy'){ bioChip.style.background = 'rgba(120,255,160,.85)'; modeSpeedMult = 1.3; }
+    else if (emo === 'sad'){ bioChip.style.background = 'rgba(120,160,255,.85)'; modeSpeedMult = 0.8; }
+    else if (emo === 'angry'){ bioChip.style.background = 'rgba(255,140,140,.85)'; modeSpeedMult = 1.0; }
+    else { bioChip.style.background = 'rgba(255,255,255,.85)'; modeSpeedMult = 1.0; }
   }
 
-  // ----- UPDATE & DRAW BUBBLES -----
-  for (let i = 0; i < bubbles.length; i++) {
+  const sTop = safeTopPx();
+  const MINF = MIN_PLAY_SPEED;
+
+  for (let i = 0; i < bubbles.length; i++){
     const b = bubbles[i];
-
-    // slight heading jitter so paths aren’t perfectly straight
     b.direction += random(-0.35, 0.35);
-
-    // compute radius (angry increases size inside currentRadius)
     const r = currentRadius(b);
 
-    // apply per-mode speed once per bubble
-    if (currentMode === 'classic') {
-      b.speed = min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP);
-    } else if (currentMode === 'challenge') {
-      b.speed = b._baseSpeed * modeSpeedMult;
-    } else if (currentMode === 'bio') {
-      // keep movement sane
-      b.speed = b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6);
+    if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MINF);
+    else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult, MINF);
+    else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MINF);
+
+    if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+    if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+    if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+    if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+
+    const d = r * 2;
+    fill(b._type === 'trick' ? color(255,120,120,170) : b._tint);
+    circle(b.x, b.y, d);
+    fill(255,255,255,60);
+    circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+
+    if (b._stuck == null) b._stuck = 0;
+    if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
+    if (b._stuck > 18){
+      b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
+      if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
+      if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
+      b._stuck = 0;
     }
-
-    // secondary manual clamp (walls are primary)
-    if (b.x < r) { b.x = r; b.direction = 180 - b.direction; }
-    if (b.x > width - r) { b.x = width - r; b.direction = 180 - b.direction; }
-    if (b.y < r) { b.y = r; b.direction = 360 - b.direction; }
-    if (b.y > height - r) { b.y = height - r; b.direction = 360 - b.direction; }
-
-    // draw bubble + highlight
-    const drawD = r * 2;
-    if (b._type === 'trick') fill(255, 120, 120, 170);
-    else fill(b._tint);
-    circle(b.x, b.y, drawD);
-    fill(255, 255, 255, 60);
-    circle(b.x - drawD * 0.2, b.y - drawD * 0.2, drawD * 0.4);
   }
 
-  // ----- END GAME -----
   if (!gameOver && timeLeft <= 0) endGame();
 }
 
-// ===== Gameplay =====
-function spawnBubble() {
-  const d = random(MIN_DIAM, MAX_DIAM);
-  const r = d / 2;
-
-  let angle = random(TWO_PI);
-  const HORIZ_EPS = 0.2; // nudge off near-horizontal starts
-  if (abs(sin(angle)) < HORIZ_EPS) angle += PI / 4;
-
+/* =============================
+ *        Gameplay
+ * ============================= */
+function spawnBubble(){
+  const d = random(MIN_DIAM, MAX_DIAM), r = d / 2, sTop = safeTopPx();
+  let angle = random(TWO_PI); if (abs(sin(angle)) < 0.2) angle += PI/4;
   const speed = random(MIN_SPEED, MAX_SPEED);
+  let sx = random(r, width - r), sy = random(max(sTop + r, sTop + 1), height - r);
 
-  // Spawn position (Bio biases toward gaze)
-  let sx, sy;
-  if (currentMode === 'bio') {
-    const biasX = width  * bioState.gaze.x;
-    const biasY = height * bioState.gaze.y;
-    sx = constrain(lerp(random(r, width - r),  biasX, 0.6), r, width - r);
-    sy = constrain(lerp(random(r, height - r), biasY, 0.6), r, height - r);
-  } else {
-    sx = random(r, width - r);
-    sy = random(r, height - r);
+  if (isBioMode()){
+    const biasX = width * bioState.gaze.x, biasY = constrain(height * bioState.gaze.y, sTop + r, height - r);
+    sx = constrain(lerp(random(r, width - r), biasX, 0.6), r, width - r);
+    sy = constrain(lerp(random(sTop + r, height - r), biasY, 0.6), sTop + r, height - r);
   }
 
   const b = new Sprite(sx, sy, d);
-  b.shape = 'circle';
-  b.color = color(255,255,255,0);
-  b.diameter = d;
-  b._tint = color(random(120, 210), random(140, 220), 255, 150);
-
-  b.direction = degrees(angle);
-  b.speed = speed;
-  b._baseSpeed = speed;
-  b.mass = PI * r * r;
-  b.rotationLock = true;
-  b._hitScale = 1;
-
-  // Challenge trick bubbles
-  b._type = (currentMode === 'challenge' && random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
-
-  bubbles.add(b);
-  return b;
+  b.shape = 'circle'; b.color = color(255,255,255,0); b.diameter = d;
+  b._tint = color(random(120,210), random(140,220), 255, 150);
+  b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
+  b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
+  b._type = (currentMode === 'challenge' && random() < 0.22) ? 'trick' : 'normal';
+  bubbles.add(b); return b;
 }
 
-function handlePop(px, py) {
-  if (gameOver) return;
-  for (let i = bubbles.length - 1; i >= 0; i--) {
-    const b = bubbles[i];
-    const r = currentRadius(b);
-    const rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0); // bigger touch hitbox
-    const dx = px - b.x, dy = py - b.y;
-    if (dx * dx + dy * dy <= rHit * rHit) {
-      // score
-      if (b._type === 'trick') score = max(0, score - 1);
-      else score++;
+function currentRadius(b){
+  const baseD = (typeof b.diameter === 'number' && isFinite(b.diameter)) ? b.diameter : MIN_DIAM;
+  const angry = isBioMode() ? Number(bioState.angry || 0) : 0;
+  const d = baseD * (1 + 0.35 * constrain(angry, 0, 1));
+  return max(1, d * 0.5);
+}
 
-      b.remove();
-      spawnBubble();
-      break;
+function handlePop(px, py){
+  if (gameOver) return;
+  for (let i = bubbles.length - 1; i >= 0; i--){
+    const b = bubbles[i], r = currentRadius(b), rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0);
+    const dx = px - b.x, dy = py - b.y;
+    if (dx*dx + dy*dy <= rHit*rHit){
+      score += (b._type === 'trick') ? -1 : 1; if (score < 0) score = 0;
+      b.remove(); spawnBubble(); break;
     }
   }
 }
-
-function mousePressed() { handlePop(mouseX, mouseY); }
-
-function touchStarted() {
-  if (touches && touches.length) {
-    for (const t of touches) handlePop(t.x, t.y);
-  } else {
-    handlePop(mouseX, mouseY);
-  }
-  // no return false; (don’t block buttons)
+function mousePressed(){ handlePop(mouseX, mouseY); }
+function touchStarted(){
+  if (touches && touches.length) for (const t of touches) handlePop(t.x, t.y);
+  else handlePop(mouseX, mouseY);
 }
 
-function endGame() {
-  gameOver = true;
-  noLoop();
-  const centerEl = document.getElementById('center');
-  const btn = document.getElementById('restartBtn');
-  if (centerEl) {
-    centerEl.textContent = `Game Over!\nScore: ${score}`;
-    centerEl.style.display = 'block';
+function endGame(){
+  gameOver = true; noLoop();
+  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
+  if (btn){ btn.style.display = 'block'; }
+  if (isBioMode()){
+    if (BIO_STOP_STRATEGY === 'pause') stopSampler(); else { stopSampler(); stopWebcam(); }
+    clearTimeout(bioIdleStopTO);
+    bioIdleStopTO = setTimeout(() => { if (gameOver && isBioMode()) { stopWebcam(); } }, BIO_IDLE_STOP_MS);
   }
-  if (btn) btn.style.display = 'block';
 }
-
-function restart(fromModeButton) {
+function restart(fromModeButton){
   for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
   for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
-
-  score = 0;
-  startTime = millis();
-  gameOver = false;
-
-  const centerEl = document.getElementById('center');
-  const btn = document.getElementById('restartBtn');
-  if (centerEl) { centerEl.textContent = ''; centerEl.style.display = 'none'; }
-  if (btn) { btn.style.display = 'none'; btn.blur?.(); }
-
-  if (fromModeButton) lastBioSample = 0; // harmless if not defined
-
+  score = 0; startTime = millis(); gameOver = false;
+  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
+  if (btn){ btn.style.display = 'none'; btn.blur?.(); }
+  if (isBioMode()){ clearTimeout(bioIdleStopTO); startSampler(); }
   loop();
 }
+function windowResized(){ const w = viewportW(), h = viewportH(); if (width !== w || height !== h) resizeCanvas(w, h); rebuildWallsIfNeeded(); }
 
-function windowResized() { fitCanvasToViewport(); }
-
-// ===== Bio (face-api.js) =====
-async function loadFaceApiModels() {
-  if (typeof faceapi === 'undefined') { setTimeout(loadFaceApiModels, 300); return; }
+/* =============================
+ *        Bio (face-api.js)
+ * ============================= */
+/**
+ * Load the face-api models from ./models and mark modelsReady on success.
+ * @returns {Promise<boolean>} true on success
+ */
+async function loadFaceApiModels(){
+  if (typeof faceapi === 'undefined'){ setTimeout(loadFaceApiModels, 300); return false; }
   try {
     await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-      faceapi.nets.faceExpressionNet.loadFromUri('./models'),
-      faceapi.nets.faceLandmark68Net.loadFromUri('./models')
-      // add SSD MobileNet fallback:
-      // faceapi.nets.ssdMobilenetv1.loadFromUri('./models')
+      faceapi.nets.tinyFaceDetector.isLoaded  || faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+      faceapi.nets.faceExpressionNet.isLoaded || faceapi.nets.faceExpressionNet.loadFromUri('./models'),
+      faceapi.nets.faceLandmark68Net.isLoaded || faceapi.nets.faceLandmark68Net.loadFromUri('./models')
     ]);
-  } catch (e) {
-    console.warn('Model load error:', e);
-  }
+    modelsReady = true; console.log('[bio] models loaded'); return true;
+  } catch (e) { console.warn('Model load error:', e); return false; }
 }
 
-// Camera functions
-function prettyCamLabel(label, i) {
-  if (!label) return `Camera ${i+1}`;
-  // Strip common trailing IDs like "(0x1234:0xabcd)" or "(Built-in)"
-  // and random hex blobs; tweak as needed for your machines
-  return label
-    .replace(/\s*\((?:VID|PID|USB|[0-9a-f]{4}:[0-9a-f]{4}|[^\)]*)\)\s*$/i, '')
-    .replace(/\s*-\s*[0-9a-f]{4}:[0-9a-f]{4}\s*$/i, '')
-    .trim();
-}
+/**
+ * Start/Restart the webcam and mirror the stream to both the hidden detector
+ * video (#webcam) and the on-screen preview (#webcamPreview).
+ * Starts the sampler when frames become available.
+ * @param {boolean} isRestart
+ * @returns {Promise<boolean>}
+ */
+async function startWebcam(isRestart = false){
+  const v = document.getElementById('webcam');            // detector (offscreen)
+  const vPrev = document.getElementById('webcamPreview'); // preview (optional)
+  if (!navigator.mediaDevices?.getUserMedia){ console.error('[bio] getUserMedia not supported'); return false; }
 
-async function listCameras() {
-  const sel = document.getElementById('cameraSelect');
-  if (!navigator.mediaDevices?.enumerateDevices || !sel) return;
+  // Stop existing media + sampler if restarting or switching devices
+  try {
+    if (isRestart && bioTimerId){ clearInterval(bioTimerId); bioTimerId = null; }
+    if (currentStream?.getTracks) currentStream.getTracks().forEach(t => t.stop());
+  } catch (e) { console.warn('[bio] error stopping previous stream:', e); }
 
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const cams = devices.filter(d => d.kind === 'videoinput');
-  
-  sel.innerHTML = '';
-  cams.forEach((c, i) => {
-    const opt = document.createElement('option');
-    opt.value = c.deviceId || ''; // some browsers hide deviceId until permission
-    opt.textContent = prettyCamLabel(c.label, i);       // show a cleaned label
-    sel.appendChild(opt);
-  });
-  // If user already chose one, keep it; else pick a default
-  if (selectedDeviceId && cams.some(c => c.deviceId === selectedDeviceId)) {
-    sel.value = selectedDeviceId;
-  } else if (cams.length) {
-    // prefer front/integrated if available
-    const front = cams.find(c => /front|user|face|integrated/i.test(c.label));
-    selectedDeviceId = (front?.deviceId) || cams[0].deviceId || '';
-    sel.value = selectedDeviceId;
-  } else {
-    selectedDeviceId = null;
-  }
-}
-
-function wirePreviewToggle() {
-  const previewToggle = document.getElementById('showPreview');
-  const v = document.getElementById('webcam');
-  if (previewToggle && v) {
-    previewToggle.onchange = () => {
-      if (previewToggle.checked) v.classList.remove('camHidden');
-      else v.classList.add('camHidden');
-    };
-  }
-}
-
-function restartWebcam() { startWebcam(true); }
-
-async function startWebcam(isRestart = false) {
-  const v = document.getElementById('webcam');
-
-  // stop old stream cleanly
-  if (isRestart && currentStream) {
-    currentStream.getTracks().forEach(t => t.stop());
-    currentStream = null;
-    v.srcObject = null; // clear element to avoid ghost frame
-  }
-
-  // try the selected device first
   let constraints = {
     video: selectedDeviceId
       ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
@@ -589,125 +422,197 @@ async function startWebcam(isRestart = false) {
   };
 
   let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-  } catch (e) {
-    // fallback if exact deviceId isn't available (OverconstrainedError or NotFoundError)
-    console.warn('getUserMedia (exact device) failed, falling back to facingMode:user', e);
-    constraints = {
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false
-    };
+  try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
+  catch (e){
+    console.warn('[bio] exact device failed, fallback to facingMode:user', e);
+    constraints = { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
     stream = await navigator.mediaDevices.getUserMedia(constraints);
   }
-
   currentStream = stream;
-  v.srcObject = stream;
-  v.playsInline = true;
-  v.muted = true;
 
-  // 🔁 Sync selector to the ACTUAL track device
-  const track = stream.getVideoTracks()[0];
-  const settings = track.getSettings ? track.getSettings() : {};
-  const actualId = settings.deviceId || selectedDeviceId; // Safari may omit
+  if (!v){ console.error('[bio] #webcam element not found'); return false; }
+  v.srcObject = stream; v.playsInline = true; v.muted = true; v.autoplay = true;
+  if (vPrev){ vPrev.srcObject = stream; vPrev.playsInline = true; vPrev.muted = true; vPrev.autoplay = true; }
 
-  const sel = document.getElementById('cameraSelect');
-  if (actualId) {
-    selectedDeviceId = actualId;
-    if (sel) sel.value = actualId;
-  } else if (sel) {
-    // Fallback: match by label text if possible
-    const label = track.label || '';
-    const opt = [...sel.options].find(o => o.text === label);
-    if (opt) {
-      sel.value = opt.value;
-      selectedDeviceId = opt.value;
-    }
+  let played = false;
+  try { await v.play(); played = true; } catch { console.warn('[bio] video.play blocked; will resume on gesture'); }
+
+  const onReady = () => { if (isBioMode()) startSampler(); };
+  v.addEventListener('playing', onReady, { once: true });
+  v.addEventListener('loadeddata', onReady, { once: true });
+  if (v.readyState >= 2) onReady();
+
+  if (!played){
+    const resume = () => { v.play().catch(()=>{}); vPrev?.play?.().catch(()=>{}); onReady();
+      document.removeEventListener('click', resume);
+      document.removeEventListener('touchstart', resume);
+    };
+    document.addEventListener('click', resume, { once: true });
+    document.addEventListener('touchstart', resume, { once: true, passive: true });
   }
 
-  // Re-enumerate AFTER permission so labels populate
   setTimeout(listCameras, 400);
-
-  const startSampler = () => {
-    modelsReady = true;
-    if (!bioTimerId) {
-      bioTimerId = setInterval(() => {
-        if (document.hidden) return;
-        if (v.readyState >= 2) sampleBio();
-      }, 5000);
-    }
-  };
-  v.addEventListener('playing', startSampler, { once: true });
-  v.addEventListener('loadeddata', startSampler, { once: true });
+  console.log('[bio] webcam started');
+  return true;
 }
 
-
-function ema(prev, next, a = 0.75) {
-  return prev == null ? next : (a * next + (1 - a) * prev);
+/** Stop the webcam tracks and detach stream */
+function stopWebcam(){
+  try { if (currentStream?.getTracks) currentStream.getTracks().forEach(t => t.stop()); }
+  catch (e){ console.warn('[bio] error stopping webcam:', e); }
+  currentStream = null;
+  const v = document.getElementById('webcam'); if (v) v.srcObject = null;
+  const vp = document.getElementById('webcamPreview'); if (vp) vp.srcObject = null;
 }
 
-async function sampleBio() {
+/** Start the sampling loop (Bio-only) */
+function startSampler(){
+  if (bioTimerId) return;
+  bioTimerId = setInterval(() => {
+    if (!isBioMode() || document.hidden) return;
+    const v = document.getElementById('webcam');
+    if (v && v.readyState >= 2 && modelsReady) sampleBio();
+  }, BIO_SAMPLE_MS);
+  console.log('[bio] sampler started @' + BIO_SAMPLE_MS);
+}
+
+/** Stop the sampling loop */
+function stopSampler(){
+  if (!bioTimerId) return;
+  clearInterval(bioTimerId); bioTimerId = null;
+  console.log('[bio] sampler stopped');
+}
+
+/**
+ * List cameras into #cameraSelect. After permission, labels will be populated.
+ */
+async function listCameras(){
+  const sel = document.getElementById('cameraSelect');
+  if (!navigator.mediaDevices?.enumerateDevices || !sel) return;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter(d => d.kind === 'videoinput');
+  sel.innerHTML = '';
+  cams.forEach((c, i) => {
+    const opt = document.createElement('option');
+    opt.value = c.deviceId || '';
+    opt.textContent = c.label || `Camera ${i+1}`;
+    sel.appendChild(opt);
+  });
+  if (selectedDeviceId && cams.some(c => c.deviceId === selectedDeviceId)) sel.value = selectedDeviceId;
+  else if (cams.length){ selectedDeviceId = cams[0].deviceId || ''; sel.value = selectedDeviceId; }
+}
+
+/** Restart webcam after camera selection change */
+function restartWebcam(){ startWebcam(true); }
+
+/**
+ * Run one face-api sample: detect faces/expressions, update bioState, draw overlay.
+ * Hard-gated to Bio mode.
+ */
+async function sampleBio(){
+  if (!isBioMode()) return;
   const v = document.getElementById('webcam');
-  if (!modelsReady || typeof faceapi === 'undefined' || !v || v.readyState < 2) return;
-
-  // Larger inputSize + low threshold = more robust
-  const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.15 });
+  if (!v || v.readyState < 2) return;
+  if (!modelsReady) return;
 
   let detections = [];
   try {
-    detections = await faceapi
-      .detectAllFaces(v, opts)
-      .withFaceLandmarks()
-      .withFaceExpressions();
-  } catch (e) {
-    console.warn('detectAllFaces full pipeline error:', e);
+    const tinyOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.08 });
+    detections = await faceapi.detectAllFaces(v, tinyOpts).withFaceLandmarks().withFaceExpressions();
+  } catch (e) { console.warn('[bio] tinyFace error:', e); }
+
+  if (!detections || !detections.length){
+    // Decay toward neutral if no face
+    bioState.happy = ema(bioState.happy, 0, 0.3);
+    bioState.sad   = ema(bioState.sad,   0, 0.3);
+    bioState.angry = ema(bioState.angry, 0, 0.3);
+    bioState.neutral = ema(bioState.neutral, 1, 0.3);
+    if (overlay && octx) octx.clearRect(0,0,overlay.width,overlay.height);
     return;
   }
 
-  console.log('faces detected:', detections.length);
-  if (!detections.length) {
-    // decay toward neutral if no face this tick
-    bioState.happy = ema(bioState.happy || 0, 0, 0.3);
-    bioState.sad   = ema(bioState.sad   || 0, 0, 0.3);
-    bioState.angry = ema(bioState.angry || 0, 0, 0.3);
-    // clear overlay if showing
-    if (overlay) { octx.clearRect(0,0,overlay.width,overlay.height); }
-    return;
+  const facesWithExpr = detections.filter(d => d && d.expressions);
+  if (!facesWithExpr.length){ if (overlay && octx) octx.clearRect(0,0,overlay.width,overlay.height); return; }
+
+  // Average expressions across faces
+  const acc = { happy:0, sad:0, angry:0, neutral:0, disgusted:0, fearful:0, surprised:0 };
+  for (const d of facesWithExpr){
+    const e = d.expressions || {};
+    acc.happy += e.happy || 0; acc.sad += e.sad || 0; acc.angry += e.angry || 0; acc.neutral += e.neutral || 0;
+    acc.disgusted += e.disgusted || 0; acc.fearful += e.fearful || 0; acc.surprised += e.surprised || 0;
   }
+  const n = facesWithExpr.length;
+  Object.keys(acc).forEach(k => acc[k] = acc[k] / n);
 
-  // choose largest face
-  detections.sort((a,b) => (b.detection.box.area - a.detection.box.area));
-  const det = detections[0];
+  // Smooth into bioState
+  bioState.happy = ema(bioState.happy, acc.happy, 0.75);
+  bioState.sad   = ema(bioState.sad,   acc.sad,   0.75);
+  bioState.angry = ema(bioState.angry, acc.angry, 0.75);
+  bioState.neutral = ema(bioState.neutral, acc.neutral, 0.75);
 
-  // --- Draw green box in correct place, accounting for mirror ---
-  if (document.getElementById('webcam').classList.contains('preview')) {
-    ensureOverlay();
-    octx.clearRect(0, 0, overlay.width, overlay.height);
-
-    const box = det.detection.box; // in video pixel coords (not CSS)
-    octx.save();
-    // Mirror horizontally to match preview's scaleX(-1)
-    octx.translate(overlay.width, 0);
-    octx.scale(-1, 1);
-
-    octx.strokeStyle = 'lime';
-    octx.lineWidth = 4;
-    octx.strokeRect(box.x, box.y, box.width, box.height);
-
-    octx.restore();
+  // Draw overlay box on preview if visible
+  const vPrev = document.getElementById('webcamPreview');
+  if (vPrev && vPrev.classList.contains('preview')){
+    try {
+      ensureOverlay();
+      octx.clearRect(0,0,overlay.width,overlay.height);
+      // Choose largest face for box
+      facesWithExpr.sort((a,b)=> (b.detection.box.area - a.detection.box.area));
+      const box = facesWithExpr[0].detection.box;
+      octx.save();
+      octx.translate(overlay.width, 0); octx.scale(-1, 1); // mirror
+      octx.strokeStyle = 'lime'; octx.lineWidth = 4;
+      octx.strokeRect(box.x, box.y, box.width, box.height);
+      octx.restore();
+    } catch (e){ console.warn('[bio] overlay draw error:', e); }
   }
-
-  // --- Expressions (smooth to reduce jitter) ---
-  const ex = det.expressions || {};
-  bioState.happy = ema(bioState.happy || 0, ex.happy || 0, 0.75);
-  bioState.sad   = ema(bioState.sad   || 0, ex.sad   || 0, 0.75);
-  bioState.angry = ema(bioState.angry || 0, ex.angry || 0, 0.75);
-  bioState.neutral = ema(bioState.neutral || 0, ex.neutral || 0, 0.75);
-  
-  console.log('expr:',
-    'happy', bioState.happy.toFixed(2),
-    'sad',   bioState.sad.toFixed(2),
-    'angry', bioState.angry.toFixed(2),
-    'neutral', bioState.neutral.toFixed(2)
-  );
 }
+
+/**
+ * Decide dominant emotion based on smoothed bioState with hysteresis/cooldown.
+ * @returns {'happy'|'sad'|'angry'|'neutral'}
+ */
+function dominantEmotion(){
+  const h = Number(bioState.happy||0), s = Number(bioState.sad||0), a = Number(bioState.angry||0);
+  const nRaw = (bioState.neutral != null) ? Number(bioState.neutral) : 0;
+  const n = nRaw > 0 ? nRaw : Math.max(0, 1 - (h + s + a));
+
+  const sum = h + s + a + n + 1e-6;
+  const shares = [
+    {k:'happy',v:h/sum},{k:'sad',v:s/sum},{k:'angry',v:a/sum},{k:'neutral',v:n/sum}
+  ].sort((x,y)=>y.v-x.v);
+
+  const now = (typeof millis === 'function') ? millis() : Date.now();
+  const inCooldown = (now - lastSwitchMs) < EMO_CFG.COOLDOWN_MS;
+  const neutralShare = shares.find(x=>x.k==='neutral').v;
+
+  if (lastEmotion === 'neutral'){ if (neutralShare >= EMO_CFG.NEUTRAL_OFF) return 'neutral'; }
+  else { const curShare = shares.find(x=>x.k===lastEmotion)?.v || 0; if (curShare >= EMO_CFG.OFF) return lastEmotion; }
+
+  if (shares[0].k === 'neutral' && shares[0].v >= EMO_CFG.NEUTRAL_ON){
+    if (!inCooldown || lastEmotion!=='neutral'){ lastEmotion='neutral'; lastSwitchMs=now; }
+    return 'neutral';
+  }
+
+  const hsa = shares.filter(x=>x.k!=='neutral').sort((x,y)=>y.v-x.v);
+  const top=hsa[0], second=hsa[1];
+  if (h >= EMO_FORCE.HAPPY_RAW && (!inCooldown || lastEmotion!=='happy')){ lastEmotion='happy'; lastSwitchMs=now; return 'happy'; }
+  if (s >= EMO_FORCE.SAD_RAW   && (!inCooldown || lastEmotion!=='sad'))  { lastEmotion='sad';   lastSwitchMs=now; return 'sad'; }
+  if (a >= EMO_FORCE.ANGRY_RAW && (!inCooldown || lastEmotion!=='angry')){ lastEmotion='angry'; lastSwitchMs=now; return 'angry'; }
+
+  if (top.v >= EMO_CFG.ON && (top.v - second.v) >= EMO_CFG.MARGIN){
+    if (!inCooldown || lastEmotion!==top.k){ lastEmotion=top.k; lastSwitchMs=now; }
+    return lastEmotion;
+  }
+  if (neutralShare >= EMO_CFG.NEUTRAL_OFF){
+    if (!inCooldown || lastEmotion!=='neutral'){ lastEmotion='neutral'; lastSwitchMs=now; }
+    return 'neutral';
+  }
+  return lastEmotion;
+}
+
+/* =============================
+ *        Modal helpers
+ * ============================= */
+function openCameraModal(){ document.getElementById('cameraModal')?.classList.remove('hidden'); }
+function closeCameraModal(){ document.getElementById('cameraModal')?.classList.add('hidden'); }
