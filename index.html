@@ -45,8 +45,13 @@
     <!-- Center: Bio indicator (only shown in Bio) -->
     <span class="chip" id="bioChip">NEUTRAL</span>
 
+    <!-- Hamburger button -->
+    <button id="menuBtn" aria-label="Camera menu" class="hamburger" type="button">
+      <span></span><span></span><span></span>
+    </button>
+
     <!-- Middle-right: Camera controls + (optional) preview -->
-    <div id="camControls">
+    <div id="camControls" class="collapsed">
       <label for="cameraSelect" class="srOnly">Camera</label>
       <select id="cameraSelect" title="Camera"></select>
       <label class="previewToggle">

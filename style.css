@@ -74,6 +74,17 @@ button.secondary:active { transform: translateY(1px); } */
   pointer-events: none;
 }
 
+/* Hamburger button (mobile-size tap target) */
+.hamburger {
+  width: 44px; height: 44px; border: 0; border-radius: 10px;
+  background: rgba(255,255,255,.9); box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0; margin-right: 6px;
+}
+.hamburger span {
+  display: block; width: 20px; height: 2px; background: #222; margin: 2px 0;
+}
+
 /* Middle-right: camera controls + preview */
 #camControls {
   display: inline-flex;
@@ -82,6 +93,10 @@ button.secondary:active { transform: translateY(1px); } */
   justify-self: center;
   min-width: 210px;          /* keeps layout stable even when preview hidden */
 }
+/* Cam controls collapsed/expanded */
+#camControls.collapsed { display: none !important; }
+#camControls.open { display: inline-flex !important; align-items: center; gap: 8px; }
+
 #camControls.hiddenCamControls {
   display: none !important;
 }

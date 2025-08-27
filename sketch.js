@@ -3,6 +3,7 @@ const GAME_DURATION = 30;            // seconds
 const START_BUBBLES = 24;
 const MIN_DIAM = 50, MAX_DIAM = 88;  // per your request
 const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
+const MIN_PLAY_SPEED = 0.9;   // floor after multipliers (tweak 0.8–1.0)
 
 // Touch + classic tuning
 const TOUCH_HIT_PAD = 12;            // extra px on mobile hit radius
@@ -17,7 +18,8 @@ const CHALLENGE_TRICK_RATE = 0.22;   // ~22% trick bubbles (-1 score)
 // p5play groups + state
 let bubbles;     // dynamic group
 let walls;       // static edge walls
-let _lastSafeTop = 0; // helper var for func safeTopRx()
+let _lastSafeTop = 0;   // cached px of the safe play area's top
+let prevSafeTop  = -1;  // for detecting changes (orientation, UI changes)
 
 let score = 0;
 let startTime = 0;
@@ -111,13 +113,14 @@ function fitCanvasToViewport() {
 // ===== Walls (static colliders to keep sprites in-bounds) =====
 function safeTopPx() {
   const bar = document.getElementById('topBar');
-  // +8px padding so bubbles don’t “kiss” the bar
-  const y = bar ? Math.ceil(bar.getBoundingClientRect().bottom) + 8 : 0;
+  const pad = 8;  // +8px padding so bubbles don’t “kiss” the bar
+  const y = bar ? Math.ceil(bar.getBoundingClientRect().bottom) + pad : 0;
   _lastSafeTop = y;
   return y;
 }
 
 function buildWalls() {
+  // remove old walls
   if (walls) {
     for (let i = walls.length - 1; i >= 0; i--) walls[i].remove();
   }
@@ -125,25 +128,33 @@ function buildWalls() {
   walls.collider = 'static';
   walls.color = color(255, 255, 255, 0);
 
-  const T = 40; // thickness
-  const sTop = safeTopPx();
-  // left, right, top, bottom
-  new Sprite(-T/2, height/2, T, height, 'static');         // left
-  new Sprite(width+T/2, height/2, T, height, 'static');    // right
-  new Sprite(width/2, sTop - T/2, width, T, 'static');     // top at safe line
-  new Sprite(width/2, height+T/2, width, T, 'static');     // bottom
+  const T = 40;                 // wall thickness
+  const sTop = safeTopPx();     // safe top edge under the top bar
 
-  // add to group
-  for (const s of allSprites) if (s.collider === 'static') walls.add(s);
+  // left, right, top (at safe line), bottom
+  const wl = new Sprite(-T/2, height/2, T, height, 'static');
+  const wr = new Sprite(width+T/2, height/2, T, height, 'static');
+  const wt = new Sprite(width/2, sTop - T/2, width, T, 'static'); // top wall moved down
+  const wb = new Sprite(width/2, height+T/2, width, T, 'static');
+
+  walls.add(wl); 
+  walls.add(wr); 
+  walls.add(wt); 
+  walls.add(wb);
+  walls.visible = false;
+
+  prevSafeTop = sTop; // remember where we built it
 }
 
 function rebuildWallsIfNeeded() {
   const sTop = safeTopPx();
-  // If canvas size or safeTop changed, rebuild
-  const needs = !walls || walls.length < 4 ||
-                abs(walls[2].y - (sTop - 20)) > 1 || // ‘top’ wall index / position check
-                abs(walls[0].h - height) > 1 || abs(walls[1].h - height) > 1;
-  if (needs) buildWalls();
+  const needBuild =
+    !walls || walls.length < 4 ||
+    Math.abs(prevSafeTop - sTop) > 1 ||          // top bar height changed / orientation
+    Math.abs(walls[1].x - (width + 20)) > 1 ||   // right wall no longer aligned
+    Math.abs(walls[3].y - (height + 20)) > 1;    // bottom wall no longer aligned
+
+  if (needBuild) buildWalls();
 }
 
 // ===== Helpers =====
@@ -159,6 +170,29 @@ function ensureOffcanvas(w = 416, h = 416) {
   }
 
   return offCanvas;
+}
+
+function wireHamburger() {
+  const btn = document.getElementById('menuBtn');
+  const cam = document.getElementById('camControls');
+  if (!btn || !cam) return;
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    // toggle only if in Bio mode
+    if (currentMode !== 'bio') return;
+    cam.classList.toggle('open');
+    cam.classList.toggle('collapsed');
+  };
+
+  // optional: click outside closes the panel
+  document.addEventListener('click', (ev) => {
+    if (!cam.classList.contains('open')) return;
+    if (!cam.contains(ev.target) && ev.target !== btn) {
+      cam.classList.remove('open');
+      cam.classList.add('collapsed');
+    }
+  });
 }
 
 // ===== Decision function =====
@@ -308,6 +342,7 @@ function setup() {
   wirePreviewToggle();
   listCameras();
   loop();
+  wireHamburger();
 
   const sel = document.getElementById('cameraSelect');
   if (sel) {
@@ -329,6 +364,7 @@ function setup() {
 }
 
 function draw() {
+  // Keep canvas + walls sized to the visible viewport
   fitCanvasToViewport();
   background(200, 230, 255);
 
@@ -337,32 +373,25 @@ function draw() {
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
   document.getElementById('timeChip').textContent = `Time: ${timeLeft}`;
 
-  // ----- BIO UI + per-frame speed multiplier -----
+  // ----- UI (Bio chip + camera controls) & per-frame speed multiplier -----
   const bioChip = document.getElementById('bioChip');
   const camControls = document.getElementById('camControls');
 
-  // Default multiplier per mode; computed once per frame
-  let modeSpeedMult = 1.0;
-
+  let modeSpeedMult = 1.0;  // applied to each bubble below
   if (currentMode === 'classic') {
-    // classic feels calmer on phones; cap will be applied per-bubble
-    modeSpeedMult = CLASSIC_SPEED_SCALE; // e.g., 0.75
+    modeSpeedMult = CLASSIC_SPEED_SCALE;                 // e.g., 0.75
     camControls?.classList.add('hiddenCamControls');
     bioChip?.classList.add('hiddenChip');
-  }
-  else if (currentMode === 'challenge') {
+  } else if (currentMode === 'challenge') {
     modeSpeedMult = 1.3;
     camControls?.classList.add('hiddenCamControls');
     bioChip?.classList.add('hiddenChip');
-  }
-  else if (currentMode === 'bio') {
-    // show camera controls + bio chip, and style chip by dominant emotion
+  } else if (currentMode === 'bio') {
     camControls?.classList.remove('hiddenCamControls');
     bioChip?.classList.remove('hiddenChip');
 
-    const emo = dominantEmotion(); // uses your thresholds/hysteresis
+    const emo = dominantEmotion();                       // your tuned function
     bioChip.textContent = emo.toUpperCase();
-
     if (emo === 'happy') {
       bioChip.style.background = 'rgba(120,255,160,.85)';
       modeSpeedMult = 1.3;
@@ -370,15 +399,24 @@ function draw() {
       bioChip.style.background = 'rgba(120,160,255,.85)';
       modeSpeedMult = 0.7;
     } else if (emo === 'angry') {
-      // speed unchanged; size boost handled in currentRadius()
-      bioChip.style.background = 'rgba(255,140,140,.85)';
+      bioChip.style.background = 'rgba(255,140,140,.85)';// size boost handled in currentRadius()
       modeSpeedMult = 1.0;
     } else {
-      // neutral
       bioChip.style.background = 'rgba(255,255,255,.85)';
       modeSpeedMult = 1.0;
     }
+    // keep hamburger visible in Bio
+    document.getElementById('menuBtn').style.display = 'inline-flex';
+  } else {
+    camControls.classList.add('hiddenCamControls');
+    camControls.classList.remove('open');
+    camControls.classList.add('collapsed');
+    // hide hamburger outside Bio
+    document.getElementById('menuBtn').style.display = 'none';
   }
+
+  // ----- SAFETY LINE under the top bar -----
+  const sTop = safeTopPx();   // px from top where play area starts (bar bottom + padding)
 
   // ----- UPDATE & DRAW BUBBLES -----
   for (let i = 0; i < bubbles.length; i++) {
@@ -387,33 +425,72 @@ function draw() {
     // slight heading jitter so paths aren’t perfectly straight
     b.direction += random(-0.35, 0.35);
 
-    // compute radius (angry increases size inside currentRadius)
+    // radius (angry increases size inside currentRadius)
     const r = currentRadius(b);
 
-    // apply per-mode speed once per bubble
+    // per-mode speed
     if (currentMode === 'classic') {
-      b.speed = min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP);
+      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MIN_PLAY_SPEED);
     } else if (currentMode === 'challenge') {
-      b.speed = b._baseSpeed * modeSpeedMult;
+      b.speed = max(b._baseSpeed * modeSpeedMult, MIN_PLAY_SPEED);
     } else if (currentMode === 'bio') {
-      // keep movement sane
-      b.speed = b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6);
+      b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MIN_PLAY_SPEED);
     }
 
-    // secondary manual clamp (walls are primary)
-    const sTop = safeTopPx();
-    if (b.x < r) { b.x = r; b.direction = 180 - b.direction; }
-    if (b.y < sTop + r) { b.y = sTop + r; b.direction = 360 - b.direction; }
-    if (b.y < r) { b.y = r; b.direction = 360 - b.direction; }
-    if (b.y > height - r) { b.y = height - r; b.direction = 360 - b.direction; }
+    // manual clamps/bounces (walls are primary; this is a second safety)
+    // left
+    if (b.x < r) { 
+      b.x = r + 0.5; 
+      b.direction = 180 - b.direction;
+      b.direction += random(-1.5, 1.5); 
+    }
 
-    // draw bubble + highlight
+    // right
+    if (b.x > width - r) { 
+      b.x = width - r - 0.5; 
+      b.direction = 180 - b.direction;
+      b.direction += random(-1.5, 1.5); 
+    }
+
+    // top
+    if (b.y < sTop + r) {
+      b.y = sTop + r + 0.5;              // push just inside the play area
+      b.direction = 360 - b.direction;   // reflect vertical
+      b.direction += random(-1.5, 1.5);  // tiny angular jitter to avoid grazing
+    }
+
+    // bottom
+    if (b.y > height - r) {
+      b.y = height - r - 0.5;
+      b.direction = 360 - b.direction;
+      b.direction += random(-1.5, 1.5);
+    }
+
+    // draw
     const drawD = r * 2;
     if (b._type === 'trick') fill(255, 120, 120, 170);
     else fill(b._tint);
     circle(b.x, b.y, drawD);
     fill(255, 255, 255, 60);
     circle(b.x - drawD * 0.2, b.y - drawD * 0.2, drawD * 0.4);
+
+    // --- STUCK DETECTOR ---
+    const approxV = b.speed;
+    if (approxV < 0.15) b._stuck++;
+    else b._stuck = 0;
+
+    if (b._stuck > 18) {  // ~0.3s at 60fps
+      b.direction = random(360);
+      b.speed = max(b._baseSpeed * 1.05, MIN_PLAY_SPEED + 0.2);
+
+      // tiny nudge away from edges so it doesn’t instantly stick again
+      if (b.y - r <= sTop + 1) b.y = sTop + r + 2;
+      else if (b.y + r >= height - 1) b.y = height - r - 2;
+      if (b.x - r <= 1) b.x = r + 2;
+      else if (b.x + r >= width - 1) b.x = width - r - 2;
+
+      b._stuck = 0;
+    }
   }
 
   // ----- END GAME -----
@@ -426,22 +503,22 @@ function spawnBubble() {
   const r = d / 2;
   const sTop = safeTopPx();
 
+  // random 360° heading, nudge off near-perfect horizontals
   let angle = random(TWO_PI);
-  const HORIZ_EPS = 0.2; // nudge off near-horizontal starts
-  if (abs(sin(angle)) < HORIZ_EPS) angle += PI / 4;
+  if (abs(sin(angle)) < 0.2) angle += PI / 4;
 
   const speed = random(MIN_SPEED, MAX_SPEED);
 
-  // Spawn position (Bio biases toward gaze)
-  let sx, sy;
+  // Spawn position — always below the safe top line
+  let sx = random(r, width - r);
+  let sy = random(max(sTop + r, sTop + 1), height - r);
+
   if (currentMode === 'bio') {
+    // bias spawns toward gaze but still constrain to safe area
     const biasX = width  * bioState.gaze.x;
     const biasY = constrain(height * bioState.gaze.y, sTop + r, height - r);
     sx = constrain(lerp(random(r, width - r),  biasX, 0.6), r, width - r);
     sy = constrain(lerp(random(sTop + r, height - r), biasY, 0.6), sTop + r, height - r);
-  } else {
-    sx = random(r, width - r);
-    sy = random(max(sTop + r, sTop + 1), height - r);
   }
 
   const b = new Sprite(sx, sy, d);
@@ -456,13 +533,15 @@ function spawnBubble() {
   b.mass = PI * r * r;
   b.rotationLock = true;
   b._hitScale = 1;
+  b._stuck = 0;   // counter for stuck frames
 
-  // Challenge trick bubbles
+  // keep your challenge/trick logic
   b._type = (currentMode === 'challenge' && random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
 
   bubbles.add(b);
   return b;
 }
+
 
 function handlePop(px, py) {
   if (gameOver) return;
@@ -657,7 +736,7 @@ async function startWebcam(isRestart = false) {
       bioTimerId = setInterval(() => {
         if (document.hidden) return;
         if (v.readyState >= 2) sampleBio();
-      }, 5000);
+      }, 2000); // 1000 = every 1 second sampling
     }
   };
   v.addEventListener('playing', startSampler, { once: true });
