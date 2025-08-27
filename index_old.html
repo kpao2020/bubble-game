@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bubble Bio Game</title>
 
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style_old.css" />
 
-  <!-- Libraries (deferred so they don't block parsing) -->
+  <!-- Libraries (load early but don't block parsing) -->
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/p5.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/addons/p5.sound.min.js" defer></script>
   <script src="https://p5play.org/v3/planck.min.js" defer></script>
@@ -15,12 +15,19 @@
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
 
   <!-- Your game code -->
-  <script src="sketch.js" defer></script>
+  <script src="sketch_old.js" defer></script>
 
   <!-- Quiet the favicon 404 in dev -->
   <link rel="icon" href="data:,">
 </head>
 <body>
+
+  <!-- Debug camera tools -->
+  <!-- <div id="camTools" style="position:fixed; left:16px; bottom:16px; z-index:9999; background:rgba(255,255,255,.9); padding:8px 10px; border-radius:10px; font:14px system-ui;">
+    <label>Camera:</label>
+    <select id="cameraSelect"></select>
+    <label style="margin-left:8px;"><input type="checkbox" id="showPreview"> Preview</label>
+  </div> -->
 
   <!-- ===== Unified Top Bar ===== -->
   <div id="topBar">
@@ -34,11 +41,12 @@
       </select>
     </div>
 
-    <!-- Center: Bio indicator -->
+    <!-- Center: Bio indicator (emoji-like text) -->
     <span class="chip" id="bioChip">NEUTRAL</span>
 
     <!-- Middle-right: Camera icon (Bio mode only) -->
     <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
+      <!-- simple camera glyph -->
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
         <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
       </svg>
@@ -58,7 +66,9 @@
     <div class="modalContent">
       <div class="modalHeader">
         <h3>Camera</h3>
-        <button id="modalClose" class="iconBtn small" aria-label="Close">✕</button>
+        <button id="modalClose" class="iconBtn small" aria-label="Close">
+          ✕
+        </button>
       </div>
 
       <div class="modalRow">
@@ -82,6 +92,7 @@
   <div id="center" class="centerMsg" style="display:none;"></div>
   <button id="restartBtn" class="primary" style="display:none;">Play Again</button>
 
+  
   <!-- Offscreen detector video (always rendering) -->
   <video id="webcam" autoplay muted playsinline class="hiddenVideo"></video>
 
