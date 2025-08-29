@@ -1,5 +1,7 @@
-// Bubble Bio Game — optimized build
-// - Detection runs only in Bio mode
+// Bubble Bio Game — v3.2
+// Owner: Ken Pao
+// Note: Coding with ChatGPT assistance
+// - Camera Facial Detection runs only in Bio mode
 // - Sampler interval is configurable via BIO_SAMPLE_MS (default 1000ms)
 // - Cleaned up: removed hamburger/collapsed cam controls code
 // - Added JSDoc-style comments for key functions
