@@ -242,6 +242,7 @@ function setup(){
 }
 
 function draw(){
+  if (window.__splashActive) return;
   fitCanvasToViewport();
   background(200,230,255);
 
@@ -618,3 +619,56 @@ function dominantEmotion(){
  * ============================= */
 function openCameraModal(){ document.getElementById('cameraModal')?.classList.remove('hidden'); }
 function closeCameraModal(){ document.getElementById('cameraModal')?.classList.add('hidden'); }
+
+// ===== Splash Controller =====
+(function initSplash() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+
+  // If you want the game to be paused until dismiss, you can set a flag:
+  // window.__splashActive = true;
+
+  // Helper to end the splash with fade-out
+  function dismissSplash() {
+    if (!splash.classList.contains('is-visible')) return;
+
+    splash.classList.add('is-fading-out');
+
+    // Give the CSS transition time to finish
+    setTimeout(() => {
+      splash.classList.remove('is-visible', 'is-fading-out');
+
+      // If you paused anything, unpause here
+      // window.__splashActive = false;
+
+      // Hook for your game: start music later, restart level, etc.
+      if (typeof window.onSplashDismiss === 'function') {
+        try { window.onSplashDismiss(); } catch (e) { console.warn(e); }
+      }
+    }, 420);
+  }
+
+  // Make it visible on load (CSS handles fade-in)
+  requestAnimationFrame(() => splash.classList.add('is-visible'));
+
+  // Interactions: click/tap or keys (Enter/Space)
+  const startEvents = ['click', 'touchend'];
+  startEvents.forEach(evt => splash.addEventListener(evt, dismissSplash, { passive: true }));
+  window.addEventListener('keydown', (e) => {
+    const k = e.key?.toLowerCase();
+    if (k === 'enter' || k === ' ') dismissSplash();
+  });
+
+  // Optional: if you want to auto-dismiss after N seconds (and still allow “Tap”),
+  // uncomment:
+  // setTimeout(dismissSplash, 5000);
+
+  // Future: if you want to play a sound on dismiss later, just add:
+  // if (window.sounds?.uiConfirm) window.sounds.uiConfirm.play();
+})();
+
+window.__splashActive = true;
+window.onSplashDismiss = function () {
+  if (typeof restart === 'function') restart(false); // resets timer/score, then runs
+  window.__splashActive = false;
+};

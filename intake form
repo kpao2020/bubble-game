@@ -1,0 +1,87 @@
+need to narrow down the target audience
+
+see miro for details
+
+fresh undergrad
+
+grad student with heavy load
+
+emotional state before and after
+probably 3 to 5 questions
+do some research / similar projects by others, how they ask
+
+want to discover a lot of details
+like, if u keep the happy face / sad face, u have to test it
+
+put a screen / disclaimer using your face expression
+
+why popping bubble will release / reduce stress
+do some sciense / research to support
+then use this study to prove if work or not
+
+why pick this popping bubble game instead of other game
+
+if happy, do u want more bubble or less bubble
+if sad, do you want more bubble or less bubble
+
+what are the important insights
+
+build user journey
+
+this group need this in order to reduce stress
+
+do some user research
+
+what are the big design principle
+
+1 form to recruit
+
+1 form for interview
+
+
+profile test
+curl -X POST 'https://script.google.com/macros/s/AKfycbx19cC7Le5MumQrAzDPdQlRvG8Mda-BGewQ-zLGs9lwarRbqKaR6_TqUctla9frCQSdVg/exec' \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"setUsername","deviceId":"dev-local-test","username":"BubbleTester123"}'
+
+
+run test
+curl -X POST 'https://script.google.com/macros/s/AKfycbx19cC7Le5MumQrAzDPdQlRvG8Mda-BGewQ-zLGs9lwarRbqKaR6_TqUctla9frCQSdVg/exec' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action":"run",
+    "deviceId":"dev-local-test",
+    "username":"BubbleTester",
+    "mode":"classic",
+    "score":123,
+    "durationMs":30000,
+    "bubblesPopped":12,
+    "accuracy":75,
+    "sessionId":"session-abc",
+    "runId":"run-abc",
+    "gameVersion":"1.0.0"
+  }'
+
+curl -L -X POST 'https://script.google.com/macros/s/AKfycbx19cC7Le5MumQrAzDPdQlRvG8Mda-BGewQ-zLGs9lwarRbqKaR6_TqUctla9frCQSdVg/exec' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action":"run",
+    "deviceId":"dev-local-test",
+    "username":"BubbleTester",
+    "mode":"classic",
+    "score":123,
+    "durationMs":30000,
+    "bubblesPopped":12,
+    "accuracy":75,
+    "sessionId":"session-abc",
+    "runId":"run-abc",
+    "gameVersion":"1.0.0"
+  }'
+
+top score
+https://script.google.com/macros/s/AKfycbx19cC7Le5MumQrAzDPdQlRvG8Mda-BGewQ-zLGs9lwarRbqKaR6_TqUctla9frCQSdVg/exec?action=top&n=3
+
+new version test
+https://script.google.com/macros/s/AKfycbx19cC7Le5MumQrAzDPdQlRvG8Mda-BGewQ-zLGs9lwarRbqKaR6_TqUctla9frCQSdVg/exec
+
+https://script.google.com/macros/s/AKfycbx19cC7Le5MumQrAzDPdQlRvG8Mda-BGewQ-zLGs9lwarRbqKaR6_TqUctla9frCQSdVg/exec?action=checkUsername&username=BubbleTester

@@ -115,3 +115,64 @@ html, body {
   #modeBar.compact select { max-width: 96px; }
   .modalPreview { width: 180px; }
 }
+
+/* ===== Splash Screen ===== */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  /* Simple gradient background */
+  background: linear-gradient(160deg, #9ad4ff 0%, #b8e1ff 40%, #eef7ff 100%);
+  /* Start hidden, then use classes to animate */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+/* Reduce-motion friendly */
+@media (prefers-reduced-motion: reduce) {
+  #splash { transition: none; }
+}
+
+#splash.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#splash.is-fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-inner {
+  text-align: center;
+  padding: 2rem 2.5rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  backdrop-filter: blur(6px);
+}
+
+.splash-title {
+  margin: 0 0 0.4rem 0;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  color: #0c2a43;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.splash-subtitle {
+  margin: 0;
+  font-size: clamp(1rem, 3.2vw, 1.25rem);
+  color: #1a4366;
+  opacity: 0.9;
+}
+
+/* Make sure this sits above your top bar or other fixed UI */
+.top-bar, header, nav {
+  position: relative; /* keep your existing rules; this is defensive */
+  z-index: 10;
+}
