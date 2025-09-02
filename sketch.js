@@ -58,6 +58,40 @@ const EMO_FORCE = { HAPPY_RAW: 0.42, SAD_RAW: 0.38, ANGRY_RAW: 0.40 };
 let lastEmotion = 'neutral', lastSwitchMs = 0;
 
 /* =============================
+ *        Backend config
+ * ============================= */
+// Single place to configure your Google Apps Script (prefer a proxy/worker URL that handles CORS + SECRET)
+const GOOGLE_SCRIPT_URL = "https://bubble-game-proxy.xoakuma.workers.dev/";
+// If (and only if) you POST directly to Apps Script with SECRET enforced, you can append it here.
+// Recommended: leave empty and let your proxy add the secret server-side.
+const GOOGLE_SCRIPT_POST_SUFFIX = "";
+
+/* =============================
+ *        Identity & storage
+ * ============================= */
+const STORAGE_KEYS = { deviceId: 'bbg_device_id', username: 'bbg_username', bioConsent: 'bbg_bio_consent'};
+let playerDeviceId = null;
+let playerUsername = null;
+window.__playerReady = false; // gate the draw loop & inputs until username exists
+
+function getOrCreateDeviceId() {
+  try {
+    let id = localStorage.getItem(STORAGE_KEYS.deviceId);
+    if (!id) {
+      id = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(STORAGE_KEYS.deviceId, id);
+    }
+    return id;
+  } catch {
+    return (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
+
+/* =============================
  *        UI helpers
  * ============================= */
 
@@ -69,7 +103,8 @@ function fitCanvasToViewport() {
   const w = viewportW();
   const h = viewportH();
   if (width !== w || height !== h) resizeCanvas(w, h);
-  rebuildWallsIfNeeded();
+  // Only rebuild walls after login so mobile keyboards/resize during login don't touch physics
+  if (window.__playerReady) rebuildWallsIfNeeded();
 }
 /** Return the y-px of the safe play area's top (just below the top bar + padding) */
 function safeTopPx(){
@@ -136,10 +171,109 @@ function setEmotionChip(next){
   if (chip) chip.textContent = String(next || 'neutral').toUpperCase();
 }
 
+function hasBioConsent(){
+  try { return localStorage.getItem(STORAGE_KEYS.bioConsent) === 'accepted'; }
+  catch { return false; }
+}
+function acceptBioConsent(){
+  try { localStorage.setItem(STORAGE_KEYS.bioConsent, 'accepted'); } catch {}
+}
+
+function showBioConsentModal(onAccept, onDecline){
+  const m = document.getElementById('bioConsentModal');
+  const yes = document.getElementById('bioConsentAgreeBtn');
+  const no  = document.getElementById('bioConsentDeclineBtn');
+  if (!m || !yes || !no){ onAccept && onAccept(); return; }
+
+  m.classList.remove('hidden');
+  yes.onclick = () => { acceptBioConsent(); m.classList.add('hidden'); onAccept && onAccept(); };
+  no.onclick  = () => { m.classList.add('hidden'); onDecline && onDecline(); };
+}
+
+function showModePicker(){
+  const m = document.getElementById('modeModal');
+  const bC = document.getElementById('modeClassicBtn');
+  const bH = document.getElementById('modeChallengeBtn');
+  const bB = document.getElementById('modeBioBtn');
+  if (!m || !bC || !bH || !bB){ currentMode = 'classic'; afterModeSelected(false); return; }
+
+  const hide = () => m.classList.add('hidden');
+  m.classList.remove('hidden');
+
+  bC.onclick = () => { currentMode = 'classic'; hide(); afterModeSelected(false); };
+  bH.onclick = () => { currentMode = 'challenge'; hide(); afterModeSelected(false); };
+  bB.onclick = () => {
+    const proceedBio = () => { currentMode = 'bio'; hide(); afterModeSelected(true); };
+    if (hasBioConsent()) proceedBio();
+    else showBioConsentModal(proceedBio, () => { currentMode = 'classic'; hide(); afterModeSelected(false); });
+  };
+}
+
+function afterModeSelected(isBio){
+  // Lock legacy dropdown during a round
+  const ms = document.getElementById('modeSelect');
+  if (ms) ms.disabled = true;
+
+  // Now actually start the game round
+  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
+  if (btn){ btn.style.display = 'none'; }
+
+  window.__playerReady = true;
+
+  if (isBio){
+    loadFaceApiModels();
+    startWebcam();
+    startSampler();
+  } else {
+    stopSampler();
+    stopWebcam();
+  }
+  restart(false);
+}
+
+
+function openLoginProgress(msg){
+  const m = document.getElementById('loginProgressModal');
+  const p = document.getElementById('loginProgressMsg');
+  const c = document.getElementById('loginProgressContinue');
+  if (m && p){ p.textContent = msg || ''; m.classList.remove('hidden'); }
+  if (c){ c.classList.add('hidden'); c.onclick = null; }
+}
+function updateLoginProgress(msg, showContinue, onContinue){
+  const p = document.getElementById('loginProgressMsg');
+  const c = document.getElementById('loginProgressContinue');
+  if (p) p.textContent = msg || '';
+  if (c){
+    if (showContinue){ c.classList.remove('hidden'); c.onclick = onContinue || null; }
+    else c.classList.add('hidden');
+  }
+}
+function closeLoginProgress(){ document.getElementById('loginProgressModal')?.classList.add('hidden'); }
+
+// --- Block library key handlers while any modal is open ---
+function modalOpen(){ return !!document.querySelector('.modal:not(.hidden)'); }
+function isFormTarget(el){
+  if (!el) return false;
+  const tag = (el.tagName || '').toLowerCase();
+  return el.isContentEditable || ['input','textarea','select','button'].includes(tag) || el.closest('.modal');
+}
+function swallowKeysIfModal(e){
+  // Some browsers dispatch key events with undefined e.key during UI interactions.
+  // Stop them from reaching q5/p5play to avoid crashes.
+  if (modalOpen() && isFormTarget(e.target)) {
+    e.stopImmediatePropagation();
+  }
+}
+document.addEventListener('keydown', swallowKeysIfModal, true);
+document.addEventListener('keyup', swallowKeysIfModal, true);
+
+
 /* =============================
  *        Setup & Draw
  * ============================= */
 function setup(){
+  setAttributes('willReadFrequently', true);  // avoid chrome warning
   createCanvas(viewportW(), viewportH());
   noStroke();
   world.gravity.y = 0;
@@ -150,7 +284,7 @@ function setup(){
     currentMode = modeSelect.value;
     modeSelect.onchange = async () => {
       currentMode = modeSelect.value;
-      restart(true);
+      if (window.__playerReady) restart(true);  // restart only after login
       if (isBioMode()){
         await loadFaceApiModels();
         await startWebcam(true);
@@ -185,10 +319,13 @@ function setup(){
   })();
 
   // Pointer popping (bulletproof across devices)
-  const cnv = _renderer?.canvas || document.querySelector('canvas');
+  // const cnv = _renderer?.canvas || document.querySelector('canvas');
+  const cnv = document.querySelector('canvas') || (typeof _renderer !== 'undefined' && _renderer.canvas);
+
   if (cnv){
     cnv.style.touchAction = 'none';
     cnv.addEventListener('pointerdown', (e) => {
+      if (!window.__playerReady) return; // ignore clicks until after login
       // ignore clicks on top bar
       const ui = document.getElementById('topBar');
       const r = ui?.getBoundingClientRect?.();
@@ -200,20 +337,11 @@ function setup(){
     }, { passive: true });
   }
 
-  // Build bubbles
-  bubbles = new Group();
-  bubbles.collider = 'dynamic';
-  bubbles.bounciness = 1;
-  bubbles.friction = 0;
-  bubbles.drag = 0;
-  for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
-
+  // Defer entity creation until after login (startGame -> restart)
   score = 0; startTime = millis(); gameOver = false;
   document.getElementById('center').style.display = 'none';
   const btn = document.getElementById('restartBtn');
-  if (btn){ btn.style.display = 'none'; btn.onclick = () => restart(false); }
-
-  buildWalls();
+  if (btn){ btn.style.display = 'none'; btn.onclick = () => { if (window.__playerReady) restart(false); }; }
 
   if (isBioMode()){
     loadFaceApiModels();
@@ -239,16 +367,39 @@ function setup(){
     });
   }
   listCameras();
+
+  // Pause draw loop until player completes login
+  try { noLoop(); } catch {}
+
+  // Post-game modal buttons
+  const pg = document.getElementById('postGameModal');
+  const pgClose = document.getElementById('postGameClose');
+  const pgPlay  = document.getElementById('postPlayAgain');
+  const pgMode  = document.getElementById('postChangeMode');
+
+  if (pgClose) pgClose.onclick = closePostGameModal;
+  if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
+
+  if (pgPlay) pgPlay.onclick = () => { closePostGameModal(); if (window.__playerReady) restart(false); };
+  if (pgMode) pgMode.onclick = () => { closePostGameModal(); showModePicker(); };
 }
 
 function draw(){
-  if (window.__splashActive) return;
+  if (window.__splashActive || !window.__playerReady) return; // do nothing until after login
   fitCanvasToViewport();
   background(200,230,255);
 
   const timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
   document.getElementById('timeChip').textContent  = `Time: ${timeLeft}`;
+
+  const modeChip = document.getElementById('modeChip');
+  if (modeChip){
+    const label = (currentMode === 'classic') ? 'Classic'
+                : (currentMode === 'challenge') ? 'Challenge'
+                : 'Bio';
+    modeChip.textContent = `Mode: ${label}`;
+  }
 
   const bioChip  = document.getElementById('bioChip');
   const camBtnEl = document.getElementById('cameraBtn');
@@ -341,7 +492,7 @@ function currentRadius(b){
 }
 
 function handlePop(px, py){
-  if (gameOver) return;
+  if (gameOver || !window.__playerReady || !bubbles) return;
   for (let i = bubbles.length - 1; i >= 0; i--){
     const b = bubbles[i], r = currentRadius(b), rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0);
     const dx = px - b.x, dy = py - b.y;
@@ -351,27 +502,56 @@ function handlePop(px, py){
     }
   }
 }
-function mousePressed(){ handlePop(mouseX, mouseY); }
+function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
 function touchStarted(){
+  if (!window.__playerReady) return;
   if (touches && touches.length) for (const t of touches) handlePop(t.x, t.y);
   else handlePop(mouseX, mouseY);
 }
 
 function endGame(){
-  gameOver = true; noLoop();
-  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  gameOver = true; 
+  noLoop();
+
+  const centerEl = document.getElementById('center');
+  const btn = document.getElementById('restartBtn');
   if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
-  if (btn){ btn.style.display = 'block'; }
+  if (btn){ btn.style.display = 'none'; }
+
+  const ms = document.getElementById('modeSelect');
+  if (ms) ms.disabled = true; // keep mode locked during post-game UI
+
   if (isBioMode()){
-    if (BIO_STOP_STRATEGY === 'pause') stopSampler(); else { stopSampler(); stopWebcam(); }
+    if (BIO_STOP_STRATEGY === 'pause') { stopSampler(); }
+    else { stopSampler(); stopWebcam(); }
     clearTimeout(bioIdleStopTO);
-    bioIdleStopTO = setTimeout(() => { if (gameOver && isBioMode()) { stopWebcam(); } }, BIO_IDLE_STOP_MS);
+    bioIdleStopTO = setTimeout(() => { if (gameOver && isBioMode()) stopWebcam(); }, BIO_IDLE_STOP_MS);
   }
+
+  openPostGameModal();
 }
+
+
 function restart(fromModeButton){
-  for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+  // Lazy init groups/walls on first start
+  if (!bubbles) {
+    bubbles = new Group();
+    bubbles.collider = 'dynamic';
+    bubbles.bounciness = 1;
+    bubbles.friction = 0;
+    bubbles.drag = 0;
+  } else {
+    for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+  }
   for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
+  if (!walls || walls.length < 4) buildWalls();
+
   score = 0; startTime = millis(); gameOver = false;
+
+  closePostGameModal();                     // close post-game UI if it was open
+  const ms = document.getElementById('modeSelect');
+  if (ms) ms.disabled = true;               // lock mode during the round
+
   const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
   if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
   if (btn){ btn.style.display = 'none'; btn.blur?.(); }
@@ -440,7 +620,7 @@ async function startWebcam(isRestart = false){
   let played = false;
   try { await v.play(); played = true; } catch { console.warn('[bio] video.play blocked; will resume on gesture'); }
 
-  const onReady = () => { if (isBioMode()) startSampler(); };
+  const onReady = () => { if (isBioMode() && window.__playerReady) startSampler(); };
   v.addEventListener('playing', onReady, { once: true });
   v.addEventListener('loadeddata', onReady, { once: true });
   if (v.readyState >= 2) onReady();
@@ -625,9 +805,6 @@ function closeCameraModal(){ document.getElementById('cameraModal')?.classList.a
   const splash = document.getElementById('splash');
   if (!splash) return;
 
-  // If you want the game to be paused until dismiss, you can set a flag:
-  // window.__splashActive = true;
-
   // Helper to end the splash with fade-out
   function dismissSplash() {
     if (!splash.classList.contains('is-visible')) return;
@@ -637,9 +814,6 @@ function closeCameraModal(){ document.getElementById('cameraModal')?.classList.a
     // Give the CSS transition time to finish
     setTimeout(() => {
       splash.classList.remove('is-visible', 'is-fading-out');
-
-      // If you paused anything, unpause here
-      // window.__splashActive = false;
 
       // Hook for your game: start music later, restart level, etc.
       if (typeof window.onSplashDismiss === 'function') {
@@ -658,17 +832,137 @@ function closeCameraModal(){ document.getElementById('cameraModal')?.classList.a
     const k = e.key?.toLowerCase();
     if (k === 'enter' || k === ' ') dismissSplash();
   });
-
-  // Optional: if you want to auto-dismiss after N seconds (and still allow “Tap”),
-  // uncomment:
-  // setTimeout(dismissSplash, 5000);
-
-  // Future: if you want to play a sound on dismiss later, just add:
-  // if (window.sounds?.uiConfirm) window.sounds.uiConfirm.play();
 })();
 
 window.__splashActive = true;
 window.onSplashDismiss = function () {
-  if (typeof restart === 'function') restart(false); // resets timer/score, then runs
   window.__splashActive = false;
+  playerDeviceId = playerDeviceId || getOrCreateDeviceId();
+  showLoginScreen(playerDeviceId); // open login after splash
 };
+
+function openPostGameModal(){ document.getElementById('postGameModal')?.classList.remove('hidden'); }
+function closePostGameModal(){ document.getElementById('postGameModal')?.classList.add('hidden'); }
+
+
+/* =============================
+ *        Login & start
+ * ============================= */
+function startGame() {
+  // Close login UI
+  const modal = document.getElementById('loginModal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('login-active');
+
+  // Show mode picker instead of starting immediately
+  showModePicker();
+}
+
+
+/**
+ * Show login screen: prefill from profile or suggest, validate, then POST setUsername.
+ * Keeps naming consistent: deviceId, username.
+ */
+function showLoginScreen(deviceId) {
+  try { document.body.classList.add('login-active'); } catch {}
+  const modal = document.getElementById('loginModal');
+  const input = document.getElementById('usernameInput');
+  const submit = document.getElementById('submitUsername');
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.style.display = 'none';
+  if (!modal || !input || !submit) return;
+
+  modal.classList.remove('hidden');
+
+  // Allow Enter to submit without bubbling to p5play/q5
+  if (input){
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.keyCode === 13){
+        e.preventDefault();
+        e.stopPropagation();
+        submit?.click();
+      }
+    });
+  }
+
+  let priorProfile = null;
+  // Prefill from profile or suggest
+  fetch(`${GOOGLE_SCRIPT_URL}?action=profile&deviceId=${encodeURIComponent(deviceId)}`)
+    .then(r => r.json()).then(data => {
+      if (data && data.ok && data.profile && data.profile.username) {
+        priorProfile = data.profile;
+        input.value = String(data.profile.username || '').trim() || `Player-${deviceId.slice(0,6)}`;
+      } else {
+        input.value = `Player-${deviceId.slice(0,6)}`;
+      }
+    }).catch(()=>{
+      input.value = `Player-${deviceId.slice(0,6)}`;
+    });
+
+  submit.onclick = function() {
+    const username = (input.value || '').trim();
+    if (!username) return;
+
+    // Visual press + busy
+    submit.classList.add('is-busy');
+    submit.setAttribute('aria-busy', 'true');
+    submit.disabled = true;
+
+    // Hide login modal to avoid stacked dialogs
+    const loginM = document.getElementById('loginModal');
+    if (loginM) loginM.classList.add('hidden');
+    document.body.classList.remove('login-active');
+
+    openLoginProgress(
+      `Saving your username… this can take a moment.\n` +
+      `After this, you'll choose a game mode and the round will start.`
+    );
+
+    // Check availability (GET doesn't require secret)
+    fetch(`${GOOGLE_SCRIPT_URL}?action=checkUsername&username=${encodeURIComponent(username)}`)
+      .then(r => r.json())
+      .then(data => {
+        const canUse = !!(data && data.ok && (data.available || (priorProfile && priorProfile.username === username)));
+        if (!canUse) throw new Error('Username is already taken.');
+
+        // Save (POST; worker adds secret server-side)
+        return fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setUsername', deviceId, username })
+        });
+      })
+      .then(() => {
+        try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
+        playerUsername = username;
+
+        const greet = (priorProfile && priorProfile.username === username)
+          ? `Welcome back, ${username}!`
+          : `Saved. Hello, ${username}!`;
+
+        updateLoginProgress(
+          `${greet}\nNext, pick a mode — the round starts right away.`,
+          true,
+          () => {
+            closeLoginProgress();
+            const topBar = document.getElementById('topBar');
+            if (topBar) topBar.style.display = '';
+            startGame(); // closes login and opens Mode Picker
+          }
+        );
+      })
+      .catch((err) => {
+        updateLoginProgress(String(err && err.message || 'Could not save username. Please try again.'), true, () => {
+          closeLoginProgress();
+          // Reopen login if saving failed
+          const loginM2 = document.getElementById('loginModal');
+          if (loginM2){ loginM2.classList.remove('hidden'); document.body.classList.add('login-active'); }
+        });
+      })
+      .finally(() => {
+        submit.classList.remove('is-busy');
+        submit.removeAttribute('aria-busy');
+        submit.disabled = false;
+      });
+  };
+}

@@ -37,6 +37,8 @@ html, body {
 }
 #modeBar.compact select { max-width: 120px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
+#modeChip { grid-column: 4; justify-self: end; }
+
 /* ===== Center: Bio indicator chip ===== */
 #bioChip {
   display: inline-block;
@@ -56,11 +58,14 @@ html, body {
   cursor: pointer;
 }
 .iconBtn.small { width: 32px; height: 32px; border-radius: 8px; }
+.iconBtn:active { transform: translateY(1px) scale(0.98); }
+.iconBtn.is-busy { opacity: .6; pointer-events: none; }
+
 
 /* ===== Right: HUD (Score over Time) ===== */
-#overlayUI { pointer-events: none; justify-self: end; }
+#overlayUI { pointer-events: none; grid-column: 1; justify-self: start; }
 .hud {
-  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
   user-select: none; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.25);
 }
 .chip { display: inline-block; background: rgba(255,255,255,.85); border-radius: 999px; padding: 6px 10px; }
@@ -77,6 +82,13 @@ html, body {
 .modalRow select { flex: 1 1 auto; max-width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; background: #fff; }
 .previewWrap { margin-top: 8px; display: flex; justify-content: center; }
 .modalPreview { width: 220px; height: auto; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.18); transform: scaleX(-1); }
+.modal.centered { place-items: center; }
+.modalRow.stacked { flex-direction: column; align-items: stretch; }
+.modalRow.stacked .iconBtn { width: 100%; }
+
+#loginModal { z-index: 1000; }
+#loginProgressModal { z-index: 2000; } /* ensure it’s above */
+
 
 /* Screen-reader-only helper */
 .srOnly { position: absolute; left: -9999px; }
@@ -176,3 +188,21 @@ html, body {
   position: relative; /* keep your existing rules; this is defensive */
   z-index: 10;
 }
+
+/* ===== Login Modal overrides (center the dialog) ===== */
+#loginModal { place-items: center; }
+#loginModal .modalContent {
+  border-radius: 16px;            /* full-rounded when centered */
+  border-top-left-radius: 16px;   /* explicit for safety */
+  border-top-right-radius: 16px;
+}
+#loginModal input[type="text"] {
+  flex: 1 1 auto;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.15);
+  padding: 8px 10px;
+}
+#loginModal .iconBtn.small { min-width: 64px; }
+
+/* Hide top bar while logging in (no UI until username set) */
+body.login-active #topBar { display: none; }
