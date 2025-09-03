@@ -30,7 +30,7 @@
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
 
-// Version: v8.0
+// Version: v8.1            UI labels: Bio -> Mood (player-facing only) cosmetic minor change
 // Note: Coding with ChatGPT assistance
 
 
@@ -568,7 +568,7 @@ function draw(){
   if (modeChip){
     const label = (currentMode === 'classic') ? 'Classic'
                 : (currentMode === 'challenge') ? 'Challenge'
-                : 'Bio';
+                : 'Mood';
     // Always keep the text current
     modeChip.textContent = `Mode: ${label}`;
     // Visible only in Bio mode (per your spec)
