@@ -252,6 +252,10 @@ function showModePicker(){
   const topBar = document.getElementById('topBar');
   if (topBar) topBar.classList.add('hidden');
 
+  document.body.classList.remove('login-active');
+  document.body.classList.add('mode-pick');
+  document.body.classList.remove('game-active');
+
   if (!m || !bC || !bH || !bB){ 
     currentMode = 'classic'; 
     afterModeSelected(false); 
@@ -274,6 +278,10 @@ function afterModeSelected(isBio){
   // show the top bar again
   const topBar = document.getElementById('topBar');
   if (topBar) topBar.classList.remove('hidden');
+
+  document.body.classList.remove('login-active');
+  document.body.classList.remove('mode-pick');
+  document.body.classList.add('game-active');
 
   // Lock legacy dropdown during a round
   const ms = document.getElementById('modeSelect');
@@ -1063,6 +1071,9 @@ function showLoginScreen(deviceId){
   if (topBar) topBar.classList.add('hidden');
 
   document.body.classList.add('login-active');
+  document.body.classList.remove('mode-pick');
+  document.body.classList.remove('game-active');
+
   modal.classList.remove('hidden');
 
   // track if user started typing

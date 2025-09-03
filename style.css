@@ -22,6 +22,11 @@ html, body {
   border-bottom: 1px solid rgba(0,0,0,.08);
   white-space: nowrap; /* keep it all on one row */
 }
+/* Hide top bar during login/mode pick; show during gameplay */
+#topBar.hidden{ display: none !important; }
+body.login-active #topBar{ display: none !important; }
+body.mode-pick   #topBar{ display: none !important; }
+body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
 
 /* ===== Left: legacy selector (kept for compatibility) ===== */
 #modeBar { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
@@ -262,8 +267,7 @@ html, body {
 /* Hide top bar while logging in (no UI until username set) */
 body.login-active #topBar { display: none; }
 
-/* Post-game: remove the "X" so players must choose Play again or Change mode */
-#postGameClose { display: none; }
+
 
 /* Keep positioning static (avoid accidental offsets from older rules) */
 #overlayUI, #bioChip, #modeChip, #cameraBtn { position: static; }
@@ -281,12 +285,11 @@ html { -webkit-text-size-adjust: 100%; }
   -webkit-overflow-scrolling: touch;   /* smooth iOS scrolling */
   overscroll-behavior: contain;
   width: min(520px, 92vw);
-  touch-action: auto;                   /* override body’s touch-action:none */
 }
 
 /* On small phones, stack input+OK and anchor the login dialog near the keyboard */
 @media (max-width: 480px) {
-  #loginModal.modal.centered { place-items: end center; }  /* bottom sheet on phones */
+  
   #loginModal .modalContent {
     width: 100vw;
     max-width: 100vw;
@@ -300,3 +303,7 @@ html { -webkit-text-size-adjust: 100%; }
   #loginModal input[type="text"] { width: 100%; }
   #loginModal .iconBtn.small    { width: 100%; }
 }
+
+/* Post-game: remove the "X" so players must choose Play again or Change mode */
+#postGameClose { display: none; }
+#postGameModal{ place-items: end center; }    /* bottom sheet */
