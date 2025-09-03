@@ -34,7 +34,7 @@
       <select id="modeSelect" title="Mode">
         <option value="classic" selected>Classic</option>
         <option value="challenge">Challenge</option>
-        <option value="bio">Bio-Responsive</option>
+        <option value="bio">Bio</option>
       </select>
     </div>
 
@@ -42,7 +42,11 @@
     <span class="chip" id="bioChip">NEUTRAL</span>
 
     <!-- Middle-right: Camera icon (Bio mode only) -->
-    <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">…</button>
+    <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
+      </svg>
+    </button>
 
     <!-- Move HUD to the LEFT via CSS; nothing to change here -->
     <div id="overlayUI">
@@ -107,7 +111,7 @@
       <div class="modalRow stacked">
         <button id="modeClassicBtn"  class="iconBtn">Classic</button>
         <button id="modeChallengeBtn" class="iconBtn">Challenge</button>
-        <button id="modeBioBtn" class="iconBtn">Bio-Responsive</button>
+        <button id="modeBioBtn" class="iconBtn">Bio</button>
       </div>
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
         Bio mode uses your camera locally to estimate expressions.
@@ -165,6 +169,7 @@
         <input id="usernameInput" type="text" placeholder="Your name" autocomplete="username" />
         <button id="submitUsername" class="iconBtn small">OK</button>
       </div>
+      <p id="loginStatus" class="loginStatus"></p>
     </div>
   </div>
 

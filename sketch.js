@@ -1,10 +1,7 @@
-// Bubble Bio Game — v3.2
+// Bubble Bio Game — v5.0
 // Owner: Ken Pao
 // Note: Coding with ChatGPT assistance
-// - Camera Facial Detection runs only in Bio mode
-// - Sampler interval is configurable via BIO_SAMPLE_MS (default 1000ms)
-// - Cleaned up: removed hamburger/collapsed cam controls code
-// - Added JSDoc-style comments for key functions
+
 
 /* =============================
  *        Game constants
@@ -38,6 +35,13 @@ let score = 0;
 let startTime = 0;
 let gameOver = false;
 
+// NEW: per-round input & pop stats
+let tapsTotal = 0;              // all tap/click attempts
+let tapsMissed = 0;             // attempts that didn’t hit any bubble
+let bubblesPopped = 0;          // total bubbles removed by the player
+let bubblesPoppedGood = 0;      // non-trick pops (these increase score)
+let bubblesPoppedTrick = 0;     // trick pops (these decrease score)
+
 // Camera state
 let currentStream = null;
 let selectedDeviceId = null;
@@ -48,14 +52,31 @@ let bioTimerId = null;
 let overlay, octx;         // overlay canvas for green box
 
 // Aggregated expression state (smoothed)
-const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, neutral: 1 };
+const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, stressed:0, neutral: 1 };
 
-// Emotion decision thresholds
+// Make emotions a bit easier to trigger
 const EMO_CFG = {
-  ON: 0.40, OFF: 0.33, NEUTRAL_ON: 0.58, NEUTRAL_OFF: 0.40, MARGIN: 0.05, COOLDOWN_MS: 2200
+  ON: 0.22,          // was higher
+  OFF: 0.16,         // stickiness
+  NEUTRAL_ON: 0.38, 
+  NEUTRAL_OFF: 0.30,
+  MARGIN: 0.06,      // gap between #1 and #2
+  COOLDOWN_MS: 500
 };
-const EMO_FORCE = { HAPPY_RAW: 0.42, SAD_RAW: 0.38, ANGRY_RAW: 0.40 };
+
+// Raw “force” thresholds — used for quick switches
+const EMO_FORCE = {
+  HAPPY_RAW:   0.36,
+  SAD_RAW:     0.33,
+  ANGRY_RAW:   0.34,
+  STRESSED_RAW:0.28     // LOWERED so stressed can win
+};
+
+
 let lastEmotion = 'neutral', lastSwitchMs = 0;
+
+// Per-round emotion counts (incremented by the Bio sampler)
+let emoCounts = { happy: 0, sad: 0, angry: 0, stressed: 0, neutral: 0 };
 
 /* =============================
  *        Backend config
@@ -90,6 +111,37 @@ function getOrCreateDeviceId() {
       : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 }
+
+/* =============================
+ *        Troubleshooting mode
+ * ============================= */
+
+// Troubleshoot visibility (toggles the camera button on laptops in Bio mode)
+let troubleshootMode = false;
+
+function isLaptop(){
+  const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+  const w = Math.max( viewportW?.() || 0, window.innerWidth || 0 );
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const desktopUA = /(macintosh|mac os x|windows nt|linux|cros)/.test(ua);
+  return !hasTouch && !coarse && (desktopUA || w >= 900);
+}
+
+function refreshCameraBtn(){
+  const btn = document.getElementById('cameraBtn');
+  if (!btn) return;
+  const show = window.__playerReady && isBioMode() && isLaptop() && troubleshootMode;
+  btn.style.display = show ? 'inline-flex' : 'none';
+}
+
+// Press "t" to toggle troubleshoot mode (only matters in Bio mode on laptops)
+document.addEventListener('keydown', (e) => {
+  if ((e.key || '').toLowerCase() === 't' && window.__playerReady && isBioMode() && isLaptop()){
+    troubleshootMode = !troubleshootMode;
+    refreshCameraBtn();
+  }
+});
 
 /* =============================
  *        UI helpers
@@ -229,6 +281,8 @@ function afterModeSelected(isBio){
     stopSampler();
     stopWebcam();
   }
+
+  refreshCameraBtn();
   restart(false);
 }
 
@@ -238,15 +292,26 @@ function openLoginProgress(msg){
   const p = document.getElementById('loginProgressMsg');
   const c = document.getElementById('loginProgressContinue');
   if (m && p){ p.textContent = msg || ''; m.classList.remove('hidden'); }
-  if (c){ c.classList.add('hidden'); c.onclick = null; }
+  if (c){ 
+    c.classList.add('hidden');  // keep hidden during fetch
+    c.disabled = true;          // and not focusable
+    c.onclick = null; }
 }
+
 function updateLoginProgress(msg, showContinue, onContinue){
   const p = document.getElementById('loginProgressMsg');
   const c = document.getElementById('loginProgressContinue');
   if (p) p.textContent = msg || '';
   if (c){
-    if (showContinue){ c.classList.remove('hidden'); c.onclick = onContinue || null; }
-    else c.classList.add('hidden');
+    if (showContinue){ 
+      c.classList.remove('hidden'); 
+      c.disabled = false;
+      c.onclick = onContinue || null; }
+    else {
+      c.classList.add('hidden');  // hide while waiting
+      c.disabled = true;
+      c.onclick = null;
+    }
   }
 }
 function closeLoginProgress(){ document.getElementById('loginProgressModal')?.classList.add('hidden'); }
@@ -268,12 +333,62 @@ function swallowKeysIfModal(e){
 document.addEventListener('keydown', swallowKeysIfModal, true);
 document.addEventListener('keyup', swallowKeysIfModal, true);
 
+function setLoginStatus(msg, cls='info') {
+  const el = document.getElementById('loginStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = `loginStatus ${cls}`;
+}
+
+
+/* =======================================
+ *        Update Game Run and Profile
+ * ======================================= */
+
+function nowMs(){ return (typeof millis === 'function') ? millis() : Date.now(); }
+
+async function submitRun(){
+  try {
+    const durationMs = Math.max(0, nowMs() - startTime);
+    // one per page load; useful for grouping runs
+    window.__sessionId = window.__sessionId || (crypto.randomUUID?.() || ('s-' + Date.now()));
+    const runId = crypto.randomUUID?.() || ('run-' + Date.now());
+
+    await fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'run',
+        deviceId: playerDeviceId,
+        username: playerUsername || '',
+        mode: currentMode,
+        score,
+        durationMs,
+        // optional fields; Apps Script accepts empty
+        bubblesPopped,
+        accuracy: +( (bubblesPoppedGood / Math.max(1, tapsTotal)).toFixed(3) ),
+        // emotion counts (sampler ticks per round)
+        emoHappy:    emoCounts.happy,
+        emoSad:      emoCounts.sad,
+        emoAngry:    emoCounts.angry,
+        emoStressed: emoCounts.stressed,
+        emoNeutral:  emoCounts.neutral,
+        // game info
+        gameVersion: 'v5.0',
+        sessionId: window.__sessionId,
+        runId
+      })
+    });
+  } catch (e) {
+    console.warn('[submitRun] failed:', e);
+  }
+}
+
 
 /* =============================
  *        Setup & Draw
  * ============================= */
 function setup(){
-  setAttributes('willReadFrequently', true);  // avoid chrome warning
   createCanvas(viewportW(), viewportH());
   noStroke();
   world.gravity.y = 0;
@@ -414,13 +529,17 @@ function draw(){
     bioChip?.classList.add('hiddenChip');
     if (camBtnEl) camBtnEl.style.display = 'none';
   }else{
+    // Bio mode
+    refreshCameraBtn(); // decides visibility based on laptop + toggle
     bioChip?.classList.remove('hiddenChip');
-    if (camBtnEl) camBtnEl.style.display = 'inline-flex';
+    refreshCameraBtn();
+
     const emo = dominantEmotion();
     bioChip.textContent = emo.toUpperCase();
-    if (emo === 'happy'){ bioChip.style.background = 'rgba(120,255,160,.85)'; modeSpeedMult = 1.3; }
+    if (emo === 'happy'){ bioChip.style.background = 'rgba(120,255,160,.85)'; modeSpeedMult = 1.5; }
     else if (emo === 'sad'){ bioChip.style.background = 'rgba(120,160,255,.85)'; modeSpeedMult = 0.8; }
-    else if (emo === 'angry'){ bioChip.style.background = 'rgba(255,140,140,.85)'; modeSpeedMult = 1.0; }
+    else if (emo === 'angry'){ bioChip.style.background = 'rgba(255,140,140,.85)'; modeSpeedMult = 1; }
+    else if (emo === 'stressed'){ bioChip.style.background = 'rgba(255,200,120,.85)'; modeSpeedMult = 0.5; }
     else { bioChip.style.background = 'rgba(255,255,255,.85)'; modeSpeedMult = 1.0; }
   }
 
@@ -491,17 +610,38 @@ function currentRadius(b){
   return max(1, d * 0.5);
 }
 
+// Capture game stat during gameplay
 function handlePop(px, py){
   if (gameOver || !window.__playerReady || !bubbles) return;
+
+  tapsTotal++;
+  let hit = false;
+
   for (let i = bubbles.length - 1; i >= 0; i--){
     const b = bubbles[i], r = currentRadius(b), rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0);
     const dx = px - b.x, dy = py - b.y;
     if (dx*dx + dy*dy <= rHit*rHit){
-      score += (b._type === 'trick') ? -1 : 1; if (score < 0) score = 0;
-      b.remove(); spawnBubble(); break;
+      hit = true;
+
+      // update score exactly like before
+      score += (b._type === 'trick') ? -1 : 1;
+      if (score < 0) score = 0;
+
+      // NEW: stats
+      bubblesPopped++;
+      if (b._type === 'trick') bubblesPoppedTrick++;
+      else bubblesPoppedGood++;
+
+      b.remove();
+      spawnBubble();
+      break;
     }
   }
+
+  if (!hit) tapsMissed++;
 }
+
+
 function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
 function touchStarted(){
   if (!window.__playerReady) return;
@@ -528,6 +668,9 @@ function endGame(){
     bioIdleStopTO = setTimeout(() => { if (gameOver && isBioMode()) stopWebcam(); }, BIO_IDLE_STOP_MS);
   }
 
+  // Send game stat to google sheet
+  submitRun();
+
   openPostGameModal();
 }
 
@@ -546,7 +689,16 @@ function restart(fromModeButton){
   for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
   if (!walls || walls.length < 4) buildWalls();
 
-  score = 0; startTime = millis(); gameOver = false;
+  // reset per-round stats
+  tapsTotal = 0;
+  tapsMissed = 0;
+  bubblesPopped = 0;
+  bubblesPoppedGood = 0;
+  bubblesPoppedTrick = 0;
+
+  score = 0;
+  startTime = millis();
+  gameOver = false;
 
   closePostGameModal();                     // close post-game UI if it was open
   const ms = document.getElementById('modeSelect');
@@ -709,6 +861,7 @@ async function sampleBio(){
     bioState.happy = ema(bioState.happy, 0, 0.3);
     bioState.sad   = ema(bioState.sad,   0, 0.3);
     bioState.angry = ema(bioState.angry, 0, 0.3);
+    bioState.stressed = ema(bioState.stressed, 0, 0.3);
     bioState.neutral = ema(bioState.neutral, 1, 0.3);
     if (overlay && octx) octx.clearRect(0,0,overlay.width,overlay.height);
     return;
@@ -732,6 +885,11 @@ async function sampleBio(){
   bioState.sad   = ema(bioState.sad,   acc.sad,   0.75);
   bioState.angry = ema(bioState.angry, acc.angry, 0.75);
   bioState.neutral = ema(bioState.neutral, acc.neutral, 0.75);
+  // STRESSED: blend fearful + disgusted + surprised
+  const stressedRaw = 0.6 * acc.fearful + 0.3 * acc.disgusted + 0.1 * acc.surprised;
+  bioState.stressed = ema(bioState.stressed, stressedRaw, 0.75);
+
+  if (troubleshootMode) console.log('emo raw:', acc);
 
   // Draw overlay box on preview if visible
   const vPrev = document.getElementById('webcamPreview');
@@ -749,20 +907,27 @@ async function sampleBio(){
       octx.restore();
     } catch (e){ console.warn('[bio] overlay draw error:', e); }
   }
+
+  // Count one “tick” toward the dominant emotion each sample
+  const emo = dominantEmotion();
+  if (emo && emoCounts.hasOwnProperty(emo)) emoCounts[emo]++;
 }
 
 /**
  * Decide dominant emotion based on smoothed bioState with hysteresis/cooldown.
- * @returns {'happy'|'sad'|'angry'|'neutral'}
+ * @returns {'happy'|'sad'|'angry'|'stressed'|'neutral'}
  */
 function dominantEmotion(){
-  const h = Number(bioState.happy||0), s = Number(bioState.sad||0), a = Number(bioState.angry||0);
+  const h = Number(bioState.happy||0),
+        s = Number(bioState.sad||0),
+        a = Number(bioState.angry||0),
+        t = Number(bioState.stressed||0);
   const nRaw = (bioState.neutral != null) ? Number(bioState.neutral) : 0;
-  const n = nRaw > 0 ? nRaw : Math.max(0, 1 - (h + s + a));
+  const n = nRaw > 0 ? nRaw : Math.max(0, 1 - (h + s + a + t));
 
-  const sum = h + s + a + n + 1e-6;
+  const sum = h + s + a + t + n + 1e-6;
   const shares = [
-    {k:'happy',v:h/sum},{k:'sad',v:s/sum},{k:'angry',v:a/sum},{k:'neutral',v:n/sum}
+    {k:'happy',v:h/sum},{k:'sad',v:s/sum},{k:'angry',v:a/sum},{k:'stressed',v:t/sum},{k:'neutral',v:n/sum}
   ].sort((x,y)=>y.v-x.v);
 
   const now = (typeof millis === 'function') ? millis() : Date.now();
@@ -772,27 +937,34 @@ function dominantEmotion(){
   if (lastEmotion === 'neutral'){ if (neutralShare >= EMO_CFG.NEUTRAL_OFF) return 'neutral'; }
   else { const curShare = shares.find(x=>x.k===lastEmotion)?.v || 0; if (curShare >= EMO_CFG.OFF) return lastEmotion; }
 
+  // Strong neutral
   if (shares[0].k === 'neutral' && shares[0].v >= EMO_CFG.NEUTRAL_ON){
     if (!inCooldown || lastEmotion!=='neutral'){ lastEmotion='neutral'; lastSwitchMs=now; }
     return 'neutral';
   }
 
-  const hsa = shares.filter(x=>x.k!=='neutral').sort((x,y)=>y.v-x.v);
-  const top=hsa[0], second=hsa[1];
-  if (h >= EMO_FORCE.HAPPY_RAW && (!inCooldown || lastEmotion!=='happy')){ lastEmotion='happy'; lastSwitchMs=now; return 'happy'; }
-  if (s >= EMO_FORCE.SAD_RAW   && (!inCooldown || lastEmotion!=='sad'))  { lastEmotion='sad';   lastSwitchMs=now; return 'sad'; }
-  if (a >= EMO_FORCE.ANGRY_RAW && (!inCooldown || lastEmotion!=='angry')){ lastEmotion='angry'; lastSwitchMs=now; return 'angry'; }
+  // Raw-force gates
+  if (h >= EMO_FORCE.HAPPY_RAW   && (!inCooldown || lastEmotion!=='happy'))   { lastEmotion='happy';   lastSwitchMs=now; return 'happy'; }
+  if (s >= EMO_FORCE.SAD_RAW     && (!inCooldown || lastEmotion!=='sad'))     { lastEmotion='sad';     lastSwitchMs=now; return 'sad'; }
+  if (a >= EMO_FORCE.ANGRY_RAW   && (!inCooldown || lastEmotion!=='angry'))   { lastEmotion='angry';   lastSwitchMs=now; return 'angry'; }
+  if (t >= EMO_FORCE.STRESSED_RAW&& (!inCooldown || lastEmotion!=='stressed')){ lastEmotion='stressed';lastSwitchMs=now; return 'stressed'; }
 
+  // Otherwise, take the top non-neutral if it beats #2 by a margin
+  const nonNeutral = shares.filter(x=>x.k!=='neutral').sort((x,y)=>y.v-x.v);
+  const top = nonNeutral[0], second = nonNeutral[1];
   if (top.v >= EMO_CFG.ON && (top.v - second.v) >= EMO_CFG.MARGIN){
     if (!inCooldown || lastEmotion!==top.k){ lastEmotion=top.k; lastSwitchMs=now; }
     return lastEmotion;
   }
+
+  // Fallbacks
   if (neutralShare >= EMO_CFG.NEUTRAL_OFF){
     if (!inCooldown || lastEmotion!=='neutral'){ lastEmotion='neutral'; lastSwitchMs=now; }
     return 'neutral';
   }
   return lastEmotion;
 }
+
 
 /* =============================
  *        Modal helpers
@@ -863,105 +1035,111 @@ function startGame() {
  * Show login screen: prefill from profile or suggest, validate, then POST setUsername.
  * Keeps naming consistent: deviceId, username.
  */
-function showLoginScreen(deviceId) {
-  try { document.body.classList.add('login-active'); } catch {}
-  const modal = document.getElementById('loginModal');
-  const input = document.getElementById('usernameInput');
+function showLoginScreen(deviceId){
+  const modal  = document.getElementById('loginModal');
+  const input  = document.getElementById('usernameInput');
   const submit = document.getElementById('submitUsername');
-  const topBar = document.getElementById('topBar');
-  if (topBar) topBar.style.display = 'none';
   if (!modal || !input || !submit) return;
 
+  document.body.classList.add('login-active');
   modal.classList.remove('hidden');
 
-  // Allow Enter to submit without bubbling to p5play/q5
-  if (input){
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.keyCode === 13){
-        e.preventDefault();
-        e.stopPropagation();
-        submit?.click();
-      }
-    });
-  }
+  // track if user started typing
+  let loginUserEdited = false;
+  input.addEventListener('input', () => { loginUserEdited = true; });
+
+  // reset and show device check status
+  input.value = '';
+  setLoginStatus('Checking if this device is already recognized…', 'info');
 
   let priorProfile = null;
-  // Prefill from profile or suggest
+
+  // Fetch prior profile for this deviceId
   fetch(`${GOOGLE_SCRIPT_URL}?action=profile&deviceId=${encodeURIComponent(deviceId)}`)
-    .then(r => r.json()).then(data => {
-      if (data && data.ok && data.profile && data.profile.username) {
-        priorProfile = data.profile;
-        input.value = String(data.profile.username || '').trim() || `Player-${deviceId.slice(0,6)}`;
+    .then(r => r.json())
+    .then(data => {
+      const suggested = (data && data.ok && data.profile && data.profile.username)
+        ? String(data.profile.username || '').trim()
+        : `Player-${deviceId.slice(0,6)}`;
+
+      if (!loginUserEdited && (!input.value || input.value.trim() === '')) {
+        input.value = suggested;
       } else {
-        input.value = `Player-${deviceId.slice(0,6)}`;
+        input.placeholder = suggested; // don't overwrite what the user typed
       }
-    }).catch(()=>{
-      input.value = `Player-${deviceId.slice(0,6)}`;
+
+      if (data && data.ok && data.profile) {
+        priorProfile = data.profile;
+        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new name.`, 'ok');
+      } else {
+        setLoginStatus('New device detected. Please create a username.', 'info');
+      }
+    })
+    .catch(() => {
+      const suggested = `Player-${deviceId.slice(0,6)}`;
+      if (!loginUserEdited && (!input.value || input.value.trim() === '')) input.value = suggested;
+      else input.placeholder = suggested;
+      setLoginStatus('Could not check device right now. You can still create a username.', 'err');
     });
 
+  // SUBMIT: check availability first (keep modal open). Only show "Saving…" progress after it’s available.
   submit.onclick = function() {
     const username = (input.value || '').trim();
     if (!username) return;
 
-    // Visual press + busy
     submit.classList.add('is-busy');
-    submit.setAttribute('aria-busy', 'true');
     submit.disabled = true;
+    setLoginStatus('Checking username…', 'info');
 
-    // Hide login modal to avoid stacked dialogs
-    const loginM = document.getElementById('loginModal');
-    if (loginM) loginM.classList.add('hidden');
-    document.body.classList.remove('login-active');
-
-    openLoginProgress(
-      `Saving your username… this can take a moment.\n` +
-      `After this, you'll choose a game mode and the round will start.`
-    );
-
-    // Check availability (GET doesn't require secret)
-    fetch(`${GOOGLE_SCRIPT_URL}?action=checkUsername&username=${encodeURIComponent(username)}`)
+    // include deviceId so your server allows the owner device to reuse its name
+    fetch(`${GOOGLE_SCRIPT_URL}?action=checkUsername&username=${encodeURIComponent(username)}&deviceId=${encodeURIComponent(deviceId)}`)
       .then(r => r.json())
       .then(data => {
         const canUse = !!(data && data.ok && (data.available || (priorProfile && priorProfile.username === username)));
-        if (!canUse) throw new Error('Username is already taken.');
+        if (!canUse) {
+          // taken by another device/player — keep modal open and show message
+          setLoginStatus(`“${username}” is already taken by another device. Please choose a different username.`, 'err');
+          throw new Error('username_taken');
+        }
 
-        // Save (POST; worker adds secret server-side)
+        // Now proceed to save (show progress modal only here)
+        const loginM = document.getElementById('loginModal');
+        if (loginM) loginM.classList.add('hidden');
+        document.body.classList.remove('login-active');
+
+        openLoginProgress(`Saving your username… this can take a moment.\nAfter this, you’ll choose a mode and the round will start.`);
+
         return fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'setUsername', deviceId, username })
+        }).then(() => {
+          try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
+          playerUsername = username;
+
+          const greet = (priorProfile && priorProfile.username === username)
+            ? `Welcome back, ${username}!`
+            : `Saved. Hello, ${username}!`;
+
+          updateLoginProgress(`${greet}\nOpening mode selection…`, false);
+          const topBar = document.getElementById('topBar');
+          if (topBar) topBar.style.display = '';
+          closeLoginProgress();
+          startGame();  // opens Mode Picker immediately
         });
-      })
-      .then(() => {
-        try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
-        playerUsername = username;
-
-        const greet = (priorProfile && priorProfile.username === username)
-          ? `Welcome back, ${username}!`
-          : `Saved. Hello, ${username}!`;
-
-        updateLoginProgress(
-          `${greet}\nNext, pick a mode — the round starts right away.`,
-          true,
-          () => {
-            closeLoginProgress();
-            const topBar = document.getElementById('topBar');
-            if (topBar) topBar.style.display = '';
-            startGame(); // closes login and opens Mode Picker
-          }
-        );
       })
       .catch((err) => {
-        updateLoginProgress(String(err && err.message || 'Could not save username. Please try again.'), true, () => {
-          closeLoginProgress();
-          // Reopen login if saving failed
+        // if we already hid login for progress (unexpected error), reopen it
+        const wasTaken = String(err && err.message) === 'username_taken';
+        if (!wasTaken) {
+          // generic failure while saving — show in-login error and keep modal
           const loginM2 = document.getElementById('loginModal');
-          if (loginM2){ loginM2.classList.remove('hidden'); document.body.classList.add('login-active'); }
-        });
+          if (loginM2) { loginM2.classList.remove('hidden'); document.body.classList.add('login-active'); }
+          setLoginStatus('Could not save username. Please try again.', 'err');
+        }
       })
       .finally(() => {
         submit.classList.remove('is-busy');
-        submit.removeAttribute('aria-busy');
         submit.disabled = false;
       });
   };

@@ -49,6 +49,13 @@ html, body {
 }
 .hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
 
+.hidden { display: none !important; }
+
+.loginStatus { margin-top: 8px; font-size: 0.92rem; line-height: 1.3; opacity: .9;}
+.loginStatus.info { color: #555; }
+.loginStatus.ok   { color: #2e7d32; }
+.loginStatus.err  { color: #b00020; }
+
 /* Camera icon button */
 .iconBtn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -60,6 +67,9 @@ html, body {
 .iconBtn.small { width: 32px; height: 32px; border-radius: 8px; }
 .iconBtn:active { transform: translateY(1px) scale(0.98); }
 .iconBtn.is-busy { opacity: .6; pointer-events: none; }
+
+/* Hidden by default; only shown in troubleshoot mode on laptops */
+#cameraBtn { display: none; }
 
 
 /* ===== Right: HUD (Score over Time) ===== */

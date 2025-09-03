@@ -1,6 +1,6 @@
 // === CONFIG ===
 // const ALLOWED_ORIGINS = ['https://bubble-game-proxy.xoakuma.workers.dev']; // only allow your proxy to call this
-const SECRET = 'should be pull from cloudflare worker';
+const SECRET = '<tbd>';
 const RUNS = 'Runs';
 const PROFILES = 'Profiles';
 
@@ -34,10 +34,14 @@ function doGet(e) {
 
     if (action === 'checkUsername') {
       const username = (qp.username || '').trim();
+      const deviceId = qp.deviceId || '';
       if (username.length < 3) return json_({ ok: false, error: 'too short' });
+
       const taken = findByValue_(profiles, 1, username); // col 1 = username
-      return json_({ ok: true, available: !taken });
+      const available = !taken || (deviceId && taken.values[0] === deviceId);
+      return json_({ ok: true, available });
     }
+
 
     if (action === 'profile') {
       const deviceId = qp.deviceId || '';
@@ -97,7 +101,8 @@ function doPost(e) {
     if (body.action === 'run') {
       const {
         deviceId, username, mode, score, durationMs,
-        bubblesPopped, accuracy, gameVersion, sessionId, runId
+        bubblesPopped, accuracy, gameVersion, sessionId, runId,
+        emoHappy, emoSad, emoAngry, emoStressed, emoNeutral
       } = body;
 
       if (!deviceId || typeof score !== 'number') return json_({ ok: false, error: 'bad input' });
@@ -105,7 +110,8 @@ function doPost(e) {
       runs.appendRow([
         new Date(), deviceId, username || '', mode || '', score,
         durationMs || '', bubblesPopped || '', accuracy || '',
-        gameVersion || '', sessionId || '', runId || ''
+        gameVersion || '', sessionId || '', runId || '',
+        emoHappy || '', emoSad || '', emoAngry || '', emoStressed || '', emoNeutral || ''
       ]);
 
       const existing = findByKey_(profiles, 0, deviceId);
