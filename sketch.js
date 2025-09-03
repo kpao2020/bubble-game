@@ -1,8 +1,7 @@
-// Bubble Bio Game — optimized build
-// - Detection runs only in Bio mode
-// - Sampler interval is configurable via BIO_SAMPLE_MS (default 1000ms)
-// - Cleaned up: removed hamburger/collapsed cam controls code
-// - Added JSDoc-style comments for key functions
+// Bubble Bio Game — v8.0
+// Owner: Ken Pao
+// Note: Coding with ChatGPT assistance
+
 
 /* =============================
  *        Game constants
@@ -36,6 +35,13 @@ let score = 0;
 let startTime = 0;
 let gameOver = false;
 
+// NEW: per-round input & pop stats
+let tapsTotal = 0;              // all tap/click attempts
+let tapsMissed = 0;             // attempts that didn’t hit any bubble
+let bubblesPopped = 0;          // total bubbles removed by the player
+let bubblesPoppedGood = 0;      // non-trick pops (these increase score)
+let bubblesPoppedTrick = 0;     // trick pops (these decrease score)
+
 // Camera state
 let currentStream = null;
 let selectedDeviceId = null;
@@ -46,14 +52,96 @@ let bioTimerId = null;
 let overlay, octx;         // overlay canvas for green box
 
 // Aggregated expression state (smoothed)
-const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, neutral: 1 };
+const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, stressed:0, neutral: 1 };
 
-// Emotion decision thresholds
+// Make emotions a bit easier to trigger
 const EMO_CFG = {
-  ON: 0.40, OFF: 0.33, NEUTRAL_ON: 0.58, NEUTRAL_OFF: 0.40, MARGIN: 0.05, COOLDOWN_MS: 2200
+  ON: 0.22,          // was higher
+  OFF: 0.16,         // stickiness
+  NEUTRAL_ON: 0.38, 
+  NEUTRAL_OFF: 0.30,
+  MARGIN: 0.06,      // gap between #1 and #2
+  COOLDOWN_MS: 500
 };
-const EMO_FORCE = { HAPPY_RAW: 0.42, SAD_RAW: 0.38, ANGRY_RAW: 0.40 };
+
+// Raw “force” thresholds — used for quick switches
+const EMO_FORCE = {
+  HAPPY_RAW:   0.36,
+  SAD_RAW:     0.33,
+  ANGRY_RAW:   0.34,
+  STRESSED_RAW:0.28     // LOWERED so stressed can win
+};
+
+
 let lastEmotion = 'neutral', lastSwitchMs = 0;
+
+// Per-round emotion counts (incremented by the Bio sampler)
+let emoCounts = { happy: 0, sad: 0, angry: 0, stressed: 0, neutral: 0 };
+
+/* =============================
+ *        Backend config
+ * ============================= */
+// Single place to configure your Google Apps Script (prefer a proxy/worker URL that handles CORS + SECRET)
+const GOOGLE_SCRIPT_URL = "https://bubble-game-proxy.xoakuma.workers.dev/";
+// If (and only if) you POST directly to Apps Script with SECRET enforced, you can append it here.
+// Recommended: leave empty and let your proxy add the secret server-side.
+const GOOGLE_SCRIPT_POST_SUFFIX = "";
+
+/* =============================
+ *        Identity & storage
+ * ============================= */
+const STORAGE_KEYS = { deviceId: 'bbg_device_id', username: 'bbg_username', bioConsent: 'bbg_bio_consent'};
+let playerDeviceId = null;
+let playerUsername = null;
+window.__playerReady = false; // gate the draw loop & inputs until username exists
+
+function getOrCreateDeviceId() {
+  try {
+    let id = localStorage.getItem(STORAGE_KEYS.deviceId);
+    if (!id) {
+      id = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(STORAGE_KEYS.deviceId, id);
+    }
+    return id;
+  } catch {
+    return (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
+
+/* =============================
+ *        Troubleshooting mode
+ * ============================= */
+
+// Troubleshoot visibility (toggles the camera button on laptops in Bio mode)
+let troubleshootMode = false;
+
+function isLaptop(){
+  const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+  const w = Math.max( viewportW?.() || 0, window.innerWidth || 0 );
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const desktopUA = /(macintosh|mac os x|windows nt|linux|cros)/.test(ua);
+  return !hasTouch && !coarse && (desktopUA || w >= 900);
+}
+
+function refreshCameraBtn(){
+  const btn = document.getElementById('cameraBtn');
+  if (!btn) return;
+  const show = window.__playerReady && isBioMode() && isLaptop() && troubleshootMode;
+  btn.style.display = show ? 'inline-flex' : 'none';
+}
+
+// Press "t" to toggle troubleshoot mode (only matters in Bio mode on laptops)
+document.addEventListener('keydown', (e) => {
+  if ((e.key || '').toLowerCase() === 't' && window.__playerReady && isBioMode() && isLaptop()){
+    troubleshootMode = !troubleshootMode;
+    refreshCameraBtn();
+  }
+});
 
 /* =============================
  *        UI helpers
@@ -67,7 +155,8 @@ function fitCanvasToViewport() {
   const w = viewportW();
   const h = viewportH();
   if (width !== w || height !== h) resizeCanvas(w, h);
-  rebuildWallsIfNeeded();
+  // Only rebuild walls after login so mobile keyboards/resize during login don't touch physics
+  if (window.__playerReady) rebuildWallsIfNeeded();
 }
 /** Return the y-px of the safe play area's top (just below the top bar + padding) */
 function safeTopPx(){
@@ -134,6 +223,181 @@ function setEmotionChip(next){
   if (chip) chip.textContent = String(next || 'neutral').toUpperCase();
 }
 
+function hasBioConsent(){
+  try { return localStorage.getItem(STORAGE_KEYS.bioConsent) === 'accepted'; }
+  catch { return false; }
+}
+function acceptBioConsent(){
+  try { localStorage.setItem(STORAGE_KEYS.bioConsent, 'accepted'); } catch {}
+}
+
+function showBioConsentModal(onAccept, onDecline){
+  const m = document.getElementById('bioConsentModal');
+  const yes = document.getElementById('bioConsentAgreeBtn');
+  const no  = document.getElementById('bioConsentDeclineBtn');
+  if (!m || !yes || !no){ onAccept && onAccept(); return; }
+
+  m.classList.remove('hidden');
+  yes.onclick = () => { acceptBioConsent(); m.classList.add('hidden'); onAccept && onAccept(); };
+  no.onclick  = () => { m.classList.add('hidden'); onDecline && onDecline(); };
+}
+
+function showModePicker(){
+  const m  = document.getElementById('modeModal');
+  const bC = document.getElementById('modeClassicBtn');
+  const bH = document.getElementById('modeChallengeBtn');
+  const bB = document.getElementById('modeBioBtn');
+
+  // NEW: hide top bar while choosing a mode
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.add('hidden');
+
+  if (!m || !bC || !bH || !bB){ 
+    currentMode = 'classic'; 
+    afterModeSelected(false); 
+    return; 
+  }
+
+  const hide = () => m.classList.add('hidden');
+  m.classList.remove('hidden');
+
+  bC.onclick = () => { currentMode = 'classic'; hide(); afterModeSelected(false); };
+  bH.onclick = () => { currentMode = 'challenge'; hide(); afterModeSelected(false); };
+  bB.onclick = () => {
+    const proceedBio = () => { currentMode = 'bio'; hide(); afterModeSelected(true); };
+    if (hasBioConsent()) proceedBio();
+    else showBioConsentModal(proceedBio, () => { currentMode = 'classic'; hide(); afterModeSelected(false); });
+  };
+}
+
+function afterModeSelected(isBio){
+  // show the top bar again
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.remove('hidden');
+
+  // Lock legacy dropdown during a round
+  const ms = document.getElementById('modeSelect');
+  if (ms) ms.disabled = true;
+
+  // Now actually start the game round
+  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
+  if (btn){ btn.style.display = 'none'; }
+
+  window.__playerReady = true;
+
+  if (isBio){
+    loadFaceApiModels();
+    startWebcam();
+    startSampler();
+  } else {
+    stopSampler();
+    stopWebcam();
+  }
+
+  refreshCameraBtn();
+  restart(false);
+}
+
+
+function openLoginProgress(msg){
+  const m = document.getElementById('loginProgressModal');
+  const p = document.getElementById('loginProgressMsg');
+  const c = document.getElementById('loginProgressContinue');
+  if (m && p){ p.textContent = msg || ''; m.classList.remove('hidden'); }
+  if (c){ 
+    c.classList.add('hidden');  // keep hidden during fetch
+    c.disabled = true;          // and not focusable
+    c.onclick = null; }
+}
+
+function updateLoginProgress(msg, showContinue, onContinue){
+  const p = document.getElementById('loginProgressMsg');
+  const c = document.getElementById('loginProgressContinue');
+  if (p) p.textContent = msg || '';
+  if (c){
+    if (showContinue){ 
+      c.classList.remove('hidden'); 
+      c.disabled = false;
+      c.onclick = onContinue || null; }
+    else {
+      c.classList.add('hidden');  // hide while waiting
+      c.disabled = true;
+      c.onclick = null;
+    }
+  }
+}
+function closeLoginProgress(){ document.getElementById('loginProgressModal')?.classList.add('hidden'); }
+
+// --- Block library key handlers while any modal is open ---
+function modalOpen(){ return !!document.querySelector('.modal:not(.hidden)'); }
+function isFormTarget(el){
+  if (!el) return false;
+  const tag = (el.tagName || '').toLowerCase();
+  return el.isContentEditable || ['input','textarea','select','button'].includes(tag) || el.closest('.modal');
+}
+function swallowKeysIfModal(e){
+  // Some browsers dispatch key events with undefined e.key during UI interactions.
+  // Stop them from reaching q5/p5play to avoid crashes.
+  if (modalOpen() && isFormTarget(e.target)) {
+    e.stopImmediatePropagation();
+  }
+}
+document.addEventListener('keydown', swallowKeysIfModal, true);
+document.addEventListener('keyup', swallowKeysIfModal, true);
+
+function setLoginStatus(msg, cls='info') {
+  const el = document.getElementById('loginStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = `loginStatus ${cls}`;
+}
+
+
+/* =======================================
+ *        Update Game Run and Profile
+ * ======================================= */
+
+function nowMs(){ return (typeof millis === 'function') ? millis() : Date.now(); }
+
+async function submitRun(){
+  try {
+    const durationMs = Math.max(0, nowMs() - startTime);
+    // one per page load; useful for grouping runs
+    window.__sessionId = window.__sessionId || (crypto.randomUUID?.() || ('s-' + Date.now()));
+    const runId = crypto.randomUUID?.() || ('run-' + Date.now());
+
+    await fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'run',
+        deviceId: playerDeviceId,
+        username: playerUsername || '',
+        mode: currentMode,
+        score,
+        durationMs,
+        // optional fields; Apps Script accepts empty
+        bubblesPopped,
+        accuracy: +( (bubblesPoppedGood / Math.max(1, tapsTotal)).toFixed(3) ),
+        // emotion counts (sampler ticks per round)
+        emoHappy:    emoCounts.happy,
+        emoSad:      emoCounts.sad,
+        emoAngry:    emoCounts.angry,
+        emoStressed: emoCounts.stressed,
+        emoNeutral:  emoCounts.neutral,
+        // game info
+        gameVersion: 'v5.0',
+        sessionId: window.__sessionId,
+        runId
+      })
+    });
+  } catch (e) {
+    console.warn('[submitRun] failed:', e);
+  }
+}
+
+
 /* =============================
  *        Setup & Draw
  * ============================= */
@@ -148,7 +412,7 @@ function setup(){
     currentMode = modeSelect.value;
     modeSelect.onchange = async () => {
       currentMode = modeSelect.value;
-      restart(true);
+      if (window.__playerReady) restart(true);  // restart only after login
       if (isBioMode()){
         await loadFaceApiModels();
         await startWebcam(true);
@@ -183,10 +447,13 @@ function setup(){
   })();
 
   // Pointer popping (bulletproof across devices)
-  const cnv = _renderer?.canvas || document.querySelector('canvas');
+  // const cnv = _renderer?.canvas || document.querySelector('canvas');
+  const cnv = document.querySelector('canvas') || (typeof _renderer !== 'undefined' && _renderer.canvas);
+
   if (cnv){
     cnv.style.touchAction = 'none';
     cnv.addEventListener('pointerdown', (e) => {
+      if (!window.__playerReady) return; // ignore clicks until after login
       // ignore clicks on top bar
       const ui = document.getElementById('topBar');
       const r = ui?.getBoundingClientRect?.();
@@ -198,20 +465,11 @@ function setup(){
     }, { passive: true });
   }
 
-  // Build bubbles
-  bubbles = new Group();
-  bubbles.collider = 'dynamic';
-  bubbles.bounciness = 1;
-  bubbles.friction = 0;
-  bubbles.drag = 0;
-  for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
-
+  // Defer entity creation until after login (startGame -> restart)
   score = 0; startTime = millis(); gameOver = false;
   document.getElementById('center').style.display = 'none';
   const btn = document.getElementById('restartBtn');
-  if (btn){ btn.style.display = 'none'; btn.onclick = () => restart(false); }
-
-  buildWalls();
+  if (btn){ btn.style.display = 'none'; btn.onclick = () => { if (window.__playerReady) restart(false); }; }
 
   if (isBioMode()){
     loadFaceApiModels();
@@ -237,15 +495,43 @@ function setup(){
     });
   }
   listCameras();
+
+  // Pause draw loop until player completes login
+  try { noLoop(); } catch {}
+
+  // Post-game modal buttons
+  const pg = document.getElementById('postGameModal');
+  const pgClose = document.getElementById('postGameClose');
+  const pgPlay  = document.getElementById('postPlayAgain');
+  const pgMode  = document.getElementById('postChangeMode');
+
+  if (pgClose) pgClose.onclick = closePostGameModal;
+  // prevent the game close if not clicking the play again button or change mode button
+  // if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
+
+  if (pgPlay) pgPlay.onclick = () => { closePostGameModal(); if (window.__playerReady) restart(false); };
+  if (pgMode) pgMode.onclick = () => { closePostGameModal(); showModePicker(); };
 }
 
 function draw(){
+  if (window.__splashActive || !window.__playerReady) return; // do nothing until after login
   fitCanvasToViewport();
   background(200,230,255);
 
   const timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
   document.getElementById('timeChip').textContent  = `Time: ${timeLeft}`;
+
+  const modeChip = document.getElementById('modeChip');
+  if (modeChip){
+    const label = (currentMode === 'classic') ? 'Classic'
+                : (currentMode === 'challenge') ? 'Challenge'
+                : 'Bio';
+    // Always keep the text current
+    modeChip.textContent = `Mode: ${label}`;
+    // Visible only in Bio mode (per your spec)
+    modeChip.style.display = isBioMode() ? 'inline-flex' : 'none';
+  }
 
   const bioChip  = document.getElementById('bioChip');
   const camBtnEl = document.getElementById('cameraBtn');
@@ -260,13 +546,17 @@ function draw(){
     bioChip?.classList.add('hiddenChip');
     if (camBtnEl) camBtnEl.style.display = 'none';
   }else{
+    // Bio mode
+    refreshCameraBtn(); // decides visibility based on laptop + toggle
     bioChip?.classList.remove('hiddenChip');
-    if (camBtnEl) camBtnEl.style.display = 'inline-flex';
+    refreshCameraBtn();
+
     const emo = dominantEmotion();
     bioChip.textContent = emo.toUpperCase();
-    if (emo === 'happy'){ bioChip.style.background = 'rgba(120,255,160,.85)'; modeSpeedMult = 1.3; }
+    if (emo === 'happy'){ bioChip.style.background = 'rgba(120,255,160,.85)'; modeSpeedMult = 1.5; }
     else if (emo === 'sad'){ bioChip.style.background = 'rgba(120,160,255,.85)'; modeSpeedMult = 0.8; }
-    else if (emo === 'angry'){ bioChip.style.background = 'rgba(255,140,140,.85)'; modeSpeedMult = 1.0; }
+    else if (emo === 'angry'){ bioChip.style.background = 'rgba(255,140,140,.85)'; modeSpeedMult = 1; }
+    else if (emo === 'stressed'){ bioChip.style.background = 'rgba(255,200,120,.85)'; modeSpeedMult = 0.5; }
     else { bioChip.style.background = 'rgba(255,255,255,.85)'; modeSpeedMult = 1.0; }
   }
 
@@ -337,38 +627,100 @@ function currentRadius(b){
   return max(1, d * 0.5);
 }
 
+// Capture game stat during gameplay
 function handlePop(px, py){
-  if (gameOver) return;
+  if (gameOver || !window.__playerReady || !bubbles) return;
+
+  tapsTotal++;
+  let hit = false;
+
   for (let i = bubbles.length - 1; i >= 0; i--){
     const b = bubbles[i], r = currentRadius(b), rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0);
     const dx = px - b.x, dy = py - b.y;
     if (dx*dx + dy*dy <= rHit*rHit){
-      score += (b._type === 'trick') ? -1 : 1; if (score < 0) score = 0;
-      b.remove(); spawnBubble(); break;
+      hit = true;
+
+      // update score exactly like before
+      score += (b._type === 'trick') ? -1 : 1;
+      if (score < 0) score = 0;
+
+      // NEW: stats
+      bubblesPopped++;
+      if (b._type === 'trick') bubblesPoppedTrick++;
+      else bubblesPoppedGood++;
+
+      b.remove();
+      spawnBubble();
+      break;
     }
   }
+
+  if (!hit) tapsMissed++;
 }
-function mousePressed(){ handlePop(mouseX, mouseY); }
+
+
+function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
 function touchStarted(){
+  if (!window.__playerReady) return;
   if (touches && touches.length) for (const t of touches) handlePop(t.x, t.y);
   else handlePop(mouseX, mouseY);
 }
 
 function endGame(){
-  gameOver = true; noLoop();
-  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  gameOver = true; 
+  noLoop();
+
+  const centerEl = document.getElementById('center');
+  const btn = document.getElementById('restartBtn');
   if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
-  if (btn){ btn.style.display = 'block'; }
+  if (btn){ btn.style.display = 'none'; }
+
+  const ms = document.getElementById('modeSelect');
+  if (ms) ms.disabled = true; // keep mode locked during post-game UI
+
   if (isBioMode()){
-    if (BIO_STOP_STRATEGY === 'pause') stopSampler(); else { stopSampler(); stopWebcam(); }
+    if (BIO_STOP_STRATEGY === 'pause') { stopSampler(); }
+    else { stopSampler(); stopWebcam(); }
     clearTimeout(bioIdleStopTO);
-    bioIdleStopTO = setTimeout(() => { if (gameOver && isBioMode()) { stopWebcam(); } }, BIO_IDLE_STOP_MS);
+    bioIdleStopTO = setTimeout(() => { if (gameOver && isBioMode()) stopWebcam(); }, BIO_IDLE_STOP_MS);
   }
+
+  // Send game stat to google sheet
+  submitRun();
+
+  openPostGameModal();
 }
+
+
 function restart(fromModeButton){
-  for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+  // Lazy init groups/walls on first start
+  if (!bubbles) {
+    bubbles = new Group();
+    bubbles.collider = 'dynamic';
+    bubbles.bounciness = 1;
+    bubbles.friction = 0;
+    bubbles.drag = 0;
+  } else {
+    for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+  }
   for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
-  score = 0; startTime = millis(); gameOver = false;
+  if (!walls || walls.length < 4) buildWalls();
+
+  // reset per-round stats
+  tapsTotal = 0;
+  tapsMissed = 0;
+  bubblesPopped = 0;
+  bubblesPoppedGood = 0;
+  bubblesPoppedTrick = 0;
+
+  score = 0;
+  startTime = millis();
+  gameOver = false;
+
+  closePostGameModal();                     // close post-game UI if it was open
+  const ms = document.getElementById('modeSelect');
+  if (ms) ms.disabled = true;               // lock mode during the round
+
   const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
   if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
   if (btn){ btn.style.display = 'none'; btn.blur?.(); }
@@ -437,7 +789,7 @@ async function startWebcam(isRestart = false){
   let played = false;
   try { await v.play(); played = true; } catch { console.warn('[bio] video.play blocked; will resume on gesture'); }
 
-  const onReady = () => { if (isBioMode()) startSampler(); };
+  const onReady = () => { if (isBioMode() && window.__playerReady) startSampler(); };
   v.addEventListener('playing', onReady, { once: true });
   v.addEventListener('loadeddata', onReady, { once: true });
   if (v.readyState >= 2) onReady();
@@ -526,6 +878,7 @@ async function sampleBio(){
     bioState.happy = ema(bioState.happy, 0, 0.3);
     bioState.sad   = ema(bioState.sad,   0, 0.3);
     bioState.angry = ema(bioState.angry, 0, 0.3);
+    bioState.stressed = ema(bioState.stressed, 0, 0.3);
     bioState.neutral = ema(bioState.neutral, 1, 0.3);
     if (overlay && octx) octx.clearRect(0,0,overlay.width,overlay.height);
     return;
@@ -549,6 +902,11 @@ async function sampleBio(){
   bioState.sad   = ema(bioState.sad,   acc.sad,   0.75);
   bioState.angry = ema(bioState.angry, acc.angry, 0.75);
   bioState.neutral = ema(bioState.neutral, acc.neutral, 0.75);
+  // STRESSED: blend fearful + disgusted + surprised
+  const stressedRaw = 0.6 * acc.fearful + 0.3 * acc.disgusted + 0.1 * acc.surprised;
+  bioState.stressed = ema(bioState.stressed, stressedRaw, 0.75);
+
+  if (troubleshootMode) console.log('emo raw:', acc);
 
   // Draw overlay box on preview if visible
   const vPrev = document.getElementById('webcamPreview');
@@ -566,20 +924,27 @@ async function sampleBio(){
       octx.restore();
     } catch (e){ console.warn('[bio] overlay draw error:', e); }
   }
+
+  // Count one “tick” toward the dominant emotion each sample
+  const emo = dominantEmotion();
+  if (emo && emoCounts.hasOwnProperty(emo)) emoCounts[emo]++;
 }
 
 /**
  * Decide dominant emotion based on smoothed bioState with hysteresis/cooldown.
- * @returns {'happy'|'sad'|'angry'|'neutral'}
+ * @returns {'happy'|'sad'|'angry'|'stressed'|'neutral'}
  */
 function dominantEmotion(){
-  const h = Number(bioState.happy||0), s = Number(bioState.sad||0), a = Number(bioState.angry||0);
+  const h = Number(bioState.happy||0),
+        s = Number(bioState.sad||0),
+        a = Number(bioState.angry||0),
+        t = Number(bioState.stressed||0);
   const nRaw = (bioState.neutral != null) ? Number(bioState.neutral) : 0;
-  const n = nRaw > 0 ? nRaw : Math.max(0, 1 - (h + s + a));
+  const n = nRaw > 0 ? nRaw : Math.max(0, 1 - (h + s + a + t));
 
-  const sum = h + s + a + n + 1e-6;
+  const sum = h + s + a + t + n + 1e-6;
   const shares = [
-    {k:'happy',v:h/sum},{k:'sad',v:s/sum},{k:'angry',v:a/sum},{k:'neutral',v:n/sum}
+    {k:'happy',v:h/sum},{k:'sad',v:s/sum},{k:'angry',v:a/sum},{k:'stressed',v:t/sum},{k:'neutral',v:n/sum}
   ].sort((x,y)=>y.v-x.v);
 
   const now = (typeof millis === 'function') ? millis() : Date.now();
@@ -589,21 +954,27 @@ function dominantEmotion(){
   if (lastEmotion === 'neutral'){ if (neutralShare >= EMO_CFG.NEUTRAL_OFF) return 'neutral'; }
   else { const curShare = shares.find(x=>x.k===lastEmotion)?.v || 0; if (curShare >= EMO_CFG.OFF) return lastEmotion; }
 
+  // Strong neutral
   if (shares[0].k === 'neutral' && shares[0].v >= EMO_CFG.NEUTRAL_ON){
     if (!inCooldown || lastEmotion!=='neutral'){ lastEmotion='neutral'; lastSwitchMs=now; }
     return 'neutral';
   }
 
-  const hsa = shares.filter(x=>x.k!=='neutral').sort((x,y)=>y.v-x.v);
-  const top=hsa[0], second=hsa[1];
-  if (h >= EMO_FORCE.HAPPY_RAW && (!inCooldown || lastEmotion!=='happy')){ lastEmotion='happy'; lastSwitchMs=now; return 'happy'; }
-  if (s >= EMO_FORCE.SAD_RAW   && (!inCooldown || lastEmotion!=='sad'))  { lastEmotion='sad';   lastSwitchMs=now; return 'sad'; }
-  if (a >= EMO_FORCE.ANGRY_RAW && (!inCooldown || lastEmotion!=='angry')){ lastEmotion='angry'; lastSwitchMs=now; return 'angry'; }
+  // Raw-force gates
+  if (h >= EMO_FORCE.HAPPY_RAW   && (!inCooldown || lastEmotion!=='happy'))   { lastEmotion='happy';   lastSwitchMs=now; return 'happy'; }
+  if (s >= EMO_FORCE.SAD_RAW     && (!inCooldown || lastEmotion!=='sad'))     { lastEmotion='sad';     lastSwitchMs=now; return 'sad'; }
+  if (a >= EMO_FORCE.ANGRY_RAW   && (!inCooldown || lastEmotion!=='angry'))   { lastEmotion='angry';   lastSwitchMs=now; return 'angry'; }
+  if (t >= EMO_FORCE.STRESSED_RAW&& (!inCooldown || lastEmotion!=='stressed')){ lastEmotion='stressed';lastSwitchMs=now; return 'stressed'; }
 
+  // Otherwise, take the top non-neutral if it beats #2 by a margin
+  const nonNeutral = shares.filter(x=>x.k!=='neutral').sort((x,y)=>y.v-x.v);
+  const top = nonNeutral[0], second = nonNeutral[1];
   if (top.v >= EMO_CFG.ON && (top.v - second.v) >= EMO_CFG.MARGIN){
     if (!inCooldown || lastEmotion!==top.k){ lastEmotion=top.k; lastSwitchMs=now; }
     return lastEmotion;
   }
+
+  // Fallbacks
   if (neutralShare >= EMO_CFG.NEUTRAL_OFF){
     if (!inCooldown || lastEmotion!=='neutral'){ lastEmotion='neutral'; lastSwitchMs=now; }
     return 'neutral';
@@ -611,8 +982,184 @@ function dominantEmotion(){
   return lastEmotion;
 }
 
+
 /* =============================
  *        Modal helpers
  * ============================= */
 function openCameraModal(){ document.getElementById('cameraModal')?.classList.remove('hidden'); }
 function closeCameraModal(){ document.getElementById('cameraModal')?.classList.add('hidden'); }
+
+// ===== Splash Controller =====
+(function initSplash() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+
+  // Helper to end the splash with fade-out
+  function dismissSplash() {
+    if (!splash.classList.contains('is-visible')) return;
+
+    splash.classList.add('is-fading-out');
+
+    // Give the CSS transition time to finish
+    setTimeout(() => {
+      splash.classList.remove('is-visible', 'is-fading-out');
+
+      // Hook for your game: start music later, restart level, etc.
+      if (typeof window.onSplashDismiss === 'function') {
+        try { window.onSplashDismiss(); } catch (e) { console.warn(e); }
+      }
+    }, 420);
+  }
+
+  // Make it visible on load (CSS handles fade-in)
+  requestAnimationFrame(() => splash.classList.add('is-visible'));
+
+  // Interactions: click/tap or keys (Enter/Space)
+  const startEvents = ['click', 'touchend'];
+  startEvents.forEach(evt => splash.addEventListener(evt, dismissSplash, { passive: true }));
+  window.addEventListener('keydown', (e) => {
+    const k = e.key?.toLowerCase();
+    if (k === 'enter' || k === ' ') dismissSplash();
+  });
+})();
+
+window.__splashActive = true;
+window.onSplashDismiss = function () {
+  window.__splashActive = false;
+  playerDeviceId = playerDeviceId || getOrCreateDeviceId();
+  showLoginScreen(playerDeviceId); // open login after splash
+};
+
+function openPostGameModal(){ document.getElementById('postGameModal')?.classList.remove('hidden'); }
+function closePostGameModal(){ document.getElementById('postGameModal')?.classList.add('hidden'); }
+
+
+/* =============================
+ *        Login & start
+ * ============================= */
+function startGame() {
+  // Close login UI
+  const modal = document.getElementById('loginModal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('login-active');
+
+  // Show mode picker instead of starting immediately
+  showModePicker();
+}
+
+
+/**
+ * Show login screen: prefill from profile or suggest, validate, then POST setUsername.
+ * Keeps naming consistent: deviceId, username.
+ */
+function showLoginScreen(deviceId){
+  const modal  = document.getElementById('loginModal');
+  const input  = document.getElementById('usernameInput');
+  const submit = document.getElementById('submitUsername');
+  if (!modal || !input || !submit) return;
+
+  // keep top bar hidden here
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.add('hidden');
+
+  document.body.classList.add('login-active');
+  modal.classList.remove('hidden');
+
+  // track if user started typing
+  let loginUserEdited = false;
+  input.addEventListener('input', () => { loginUserEdited = true; });
+
+  // reset and show device check status
+  input.value = '';
+  setLoginStatus('Checking if this device is already recognized…', 'info');
+
+  let priorProfile = null;
+
+  // Fetch prior profile for this deviceId
+  fetch(`${GOOGLE_SCRIPT_URL}?action=profile&deviceId=${encodeURIComponent(deviceId)}`)
+    .then(r => r.json())
+    .then(data => {
+      const suggested = (data && data.ok && data.profile && data.profile.username)
+        ? String(data.profile.username || '').trim()
+        : `Player-${deviceId.slice(0,6)}`;
+
+      if (!loginUserEdited && (!input.value || input.value.trim() === '')) {
+        input.value = suggested;
+      } else {
+        input.placeholder = suggested; // don't overwrite what the user typed
+      }
+
+      if (data && data.ok && data.profile) {
+        priorProfile = data.profile;
+        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new name.`, 'ok');
+      } else {
+        setLoginStatus('New device detected. Please create a username.', 'info');
+      }
+    })
+    .catch(() => {
+      const suggested = `Player-${deviceId.slice(0,6)}`;
+      if (!loginUserEdited && (!input.value || input.value.trim() === '')) input.value = suggested;
+      else input.placeholder = suggested;
+      setLoginStatus('Could not check device right now. You can still create a username.', 'err');
+    });
+
+  // SUBMIT: check availability first (keep modal open). Only show "Saving…" progress after it’s available.
+  submit.onclick = function() {
+    const username = (input.value || '').trim();
+    if (!username) return;
+
+    submit.classList.add('is-busy');
+    submit.disabled = true;
+    setLoginStatus('Checking username…', 'info');
+
+    // include deviceId so your server allows the owner device to reuse its name
+    fetch(`${GOOGLE_SCRIPT_URL}?action=checkUsername&username=${encodeURIComponent(username)}&deviceId=${encodeURIComponent(deviceId)}`)
+      .then(r => r.json())
+      .then(data => {
+        const canUse = !!(data && data.ok && (data.available || (priorProfile && priorProfile.username === username)));
+        if (!canUse) {
+          // taken by another device/player — keep modal open and show message
+          setLoginStatus(`“${username}” is already taken by another device. Please choose a different username.`, 'err');
+          throw new Error('username_taken');
+        }
+
+        // Now proceed to save (show progress modal only here)
+        const loginM = document.getElementById('loginModal');
+        if (loginM) loginM.classList.add('hidden');
+        document.body.classList.remove('login-active');
+
+        openLoginProgress(`Saving your username… this can take a moment.\nAfter this, you’ll choose a mode and the round will start.`);
+
+        return fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setUsername', deviceId, username })
+        }).then(() => {
+          try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
+          playerUsername = username;
+
+          const greet = (priorProfile && priorProfile.username === username)
+            ? `Welcome back, ${username}!`
+            : `Saved. Hello, ${username}!`;
+
+          updateLoginProgress(`${greet}\nOpening mode selection…`, false);
+          closeLoginProgress();
+          startGame();  // opens Mode Picker immediately
+        });
+      })
+      .catch((err) => {
+        // if we already hid login for progress (unexpected error), reopen it
+        const wasTaken = String(err && err.message) === 'username_taken';
+        if (!wasTaken) {
+          // generic failure while saving — show in-login error and keep modal
+          const loginM2 = document.getElementById('loginModal');
+          if (loginM2) { loginM2.classList.remove('hidden'); document.body.classList.add('login-active'); }
+          setLoginStatus('Could not save username. Please try again.', 'err');
+        }
+      })
+      .finally(() => {
+        submit.classList.remove('is-busy');
+        submit.disabled = false;
+      });
+  };
+}

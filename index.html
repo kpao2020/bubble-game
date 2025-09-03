@@ -3,13 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bubble Bio Game</title>
+  <title>Popping Bubbles</title>
 
   <link rel="stylesheet" href="style.css" />
 
   <!-- Libraries (deferred so they don't block parsing) -->
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/p5.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/addons/p5.sound.min.js" defer></script>
+  <!-- If you switch back to p5, restore these two and remove q5 -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/p5.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/addons/p5.sound.min.js" defer></script> -->
+
+  <!-- q5.js (compatible with p5play v3) -->
+  <script src="https://q5js.org/q5.js" defer></script>
+
   <script src="https://p5play.org/v3/planck.min.js" defer></script>
   <script src="https://p5play.org/v3/p5play.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
@@ -22,36 +27,41 @@
 </head>
 <body>
 
-  <!-- ===== Unified Top Bar ===== -->
-  <div id="topBar">
-    <!-- Left: compact mode selector -->
-    <div id="modeBar" class="compact">
+  <!-- ===== Unified Top Bar (hidden until gameplay starts) ===== -->
+  <div id="topBar" class="hidden">
+    <!-- Left: legacy mode selector (kept for compatibility, hidden) -->
+    <div id="modeBar" class="compact" style="display:none">
       <label for="modeSelect" class="srOnly">Mode</label>
       <select id="modeSelect" title="Mode">
         <option value="classic" selected>Classic</option>
         <option value="challenge">Challenge</option>
-        <option value="bio">Bio-Responsive</option>
+        <option value="bio">Bio</option>
       </select>
     </div>
 
-    <!-- Center: Bio indicator -->
-    <span class="chip" id="bioChip">NEUTRAL</span>
-
-    <!-- Middle-right: Camera icon (Bio mode only) -->
-    <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
-      </svg>
-    </button>
-
-    <!-- Right: HUD (Score over Time) -->
+    <!-- Left cluster: Score & Time -->
     <div id="overlayUI">
       <div class="hud">
         <span class="chip" id="scoreChip">Score: 0</span>
         <span class="chip" id="timeChip">Time: 30</span>
       </div>
     </div>
+
+    <!-- Center: Bio indicator -->
+    <span class="chip" id="bioChip">NEUTRAL</span>
+
+    <!-- Right: Mode chip + Camera (wrapped so both sit on the same row) -->
+    <div id="rightWrap">
+      <span class="chip" id="modeChip">Mode: Classic</span>
+      <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
   </div>
+  <!-- End Top Bar -->
+
 
   <!-- Camera modal (Bio mode only) -->
   <div id="cameraModal" class="modal hidden">
@@ -77,6 +87,8 @@
       </div>
     </div>
   </div>
+  <!-- End Camera modal -->
+
 
   <!-- Centered end-game UI -->
   <div id="center" class="centerMsg" style="display:none;"></div>
@@ -84,6 +96,83 @@
 
   <!-- Offscreen detector video (always rendering) -->
   <video id="webcam" autoplay muted playsinline class="hiddenVideo"></video>
+
+  <!-- Splash Screen Overlay -->
+  <div id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-labelledby="splashTitle" aria-describedby="splashSubtitle">
+    <div class="splash-inner">
+      <h1 id="splashTitle" class="splash-title">Popping Bubbles</h1>
+      <p id="splashSubtitle" class="splash-subtitle">Tap to Start</p>
+    </div>
+  </div>
+
+  <!-- Mode Picker Modal (centered) -->
+  <div id="modeModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="modeTitle">
+    <div class="modalContent">
+      <div class="modalHeader"><h3 id="modeTitle">Choose a Mode</h3></div>
+      <div class="modalRow stacked">
+        <button id="modeClassicBtn"  class="iconBtn">Classic</button>
+        <button id="modeChallengeBtn" class="iconBtn">Challenge</button>
+        <button id="modeBioBtn" class="iconBtn">Bio</button>
+      </div>
+      <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
+        Bio mode uses your camera locally to estimate expressions.
+      </p>
+    </div>
+  </div>
+
+  <!-- Post-game options (centered) -->
+  <div id="postGameModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="postGameTitle">
+    <div class="modalContent">
+      <div class="modalHeader">
+        <h3 id="postGameTitle">Round complete</h3>
+        <button id="postGameClose" class="iconBtn small" aria-label="Close">✕</button>
+      </div>
+      <div class="modalRow stacked">
+        <button id="postPlayAgain" class="iconBtn">Play again</button>
+        <button id="postChangeMode" class="iconBtn">Change mode</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bio Consent Modal (centered) -->
+  <div id="bioConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="bioConsentTitle">
+    <div class="modalContent">
+      <div class="modalHeader"><h3 id="bioConsentTitle">Bio Mode Consent</h3></div>
+      <div class="modalRow">
+        <p style="margin:0;">
+          Bio mode uses your device’s camera <b>locally</b> to estimate facial expressions.
+          We do <b>not</b> upload video. We store anonymized scores & gameplay stats in Google Sheets.
+        </p>
+      </div>
+      <div class="modalRow stacked">
+        <button id="bioConsentAgreeBtn" class="iconBtn">I agree</button>
+        <button id="bioConsentDeclineBtn" class="iconBtn">No thanks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login progress / notice (centered) -->
+  <div id="loginProgressModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="progressTitle">
+    <div class="modalContent">
+      <div class="modalHeader"><h3 id="progressTitle">Please wait…</h3></div>
+      <div class="modalRow"><p id="loginProgressMsg" style="margin:0;"></p></div>
+      <div class="modalRow stacked">
+        <button id="loginProgressContinue" class="iconBtn hidden">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal (centered) -->
+  <div id="loginModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="modalContent">
+      <div class="modalHeader"><h3 id="loginTitle">Enter your name</h3></div>
+      <div class="modalRow">
+        <input id="usernameInput" type="text" placeholder="Your name" autocomplete="username" />
+        <button id="submitUsername" class="iconBtn small">OK</button>
+      </div>
+      <p id="loginStatus" class="loginStatus"></p>
+    </div>
+  </div>
 
 </body>
 </html>
