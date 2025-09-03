@@ -30,7 +30,7 @@
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
 // Version:
-//    v8.4: Add hidden detectorCanvas with willReadFrequently, route detection through it; optional cadence tweak.
+//    v8.5: Switch normal-bubble tint to curated palette (more visible; consistent alpha).
 // Note: Coding with ChatGPT assistance
 
 
@@ -42,6 +42,16 @@ const START_BUBBLES = 24;
 const MIN_DIAM = 50, MAX_DIAM = 88;   // bubble size range
 const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
 const MIN_PLAY_SPEED = 0.9;           // floor after multipliers
+// High-contrast, cheerful palette for bubble tints (RGB)
+const BUBBLE_COLORS = [
+  [ 66, 135, 245],  // lively blue
+  [ 52, 199,  89],  // green
+  [255, 159,  10],  // orange
+  [255,  99, 132],  // pink/red
+  [175,  82, 222],  // purple
+  [ 50, 212, 222],  // teal
+  [255, 204,  77],  // warm yellow
+];
 
 const BIO_SAMPLE_MS = 1500;           // face sampling cadence (ms)
 
@@ -682,7 +692,14 @@ function spawnBubble(){
 
   const b = new Sprite(sx, sy, d);
   b.shape = 'circle'; b.color = color(255,255,255,0); b.diameter = d;
-  b._tint = color(random(120,210), random(140,220), 255, 150);
+  // old:
+  // b._tint = color(random(120,210), random(140,220), 255, 150);
+
+  // new (choose a palette color with a stronger, visible alpha):
+  const cIdx = Math.floor(random(BUBBLE_COLORS.length));
+  const [r,g,bv] = BUBBLE_COLORS[cIdx];
+  b._tint = color(r, g, bv, 200);
+
   b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
   b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
   b._type = (currentMode === 'challenge' && random() < 0.22) ? 'trick' : 'normal';
