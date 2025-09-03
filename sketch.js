@@ -387,7 +387,7 @@ async function submitRun(){
         emoStressed: emoCounts.stressed,
         emoNeutral:  emoCounts.neutral,
         // game info
-        gameVersion: 'v5.0',
+        gameVersion: 'v8.0',
         sessionId: window.__sessionId,
         runId
       })
