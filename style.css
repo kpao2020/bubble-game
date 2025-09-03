@@ -107,16 +107,20 @@ body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
 /* General buttons (incl. camera icon container) */
 .iconBtn {
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 6px 12px;
-  min-height: 32px;
-  border-radius: 10px; border: 0;
+  padding: 10px 10px;             /* taller, narrower */
+  min-height: 40px;               /* icon-button feel */
+  border-radius: 9999px; border: 0;  /* fully rounded */
   background: #0077cc; color: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
   cursor: pointer;
+  user-select: none; -webkit-user-select: none;
+  transition: transform 120ms ease, box-shadow 150ms ease, background 150ms ease, opacity 150ms ease;
 }
-.iconBtn.small { padding: 4px 8px; min-height: 28px; border-radius: 8px; }
-.iconBtn:active { transform: translateY(1px) scale(0.98); }
-.iconBtn.is-busy { opacity: .6; pointer-events: none; }
+
+.iconBtn.small { padding: 8px 10px; min-height: 36px; border-radius: 9999px; }
+.iconBtn:active { transform: translateY(1px) scale(0.98); box-shadow: 0 1px 6px rgba(0,0,0,.12); }
+.iconBtn:hover  { box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+.iconBtn:focus-visible { outline: 3px solid rgba(0,119,204,.4); outline-offset: 2px; }
 
 /* ===== Modal ===== */
 .modal, .modal * { touch-action: auto; }

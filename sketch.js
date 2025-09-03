@@ -30,7 +30,7 @@
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
 // Version:
-//    v8.5: Switch normal-bubble tint to curated palette (more visible; consistent alpha).
+//    v8.6: Global button restyle (rounded, taller, tighter width) + hover/active/focus visuals.
 // Note: Coding with ChatGPT assistance
 
 
