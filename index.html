@@ -8,10 +8,11 @@
   <link rel="stylesheet" href="style.css" />
 
   <!-- Libraries (deferred so they don't block parsing) -->
+  <!-- If you switch back to p5, restore these two and remove q5 -->
   <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/p5.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/addons/p5.sound.min.js" defer></script> -->
 
-  <!-- use q5.js (p5-compatible, recommended by p5play v3) -->
+  <!-- q5.js (compatible with p5play v3) -->
   <script src="https://q5js.org/q5.js" defer></script>
 
   <script src="https://p5play.org/v3/planck.min.js" defer></script>
@@ -26,9 +27,9 @@
 </head>
 <body>
 
-  <!-- ===== Unified Top Bar ===== -->
-  <div id="topBar" class = "hidden">
-    <!-- Left: compact mode selector (keep for legacy, but hide it) -->
+  <!-- ===== Unified Top Bar (hidden until gameplay starts) ===== -->
+  <div id="topBar" class="hidden">
+    <!-- Left: legacy mode selector (kept for compatibility, hidden) -->
     <div id="modeBar" class="compact" style="display:none">
       <label for="modeSelect" class="srOnly">Mode</label>
       <select id="modeSelect" title="Mode">
@@ -38,17 +39,7 @@
       </select>
     </div>
 
-    <!-- Center: Bio indicator -->
-    <span class="chip" id="bioChip">NEUTRAL</span>
-
-    <!-- Middle-right: Camera icon (Bio mode only) -->
-    <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
-      </svg>
-    </button>
-
-    <!-- Move HUD to the LEFT via CSS; nothing to change here -->
+    <!-- Left cluster: Score & Time -->
     <div id="overlayUI">
       <div class="hud">
         <span class="chip" id="scoreChip">Score: 0</span>
@@ -56,10 +47,20 @@
       </div>
     </div>
 
-    <!-- NEW: Right-side “Mode” chip -->
-    <span class="chip" id="modeChip">Mode: Classic</span>
+    <!-- Center: Bio indicator -->
+    <span class="chip" id="bioChip">NEUTRAL</span>
+
+    <!-- Right: Mode chip + Camera (wrapped so both sit on the same row) -->
+    <div id="rightWrap">
+      <span class="chip" id="modeChip">Mode: Classic</span>
+      <button id="cameraBtn" class="iconBtn" aria-label="Camera settings" title="Camera settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M7 6l1.5-2h7L17 6h2a3 3 0 013 3v7a3 3 0 01-3 3H5a3 3 0 01-3-3V9a3 3 0 013-3h2zm5 12a5 5 0 100-10 5 5 0 000 10z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
   </div>
-  <!-- End of Unified Top Bar -->
+  <!-- End Top Bar -->
 
 
   <!-- Camera modal (Bio mode only) -->
@@ -86,7 +87,7 @@
       </div>
     </div>
   </div>
-  <!-- End of Camera modal (Bio mode only) -->
+  <!-- End Camera modal -->
 
 
   <!-- Centered end-game UI -->

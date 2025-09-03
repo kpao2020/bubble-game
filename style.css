@@ -18,10 +18,12 @@ html, body {
   align-items: center;
   gap: 8px;
   padding: 6px 10px; /* slim */
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  white-space: nowrap; /* keep it all on one row */
 }
 
-
-/* ===== Left: Mode selector ===== */
+/* ===== Left: legacy selector (kept for compatibility) ===== */
 #modeBar { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
 #modeBar select {
   border-radius: 10px;
@@ -31,13 +33,16 @@ html, body {
 }
 #modeBar.compact select { max-width: 120px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
-/* Right: mode chip (only visible in Bio via JS) */
-#modeChip{
-  grid-column: 3;
-  justify-self: end;
-  align-self: center;
+/* ===== Left cluster: Score & Time ===== */
+#overlayUI{
+  grid-column: 1;
+  justify-self: start;
 }
-
+.hud{
+  display: flex;
+  gap: 8px;
+  align-items: center; /* vertical align with other chips */
+}
 
 /* ===== Center: Bio indicator chip ===== */
 #bioChip{
@@ -46,59 +51,63 @@ html, body {
   align-self: center;
 }
 
-.hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
+/* ===== Right: Mode chip + Camera (wrapped) ===== */
+#rightWrap{
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
+/* Mode chip itself (text updated by JS; hidden outside Bio by JS) */
+#modeChip{
+  align-self: center;
+}
+
+/* Camera icon button (hidden by default; JS decides when to show) */
+#cameraBtn{
+  display: none;
+  align-self: center;
+}
+
+/* Consistent chip sizing & baseline */
+.chip{
+  display: inline-flex;
+  align-items: center;
+  height: 28px;            /* slim, consistent height */
+  line-height: 28px;
+  padding: 0 10px;
+  margin: 0;
+  background: #eef6ff;
+  color: #0b2a45;
+  border-radius: 14px;
+}
+
+.hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
 .hidden { display: none !important; }
 
+/* Status line under login input */
 .loginStatus { margin-top: 8px; font-size: 0.92rem; line-height: 1.3; opacity: .9;}
 .loginStatus.info { color: #555; }
 .loginStatus.ok   { color: #2e7d32; }
 .loginStatus.err  { color: #b00020; }
 
-/* Camera icon button */
+/* General buttons (incl. camera icon container) */
 .iconBtn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border-radius: 10px; border: 0;
-  background: rgba(255,255,255,.95);
+  padding: 6px 12px;
+  min-height: 32px;
+  border-radius: 10px; border: 0;
+  background: #0077cc; color: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
   cursor: pointer;
 }
-.iconBtn.small { width: 32px; height: 32px; border-radius: 8px; }
+.iconBtn.small { padding: 4px 8px; min-height: 28px; border-radius: 8px; }
 .iconBtn:active { transform: translateY(1px) scale(0.98); }
 .iconBtn.is-busy { opacity: .6; pointer-events: none; }
 
-/* Camera button (when troubleshoot toggled) sits at the right too */
-#cameraBtn{
-  grid-column: 3;
-  justify-self: end;
-  align-self: center;
-  margin-left: 8px; /* space from mode chip if both visible */
-}
-
-
-#overlayUI{
-  grid-column: 1;
-  justify-self: start;
-}
-
-.hud{
-  display: flex;
-  gap: 8px;
-  align-items: center;                   /* align chips vertically */
-}
-
-/* Unify chip sizing & baseline */
-.chip{
-  display: inline-flex;
-  align-items: center;
-  height: 28px;                          /* << slim, consistent height */
-  line-height: 28px;
-  padding: 0 10px;
-  margin: 0;                             /* remove vertical offset */
-}
-
-
-/* Modal */
+/* ===== Modal ===== */
 .modal.hidden { display: none; }
 .modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: end center; }
 .modalContent {
@@ -116,7 +125,6 @@ html, body {
 
 #loginModal { z-index: 1000; }
 #loginProgressModal { z-index: 2000; } /* ensure it’s above */
-
 
 /* Screen-reader-only helper */
 .srOnly { position: absolute; left: -9999px; }
@@ -163,9 +171,7 @@ html, body {
   z-index: 9999;
   display: grid;
   place-items: center;
-  /* Simple gradient background */
   background: linear-gradient(160deg, #9ad4ff 0%, #b8e1ff 40%, #eef7ff 100%);
-  /* Start hidden, then use classes to animate */
   opacity: 0;
   pointer-events: none;
   transition: opacity 400ms ease;
@@ -213,7 +219,7 @@ html, body {
 
 /* Make sure this sits above your top bar or other fixed UI */
 .top-bar, header, nav {
-  position: relative; /* keep your existing rules; this is defensive */
+  position: relative;
   z-index: 10;
 }
 
@@ -221,7 +227,7 @@ html, body {
 #loginModal { place-items: center; }
 #loginModal .modalContent {
   border-radius: 16px;            /* full-rounded when centered */
-  border-top-left-radius: 16px;   /* explicit for safety */
+  border-top-left-radius: 16px;
   border-top-right-radius: 16px;
 }
 #loginModal input[type="text"] {
@@ -235,6 +241,8 @@ html, body {
 /* Hide top bar while logging in (no UI until username set) */
 body.login-active #topBar { display: none; }
 
+/* Post-game: remove the "X" so players must choose Play again or Change mode */
 #postGameClose { display: none; }
 
+/* Keep positioning static (avoid accidental offsets from older rules) */
 #overlayUI, #bioChip, #modeChip, #cameraBtn { position: static; }
