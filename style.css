@@ -121,7 +121,7 @@ body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
 /* ===== Modal ===== */
 .modal, .modal * { touch-action: auto; }
 .modal.hidden { display: none; }
-.modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: end center; }
+.modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: center; }
 .modalContent {
   width: min(560px, 100vw); 
   background: #fff; 
@@ -312,4 +312,4 @@ html { -webkit-text-size-adjust: 100%; }
 
 /* Post-game: remove the "X" so players must choose Play again or Change mode */
 #postGameClose { display: none; }
-#postGameModal{ place-items: end center; }    /* bottom sheet */
+#postGameModal{ place-items: end center; z-index: 15;background: rgba(0,0,0,.20);}    /* bottom sheet */

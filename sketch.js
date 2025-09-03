@@ -30,7 +30,7 @@
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
 
-// Version: v8.1            UI labels: Bio -> Mood (player-facing only) cosmetic minor change
+// Version: v8.3  // post-game backdrop lightened; main canvas willReadFrequently hint added
 // Note: Coding with ChatGPT assistance
 
 
@@ -268,6 +268,7 @@ function showBioConsentModal(onAccept, onDecline){
   const no  = document.getElementById('bioConsentDeclineBtn');
   if (!m || !yes || !no){ onAccept && onAccept(); return; }
 
+  closeAllModalsExcept('bioConsentModal');
   m.classList.remove('hidden');
   yes.onclick = () => { acceptBioConsent(); m.classList.add('hidden'); onAccept && onAccept(); };
   no.onclick  = () => { m.classList.add('hidden'); onDecline && onDecline(); };
@@ -294,6 +295,7 @@ function showModePicker(){
   }
 
   const hide = () => m.classList.add('hidden');
+  closeAllModalsExcept('modeModal');
   m.classList.remove('hidden');
 
   bC.onclick = () => { currentMode = 'classic'; hide(); afterModeSelected(false); };
@@ -346,7 +348,11 @@ function openLoginProgress(msg){
   const m = document.getElementById('loginProgressModal');
   const p = document.getElementById('loginProgressMsg');
   const c = document.getElementById('loginProgressContinue');
-  if (m && p){ p.textContent = msg || ''; m.classList.remove('hidden'); }
+  if (m && p){ 
+    closeAllModalsExcept('loginProgressModal'); 
+    p.textContent = msg || ''; 
+    m.classList.remove('hidden'); 
+  }
   if (c){ 
     c.classList.add('hidden');  // keep hidden during fetch
     c.disabled = true;          // and not focusable
@@ -444,7 +450,10 @@ async function submitRun(){
  *        Setup & Draw
  * ============================= */
 function setup(){
-  createCanvas(viewportW(), viewportH());
+  const mainCanvas = createCanvas(viewportW(), viewportH());
+  if (mainCanvas?.drawingContext){
+    try { mainCanvas.drawingContext.willReadFrequently = true; } catch(e){}
+  }
   noStroke();
   world.gravity.y = 0;
 
@@ -1028,8 +1037,14 @@ function dominantEmotion(){
 /* =============================
  *        Modal helpers
  * ============================= */
-function openCameraModal(){ document.getElementById('cameraModal')?.classList.remove('hidden'); }
+function openCameraModal(){ closeAllModalsExcept('cameraModal'); document.getElementById('cameraModal')?.classList.remove('hidden'); }
 function closeCameraModal(){ document.getElementById('cameraModal')?.classList.add('hidden'); }
+// this function closeAllModalsExcept will ensure only 1 modal is ever visible - prevent "grey window behind"
+function closeAllModalsExcept(id){
+  document.querySelectorAll('.modal').forEach(el => {
+    if (el.id !== id) el.classList.add('hidden');
+  });
+}
 
 // ===== Splash Controller =====
 (function initSplash() {
@@ -1072,7 +1087,7 @@ window.onSplashDismiss = function () {
   showLoginScreen(playerDeviceId); // open login after splash
 };
 
-function openPostGameModal(){ document.getElementById('postGameModal')?.classList.remove('hidden'); }
+function openPostGameModal(){ closeAllModalsExcept('postGameModal'); document.getElementById('postGameModal')?.classList.remove('hidden'); }
 function closePostGameModal(){ document.getElementById('postGameModal')?.classList.add('hidden'); }
 
 
