@@ -111,15 +111,26 @@ html, body {
 .modal.hidden { display: none; }
 .modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: end center; }
 .modalContent {
-  width: min(560px, 100vw); background: #fff; border-top-left-radius: 16px; border-top-right-radius: 16px;
-  padding: 12px 14px 16px; box-shadow: 0 -6px 24px rgba(0,0,0,.2);
+  width: min(560px, 100vw); 
+  background: #fff; 
+  border-top-left-radius: 16px; 
+  border-top-right-radius: 16px;
+  padding: 12px 14px 16px; 
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 0 -6px 24px rgba(0,0,0,.2);
 }
 .modalHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .modalRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
 .modalRow select { flex: 1 1 auto; max-width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; background: #fff; }
 .previewWrap { margin-top: 8px; display: flex; justify-content: center; }
 .modalPreview { width: 220px; height: auto; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.18); transform: scaleX(-1); }
-.modal.centered { place-items: center; }
+/* Ensure all centered modals fit the viewport and can scroll internally */
+.modal.centered .modalContent {
+  max-height: 80vh;         /* keep within viewport */
+  overflow: auto;           /* scroll inside the card */
+  width: min(520px, 92vw);  /* shrink on phones */
+}
+
 .modalRow.stacked { flex-direction: column; align-items: stretch; }
 .modalRow.stacked .iconBtn { width: 100%; }
 
@@ -162,6 +173,15 @@ html, body {
 @media (max-width: 420px) {
   #modeBar.compact select { max-width: 96px; }
   .modalPreview { width: 180px; }
+}
+
+@media (max-width: 480px) {
+  #loginModal .modalRow {
+    flex-direction: column;     /* stack input and button */
+    align-items: stretch;
+  }
+  #loginModal input[type="text"] { width: 100%; }
+  #loginModal .iconBtn.small { width: 100%; }  /* full-width OK button */
 }
 
 /* ===== Splash Screen ===== */
