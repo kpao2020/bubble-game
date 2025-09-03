@@ -13,6 +13,12 @@ html, body {
 /* ===== Unified Top Bar ===== */
 /* Slim 3-column top bar */
 #topBar{
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;            /* higher than the canvas/video */
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
   display: grid;
   grid-template-columns: 1fr auto 1fr; /* left | center | right */
   align-items: center;
@@ -24,7 +30,7 @@ html, body {
 }
 /* Hide top bar during login/mode pick; show during gameplay */
 #topBar.hidden{ display: none !important; }
-body.login-active #topBar{ display: none !important; }
+body.login-active #topBar,
 body.mode-pick   #topBar{ display: none !important; }
 body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
 

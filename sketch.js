@@ -277,7 +277,10 @@ function showModePicker(){
 function afterModeSelected(isBio){
   // show the top bar again
   const topBar = document.getElementById('topBar');
-  if (topBar) topBar.classList.remove('hidden');
+  if (topBar){
+    topBar.classList.remove('hidden');
+    topBar.style.display = 'grid';   // ensure visibility even if a previous style lingered
+  }
 
   document.body.classList.remove('login-active');
   document.body.classList.remove('mode-pick');
