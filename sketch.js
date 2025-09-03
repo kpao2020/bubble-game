@@ -697,8 +697,8 @@ function spawnBubble(){
 
   // new (choose a palette color with a stronger, visible alpha):
   const cIdx = Math.floor(random(BUBBLE_COLORS.length));
-  const [r,g,bv] = BUBBLE_COLORS[cIdx];
-  b._tint = color(r, g, bv, 200);
+  const [cr,cg,cb] = BUBBLE_COLORS[cIdx];
+  b._tint = color(cr, cg, cb, 200);
 
   b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
   b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
