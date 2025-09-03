@@ -29,8 +29,8 @@
 //
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
-
-// Version: v8.3  // post-game backdrop lightened; main canvas willReadFrequently hint added
+// Version:
+//    v8.4: Add hidden detectorCanvas with willReadFrequently, route detection through it; optional cadence tweak.
 // Note: Coding with ChatGPT assistance
 
 
@@ -43,7 +43,7 @@ const MIN_DIAM = 50, MAX_DIAM = 88;   // bubble size range
 const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
 const MIN_PLAY_SPEED = 0.9;           // floor after multipliers
 
-const BIO_SAMPLE_MS = 1000;           // face sampling cadence (ms)
+const BIO_SAMPLE_MS = 1500;           // face sampling cadence (ms)
 
 // Bio end-game behavior: 'pause' (sampler only) or 'stop' (sampler + camera)
 const BIO_STOP_STRATEGY = 'pause';
@@ -81,6 +81,8 @@ let selectedDeviceId = null;
 let modelsReady = false;
 let bioTimerId = null;
 let overlay, octx;         // overlay canvas for green box
+// Hidden detector canvas we control (to avoid face-api creating its own readback-heavy canvas)
+let detectorCanvas = null, dctx = null;
 
 // Aggregated expression state (smoothed)
 const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, stressed:0, neutral: 1 };
@@ -238,6 +240,22 @@ function ensureOverlay(){
   overlay.style.height = rect.height + 'px';
   overlay.width = vid.videoWidth || 640;
   overlay.height = vid.videoHeight || 480;
+}
+
+/** Hidden canvas as face-api input (readback-friendly) */
+function ensureDetectorCanvas(w, h){
+  if (!detectorCanvas){
+    detectorCanvas = document.createElement('canvas');
+    detectorCanvas.width = Math.max(1, w || 640);
+    detectorCanvas.height = Math.max(1, h || 480);
+    dctx = detectorCanvas.getContext('2d', { willReadFrequently: true });
+  } else {
+    // keep it sized to the current video
+    if (w && h && (detectorCanvas.width !== w || detectorCanvas.height !== h)){
+      detectorCanvas.width = w; detectorCanvas.height = h;
+    }
+  }
+  return detectorCanvas;
 }
 
 /** Simple EMA smoothing */
@@ -920,8 +938,13 @@ async function sampleBio(){
 
   let detections = [];
   try {
+    const vw = v.videoWidth  || 640;
+    const vh = v.videoHeight || 480;
+    const det = ensureDetectorCanvas(vw, vh);
+    // draw the current video frame onto our own canvas
+    if (dctx){ dctx.drawImage(v, 0, 0, vw, vh); }
     const tinyOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.08 });
-    detections = await faceapi.detectAllFaces(v, tinyOpts).withFaceLandmarks().withFaceExpressions();
+    detections = await faceapi.detectAllFaces(det, tinyOpts).withFaceLandmarks().withFaceExpressions();
   } catch (e) { console.warn('[bio] tinyFace error:', e); }
 
   if (!detections || !detections.length){
