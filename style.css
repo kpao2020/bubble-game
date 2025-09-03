@@ -127,14 +127,15 @@ body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
 .modal.hidden { display: none; }
 .modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: center; }
 .modalContent {
-  width: min(560px, 100vw); 
-  background: #fff; 
-  border-top-left-radius: 16px; 
-  border-top-right-radius: 16px;
-  padding: 12px 14px 16px; 
+  width: min(560px, 100vw);
+  background: #fff;
+  border-radius: 16px;           /* four corners */
+  padding: 12px 14px 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
   box-shadow: 0 -6px 24px rgba(0,0,0,.2);
+  box-sizing: border-box;        /* prevent right-edge overflow */
 }
+
 .modalHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .modalRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
 .modalRow select { flex: 1 1 auto; max-width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; background: #fff; }
@@ -145,6 +146,7 @@ body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
   max-height: 80vh;         /* keep within viewport */
   overflow: auto;           /* scroll inside the card */
   width: min(520px, 92vw);  /* shrink on phones */
+  box-sizing: border-box;
 }
 
 .modalRow.stacked { flex-direction: column; align-items: stretch; }
@@ -317,3 +319,26 @@ html { -webkit-text-size-adjust: 100%; }
 /* Post-game: remove the "X" so players must choose Play again or Change mode */
 #postGameClose { display: none; }
 #postGameModal{ place-items: end center; z-index: 15;background: rgba(0,0,0,.20);}    /* bottom sheet */
+/* Post-game panel sizing & corners */
+#postGameModal .modalContent {
+  width: min(560px, 96vw);
+  border-radius: 16px;                 /* four corners visible when lifted */
+  box-sizing: border-box;
+}
+
+/* On taller screens, float above the bottom so corners show */
+@media (min-height: 700px) {
+  #postGameModal .modalContent {
+    margin-bottom: 20px;               /* not glued to the edge */
+  }
+}
+
+/* On small phones, keep it like a bottom sheet */
+@media (max-width: 480px) {
+  #postGameModal .modalContent {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 16px;      /* 4 corners */
+    margin-bottom: 12px;      /* tiny gap so it’s not glued to bottom */
+  }
+}

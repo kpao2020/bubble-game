@@ -30,7 +30,8 @@
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
 // Version:
-//    v8.6: Global button restyle (rounded, taller, tighter width) + hover/active/focus visuals.
+//    v8.7: Responsive, rounded dialogs; camera modal centered; post-game sheet floats slightly above the bottom on larger screens while staying a true bottom sheet on small phones.
+//    v8.7.1: Camera dialog is centered; post-game sheet now has four rounded corners and a small bottom gap even on small phones; backdrop alphas normalized.
 // Note: Coding with ChatGPT assistance
 
 
