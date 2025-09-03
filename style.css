@@ -11,21 +11,15 @@ html, body {
 }
 
 /* ===== Unified Top Bar ===== */
-#topBar {
-  position: fixed;
-  top: calc(10px + env(safe-area-inset-top));
-  left: 12px; right: 12px;
-  z-index: 10;
+/* Slim 3-column top bar */
+#topBar{
   display: grid;
-  grid-template-columns: auto 110px auto 1fr;
+  grid-template-columns: 1fr auto 1fr; /* left | center | right */
   align-items: center;
   gap: 8px;
-  background: rgba(255,255,255,.85);
-  backdrop-filter: blur(6px);
-  border-radius: 12px;
-  padding: 6px 8px;
-  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+  padding: 6px 10px; /* slim */
 }
+
 
 /* ===== Left: Mode selector ===== */
 #modeBar { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
@@ -37,16 +31,21 @@ html, body {
 }
 #modeBar.compact select { max-width: 120px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
-#modeChip { grid-column: 4; justify-self: end; }
+/* Right: mode chip (only visible in Bio via JS) */
+#modeChip{
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+}
+
 
 /* ===== Center: Bio indicator chip ===== */
-#bioChip {
-  display: inline-block;
-  min-width: 80px;
-  text-align: center;
-  font-weight: 800;
+#bioChip{
+  grid-column: 2;
   justify-self: center;
+  align-self: center;
 }
+
 .hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
 
 .hidden { display: none !important; }
@@ -68,17 +67,36 @@ html, body {
 .iconBtn:active { transform: translateY(1px) scale(0.98); }
 .iconBtn.is-busy { opacity: .6; pointer-events: none; }
 
-/* Hidden by default; only shown in troubleshoot mode on laptops */
-#cameraBtn { display: none; }
-
-
-/* ===== Right: HUD (Score over Time) ===== */
-#overlayUI { pointer-events: none; grid-column: 1; justify-self: start; }
-.hud {
-  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
-  user-select: none; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.25);
+/* Camera button (when troubleshoot toggled) sits at the right too */
+#cameraBtn{
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+  margin-left: 8px; /* space from mode chip if both visible */
 }
-.chip { display: inline-block; background: rgba(255,255,255,.85); border-radius: 999px; padding: 6px 10px; }
+
+
+#overlayUI{
+  grid-column: 1;
+  justify-self: start;
+}
+
+.hud{
+  display: flex;
+  gap: 8px;
+  align-items: center;                   /* align chips vertically */
+}
+
+/* Unify chip sizing & baseline */
+.chip{
+  display: inline-flex;
+  align-items: center;
+  height: 28px;                          /* << slim, consistent height */
+  line-height: 28px;
+  padding: 0 10px;
+  margin: 0;                             /* remove vertical offset */
+}
+
 
 /* Modal */
 .modal.hidden { display: none; }
@@ -216,3 +234,7 @@ html, body {
 
 /* Hide top bar while logging in (no UI until username set) */
 body.login-active #topBar { display: none; }
+
+#postGameClose { display: none; }
+
+#overlayUI, #bioChip, #modeChip, #cameraBtn { position: static; }

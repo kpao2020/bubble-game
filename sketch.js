@@ -243,11 +243,20 @@ function showBioConsentModal(onAccept, onDecline){
 }
 
 function showModePicker(){
-  const m = document.getElementById('modeModal');
+  const m  = document.getElementById('modeModal');
   const bC = document.getElementById('modeClassicBtn');
   const bH = document.getElementById('modeChallengeBtn');
   const bB = document.getElementById('modeBioBtn');
-  if (!m || !bC || !bH || !bB){ currentMode = 'classic'; afterModeSelected(false); return; }
+
+  // NEW: hide top bar while choosing a mode
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.add('hidden');
+
+  if (!m || !bC || !bH || !bB){ 
+    currentMode = 'classic'; 
+    afterModeSelected(false); 
+    return; 
+  }
 
   const hide = () => m.classList.add('hidden');
   m.classList.remove('hidden');
@@ -262,6 +271,10 @@ function showModePicker(){
 }
 
 function afterModeSelected(isBio){
+  // show the top bar again
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.remove('hidden');
+
   // Lock legacy dropdown during a round
   const ms = document.getElementById('modeSelect');
   if (ms) ms.disabled = true;
@@ -493,7 +506,8 @@ function setup(){
   const pgMode  = document.getElementById('postChangeMode');
 
   if (pgClose) pgClose.onclick = closePostGameModal;
-  if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
+  // prevent the game close if not clicking the play again button or change mode button
+  // if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
 
   if (pgPlay) pgPlay.onclick = () => { closePostGameModal(); if (window.__playerReady) restart(false); };
   if (pgMode) pgMode.onclick = () => { closePostGameModal(); showModePicker(); };
@@ -513,7 +527,10 @@ function draw(){
     const label = (currentMode === 'classic') ? 'Classic'
                 : (currentMode === 'challenge') ? 'Challenge'
                 : 'Bio';
+    // Always keep the text current
     modeChip.textContent = `Mode: ${label}`;
+    // Visible only in Bio mode (per your spec)
+    modeChip.style.display = isBioMode() ? 'inline-flex' : 'none';
   }
 
   const bioChip  = document.getElementById('bioChip');
@@ -1041,6 +1058,10 @@ function showLoginScreen(deviceId){
   const submit = document.getElementById('submitUsername');
   if (!modal || !input || !submit) return;
 
+  // keep top bar hidden here
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.add('hidden');
+
   document.body.classList.add('login-active');
   modal.classList.remove('hidden');
 
@@ -1122,8 +1143,6 @@ function showLoginScreen(deviceId){
             : `Saved. Hello, ${username}!`;
 
           updateLoginProgress(`${greet}\nOpening mode selection…`, false);
-          const topBar = document.getElementById('topBar');
-          if (topBar) topBar.style.display = '';
           closeLoginProgress();
           startGame();  // opens Mode Picker immediately
         });
