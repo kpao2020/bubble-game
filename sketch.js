@@ -1,5 +1,36 @@
-// Bubble Bio Game — v8.0
+// ============================================================================
+// Popping Bubbles — Production Game Script (sketch.js)
 // Owner: Ken Pao
+//
+// About this file
+// - q5.js + p5play v3 game loop (setup/draw) with three modes: classic | challenge | bio
+// - Bio mode: face-api.js sampling, emotion smoothing, "stressed" blend (fearful+disgusted+surprised)
+// - UI flow: Splash -> Login (device check + username) -> Mode Picker -> Gameplay -> Post-game
+// - Stats posted to Google Apps Script via a Cloudflare Worker proxy
+//
+// Structure guide (search for these section banners):
+//   [Game constants]        core tunables for gameplay + bio thresholds
+//   [Backend config]        worker endpoint for Google Apps Script
+//   [Identity & storage]    deviceId/username/bioConsent keys
+//   [Troubleshooting mode]  laptop-only toggle 't' to reveal camera button
+//   [UI helpers]            viewport sizing, walls/safe area, overlay for face box
+//   [Submit Run]            sends round results (score + emotion counts) to Sheets
+//   [Setup & Draw]          q5 lifecycle; input wiring; per-frame UI updates
+//   [Gameplay]              bubble spawn, hit logic, restart/endGame
+//   [Bio (face-api)]        model loading, webcam controls, sampler and dominantEmotion()
+//   [Modals & Splash]       helpers to open/close, splash controller
+//   [Login & start]         device profile check, username flow, mode picker trigger
+//
+// Safe customization points
+// - GAME_DURATION, bubble sizes/speeds
+// - EMO_CFG and EMO_FORCE thresholds (tune bio responsiveness)
+// - CHALLENGE_TRICK_RATE for trick bubble frequency
+// - Consent copy is in index.html; Sheets columns are handled in Apps Script
+//
+// NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
+// ============================================================================
+
+// Version: v8.0
 // Note: Coding with ChatGPT assistance
 
 

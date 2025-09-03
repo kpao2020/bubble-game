@@ -1,3 +1,24 @@
+<!--
+Popping Bubbles — Production HTML
+Owner: Ken Pao  |  Game title: "Popping Bubbles"
+
+What this file does
+- Loads q5.js + p5play v3 + face-api.js
+- Defines the slim top bar: score/time (left), emotion chip (center), mode chip + camera (right)
+- Declares modals used by the app: camera, splash, login, progress, consent, mode picker, post‑game
+- IMPORTANT: Top bar is hidden until gameplay starts (body.game-active). Shown only after a mode is chosen.
+- Mobile: viewport-fit=cover enables safe‑area padding on iOS; CSS handles scrolling within centered modals.
+
+Where to customize safely
+- Change the game title text inside #splashTitle (keeps logic intact)
+- Consent copy: #bioConsentModal paragraph
+- Mode names: the three buttons in #modeModal (UI labels only; actual mode keys remain 'classic'|'challenge'|'bio')
+
+Deployment notes
+- Served from GitHub Pages at https://kpao2020.github.io/bubble-game
+- Camera permission is required for Bio mode (laptop/mobile). Use the site permissions UI if preview shows black.
+--> 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
