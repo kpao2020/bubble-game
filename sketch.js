@@ -13,7 +13,7 @@
 //   [Backend config]        worker endpoint for Google Apps Script
 //   [Identity & storage]    deviceId/username/bioConsent keys
 //   [Troubleshooting mode]  laptop-only toggle 't' to reveal camera button
-//   [UI helpers]            viewport sizing, walls/safe area, overlay for face box
+//   [UI helpers]            viewport sizing, walls/safe area, overlay for face box, body-mode classes
 //   [Submit Run]            sends round results (score + emotion counts) to Sheets
 //   [Setup & Draw]          q5 lifecycle; input wiring; per-frame UI updates
 //   [Gameplay]              bubble spawn, hit logic, restart/endGame
@@ -30,9 +30,25 @@
 // NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
 // Version:
-//    v8.7: Responsive, rounded dialogs; camera modal centered; post-game sheet floats slightly above the bottom on larger screens while staying a true bottom sheet on small phones.
-//    v8.7.1: Camera dialog is centered; post-game sheet now has four rounded corners and a small bottom gap even on small phones; backdrop alphas normalized.
+//    v8.6.1: Buttons redesigned to be squarish with softened corners (12px radius), darker top-bar background, equal padding for icon-like feel, improved press/hover/focus visuals.
+//    v8.6.2: Mode picker buttons redesigned as square icon-like tiles (64×64px, rounded corners, centered text). Optional emojis give quick visual identity for each mode.
+//    v8.6.3: Centered Mode dialog title + column; square icon-style mode buttons with emoji+text; prevent label overflow.
+//    v8.6.4: Mode Picker + Post-Game buttons redesigned as square, color-coded tiles with emoji+text. Prevents text overflow and improves visual clarity.
+//    v8.6.5: Added hover/active states for all Mode Picker and Post-Game buttons.
+//            Hover → slightly darker shade
+//            Active (press) → deeper shade
+//    v8.6.6: Post-game buttons centered + square tiles with emoji+text, full hover/active press feedback; Mode Picker tiles colored with press feedback; Mode chip shows only in Mood mode.
+//    v8.6.7: Mode chip now shows in all modes (Classic, Challenge, Mood), always visible at top bar.
+//    v8.6.8: Added body mode classes (mode-classic / mode-challenge / mode-bio) and lightweight helper to keep the
+//            <body> class synced with currentMode. This enables per-mode chip background colors via CSS.
+//            No functional gameplay changes; variables/functions unchanged.
+//    v8.6.8.1: Removes the <select id="modeSelect"> block from the top bar.
+//              Keeps the Mode Picker dialog as the only way to choose Classic / Challenge / Mood.
+//              Emoji + text on the mode buttons (🎈 Classic, ⚡ Challenge, 😊 Mood).
+//              In code, drops the modeSelect wiring from setup() and just syncs the body class with the current mode.
+//
 // Note: Coding with ChatGPT assistance
+// ============================================================================
 
 
 /* =============================
@@ -122,6 +138,7 @@ let lastEmotion = 'neutral', lastSwitchMs = 0;
 // Per-round emotion counts (incremented by the Bio sampler)
 let emoCounts = { happy: 0, sad: 0, angry: 0, stressed: 0, neutral: 0 };
 
+
 /* =============================
  *        Backend config
  * ============================= */
@@ -130,6 +147,7 @@ const GOOGLE_SCRIPT_URL = "https://bubble-game-proxy.xoakuma.workers.dev/";
 // If (and only if) you POST directly to Apps Script with SECRET enforced, you can append it here.
 // Recommended: leave empty and let your proxy add the secret server-side.
 const GOOGLE_SCRIPT_POST_SUFFIX = "";
+
 
 /* =============================
  *        Identity & storage
@@ -156,10 +174,10 @@ function getOrCreateDeviceId() {
   }
 }
 
+
 /* =============================
  *        Troubleshooting mode
  * ============================= */
-
 // Troubleshoot visibility (toggles the camera button on laptops in Bio mode)
 let troubleshootMode = false;
 
@@ -187,13 +205,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+
 /* =============================
  *        UI helpers
  * ============================= */
-
 /** Get viewport width/height with visualViewport support */
 function viewportW(){ return (window.visualViewport ? Math.round(window.visualViewport.width)  : window.innerWidth); }
 function viewportH(){ return (window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight); }
+
 // ===== Viewport sizing =====
 function fitCanvasToViewport() {
   const w = viewportW();
@@ -202,6 +221,7 @@ function fitCanvasToViewport() {
   // Only rebuild walls after login so mobile keyboards/resize during login don't touch physics
   if (window.__playerReady) rebuildWallsIfNeeded();
 }
+
 /** Return the y-px of the safe play area's top (just below the top bar + padding) */
 function safeTopPx(){
   const bar = document.getElementById('topBar');
@@ -283,6 +303,15 @@ function setEmotionChip(next){
   if (chip) chip.textContent = String(next || 'neutral').toUpperCase();
 }
 
+/** Keep <body> mode class in sync with currentMode so CSS can theme chips */
+function setBodyModeClass(){
+  const root = document.body;
+  if (!root) return;
+  root.classList.remove('mode-classic','mode-challenge','mode-bio');
+  const cls = (currentMode === 'classic') ? 'mode-classic' : (currentMode === 'challenge') ? 'mode-challenge' : 'mode-bio';
+  root.classList.add(cls);
+}
+
 function hasBioConsent(){
   try { return localStorage.getItem(STORAGE_KEYS.bioConsent) === 'accepted'; }
   catch { return false; }
@@ -319,6 +348,7 @@ function showModePicker(){
 
   if (!m || !bC || !bH || !bB){ 
     currentMode = 'classic'; 
+    setBodyModeClass();
     afterModeSelected(false); 
     return; 
   }
@@ -327,12 +357,12 @@ function showModePicker(){
   closeAllModalsExcept('modeModal');
   m.classList.remove('hidden');
 
-  bC.onclick = () => { currentMode = 'classic'; hide(); afterModeSelected(false); };
-  bH.onclick = () => { currentMode = 'challenge'; hide(); afterModeSelected(false); };
+  bC.onclick = () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); };
+  bH.onclick = () => { currentMode = 'challenge'; setBodyModeClass(); hide(); afterModeSelected(false); };
   bB.onclick = () => {
-    const proceedBio = () => { currentMode = 'bio'; hide(); afterModeSelected(true); };
+    const proceedBio = () => { currentMode = 'bio'; setBodyModeClass(); hide(); afterModeSelected(true); };
     if (hasBioConsent()) proceedBio();
-    else showBioConsentModal(proceedBio, () => { currentMode = 'classic'; hide(); afterModeSelected(false); });
+    else showBioConsentModal(proceedBio, () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); });
   };
 }
 
@@ -369,6 +399,7 @@ function afterModeSelected(isBio){
   }
 
   refreshCameraBtn();
+  setBodyModeClass(); // keep CSS theming in sync
   restart(false);
 }
 
@@ -434,7 +465,6 @@ function setLoginStatus(msg, cls='info') {
 /* =======================================
  *        Update Game Run and Profile
  * ======================================= */
-
 function nowMs(){ return (typeof millis === 'function') ? millis() : Date.now(); }
 
 async function submitRun(){
@@ -464,7 +494,7 @@ async function submitRun(){
         emoStressed: emoCounts.stressed,
         emoNeutral:  emoCounts.neutral,
         // game info
-        gameVersion: 'v8.0',
+        gameVersion: 'v8.6.8',
         sessionId: window.__sessionId,
         runId
       })
@@ -486,23 +516,7 @@ function setup(){
   noStroke();
   world.gravity.y = 0;
 
-  // Mode selector wiring
-  const modeSelect = document.getElementById('modeSelect');
-  if (modeSelect){
-    currentMode = modeSelect.value;
-    modeSelect.onchange = async () => {
-      currentMode = modeSelect.value;
-      if (window.__playerReady) restart(true);  // restart only after login
-      if (isBioMode()){
-        await loadFaceApiModels();
-        await startWebcam(true);
-        startSampler();
-      }else{
-        stopSampler();
-        stopWebcam();
-      }
-    };
-  }
+  setBodyModeClass();
 
   // Camera modal buttons
   const camBtn = document.getElementById('cameraBtn');
@@ -609,8 +623,7 @@ function draw(){
                 : 'Mood';
     // Always keep the text current
     modeChip.textContent = `Mode: ${label}`;
-    // Visible only in Bio mode (per your spec)
-    modeChip.style.display = isBioMode() ? 'inline-flex' : 'none';
+    modeChip.style.display = 'inline-flex';   // always visible
   }
 
   const bioChip  = document.getElementById('bioChip');
@@ -676,6 +689,7 @@ function draw(){
   if (!gameOver && timeLeft <= 0) endGame();
 }
 
+
 /* =============================
  *        Gameplay
  * ============================= */
@@ -693,9 +707,6 @@ function spawnBubble(){
 
   const b = new Sprite(sx, sy, d);
   b.shape = 'circle'; b.color = color(255,255,255,0); b.diameter = d;
-  // old:
-  // b._tint = color(random(120,210), random(140,220), 255, 150);
-
   // new (choose a palette color with a stronger, visible alpha):
   const cIdx = Math.floor(random(BUBBLE_COLORS.length));
   const [cr,cg,cb] = BUBBLE_COLORS[cIdx];
@@ -815,6 +826,7 @@ function restart(fromModeButton){
   loop();
 }
 function windowResized(){ const w = viewportW(), h = viewportH(); if (width !== w || height !== h) resizeCanvas(w, h); rebuildWallsIfNeeded(); }
+
 
 /* =============================
  *        Bio (face-api.js)

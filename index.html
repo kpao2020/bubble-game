@@ -50,16 +50,6 @@ Deployment notes
 
   <!-- ===== Unified Top Bar (hidden until gameplay starts) ===== -->
   <div id="topBar" class="hidden">
-    <!-- Left: legacy mode selector (kept for compatibility, hidden) -->
-    <div id="modeBar" class="compact" style="display:none">
-      <label for="modeSelect" class="srOnly">Mode</label>
-      <select id="modeSelect" title="Mode">
-        <option value="classic" selected>Classic</option>
-        <option value="challenge">Challenge</option>
-        <option value="bio">Mood</option>
-      </select>
-    </div>
-
     <!-- Left cluster: Score & Time -->
     <div id="overlayUI">
       <div class="hud">
@@ -131,12 +121,12 @@ Deployment notes
     <div class="modalContent">
       <div class="modalHeader"><h3 id="modeTitle">Choose a Mode</h3></div>
       <div class="modalRow stacked">
-        <button id="modeClassicBtn"  class="iconBtn">Classic</button>
-        <button id="modeChallengeBtn" class="iconBtn">Challenge</button>
-        <button id="modeBioBtn" class="iconBtn">Mood</button>
+        <button id="modeClassicBtn" class="iconBtn">🎈<br>Classic</button>
+        <button id="modeChallengeBtn" class="iconBtn">⚡<br>Challenge</button>
+        <button id="modeBioBtn" class="iconBtn">😊<br>Mood</button>
       </div>
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
-        Mood mode uses your camera locally to estimate expressions.
+        <bold>Mood</bold> mode uses your camera locally to estimate facial expressions.
       </p>
     </div>
   </div>
@@ -149,8 +139,8 @@ Deployment notes
         <button id="postGameClose" class="iconBtn small" aria-label="Close">✕</button>
       </div>
       <div class="modalRow stacked">
-        <button id="postPlayAgain" class="iconBtn">Play again</button>
-        <button id="postChangeMode" class="iconBtn">Change mode</button>
+        <button id="postPlayAgain" class="iconBtn">🔄<br>Play</button>
+        <button id="postChangeMode" class="iconBtn">🎮<br>Mode</button>
       </div>
     </div>
   </div>

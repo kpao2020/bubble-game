@@ -1,4 +1,30 @@
-/* ===== Base page ===== */
+/* =========================================================
+ * Popping Bubbles — Consolidated Stylesheet (v8.6.7)
+ * Owner: Ken Pao
+ *
+ * Organization:
+ *  1) Base & Resets
+ *  2) Top Bar (layout & chips)
+ *  3) Buttons (global + variants)
+ *  4) Modals (global) + Centered Modals
+ *  5) Mode Picker (modal-specific)
+ *  6) Splash Screen
+ *  7) Login Modal overrides
+ *  8) Hidden Webcam & Preview
+ *  9) Centered End-game UI (overlay)
+ * 10) Post-game Modal (bottom sheet behavior)
+ * 11) Responsive Tweaks
+ * 12) Utilities
+ *
+ * Notes:
+ * - Mode chip color per mode is handled via body classes:
+ *     body.mode-classic  #modeChip { ... }
+ *     body.mode-challenge #modeChip { ... }
+ *     body.mode-bio      #modeChip { ... }
+ *   (Wired in JS setBodyModeClass())
+ * ========================================================= */
+
+/* ========== 1) Base & Resets ========== */
 html, body {
   margin: 0;
   padding: 0;
@@ -9,84 +35,62 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
 }
+html { -webkit-text-size-adjust: 100%; }
 
-/* ===== Unified Top Bar ===== */
-/* Slim 3-column top bar */
+/* ========== 2) Top Bar (layout & chips) ========== */
 #topBar{
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;            /* higher than the canvas/video */
+  top: 0; left: 0; right: 0;
+  z-index: 9999;
   padding-top: calc(6px + env(safe-area-inset-top, 0px));
   display: grid;
-  grid-template-columns: 1fr auto 1fr; /* left | center | right */
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px; /* slim */
+  padding: 6px 10px;
   background: #ffffff;
   border-bottom: 1px solid rgba(0,0,0,.08);
-  white-space: nowrap; /* keep it all on one row */
+  white-space: nowrap;
 }
-/* Hide top bar during login/mode pick; show during gameplay */
 #topBar.hidden{ display: none !important; }
 body.login-active #topBar,
 body.mode-pick   #topBar{ display: none !important; }
-body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
+body.game-active #topBar{ display: grid; }
 
-/* ===== Left: legacy selector (kept for compatibility) ===== */
 #modeBar { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
 #modeBar select {
   border-radius: 10px;
   border: 1px solid rgba(0,0,0,.15);
   padding: 6px 8px;
-  background: white;
+  background: #fff;
 }
 #modeBar.compact select { max-width: 120px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
-/* ===== Left cluster: Score & Time ===== */
-#overlayUI{
-  grid-column: 1;
-  justify-self: start;
-}
-.hud{
-  display: flex;
-  gap: 8px;
-  align-items: center; /* vertical align with other chips */
-}
+#overlayUI{ grid-column: 1; justify-self: start; }
+.hud{ display: flex; gap: 8px; align-items: center; }
 
-/* ===== Center: Bio indicator chip ===== */
-#bioChip{
-  grid-column: 2;
-  justify-self: center;
-  align-self: center;
-}
+#bioChip{ grid-column: 2; justify-self: center; align-self: center; }
 
-/* ===== Right: Mode chip + Camera (wrapped) ===== */
-#rightWrap{
-  grid-column: 3;
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+#rightWrap{ grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 8px; }
 
-/* Mode chip itself (text updated by JS; hidden outside Bio by JS) */
-#modeChip{
-  align-self: center;
-}
+#modeChip{ align-self: center; }
 
-/* Camera icon button (hidden by default; JS decides when to show) */
-#cameraBtn{
+/* Per-mode background */
+body.mode-classic  #modeChip { background: #4da6ff; color: #ffffff; }
+body.mode-challenge #modeChip { background: #ff944d; color: #ffffff; }
+body.mode-bio      #modeChip { background: #66cc66; color: #0b2a45; }
+
+#cameraBtn {
   display: none;
   align-self: center;
+  background: rgba(0,0,0,.12);
+  border-radius: 12px;
 }
 
-/* Consistent chip sizing & baseline */
 .chip{
   display: inline-flex;
   align-items: center;
-  height: 28px;            /* slim, consistent height */
+  height: 28px;
   line-height: 28px;
   padding: 0 10px;
   margin: 0;
@@ -95,250 +99,142 @@ body.game-active #topBar{ display: grid; }     /* your top bar uses CSS grid */
   border-radius: 14px;
 }
 
-.hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
-.hidden { display: none !important; }
-
-/* Status line under login input */
-.loginStatus { margin-top: 8px; font-size: 0.92rem; line-height: 1.3; opacity: .9;}
-.loginStatus.info { color: #555; }
-.loginStatus.ok   { color: #2e7d32; }
-.loginStatus.err  { color: #b00020; }
-
-/* General buttons (incl. camera icon container) */
+/* ========== 3) Buttons ========== */
 .iconBtn {
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 10px 10px;             /* taller, narrower */
-  min-height: 40px;               /* icon-button feel */
-  border-radius: 9999px; border: 0;  /* fully rounded */
+  padding: 10px;
+  min-width: 44px; min-height: 44px;
+  border-radius: 12px;
   background: #0077cc; color: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
   cursor: pointer;
   user-select: none; -webkit-user-select: none;
   transition: transform 120ms ease, box-shadow 150ms ease, background 150ms ease, opacity 150ms ease;
 }
+.iconBtn.small { padding: 8px; min-width: 40px; min-height: 40px; border-radius: 10px; }
+.iconBtn:hover  { box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.iconBtn:active { transform: translateY(1px) scale(0.96); box-shadow: 0 1px 6px rgba(0,0,0,.15); }
+.iconBtn:focus-visible { outline: 3px solid rgba(0,119,204,.5); outline-offset: 2px; }
 
-.iconBtn.small { padding: 8px 10px; min-height: 36px; border-radius: 9999px; }
-.iconBtn:active { transform: translateY(1px) scale(0.98); box-shadow: 0 1px 6px rgba(0,0,0,.12); }
-.iconBtn:hover  { box-shadow: 0 4px 14px rgba(0,0,0,.16); }
-.iconBtn:focus-visible { outline: 3px solid rgba(0,119,204,.4); outline-offset: 2px; }
-
-/* ===== Modal ===== */
+/* ========== 4) Modals ========== */
 .modal, .modal * { touch-action: auto; }
 .modal.hidden { display: none; }
-.modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: center; }
+.modal {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(0,0,0,.35);
+  display: grid; place-items: center;
+}
 .modalContent {
   width: min(560px, 100vw);
   background: #fff;
-  border-radius: 16px;           /* four corners */
+  border-radius: 16px;
   padding: 12px 14px 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
   box-shadow: 0 -6px 24px rgba(0,0,0,.2);
-  box-sizing: border-box;        /* prevent right-edge overflow */
+  box-sizing: border-box;
 }
-
 .modalHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .modalRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
+.modalRow.stacked { flex-direction: column; align-items: stretch; }
 .modalRow select { flex: 1 1 auto; max-width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; background: #fff; }
+
 .previewWrap { margin-top: 8px; display: flex; justify-content: center; }
 .modalPreview { width: 220px; height: auto; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.18); transform: scaleX(-1); }
-/* Ensure all centered modals fit the viewport and can scroll internally */
+
 .modal.centered .modalContent {
-  max-height: 80vh;         /* keep within viewport */
-  overflow: auto;           /* scroll inside the card */
-  width: min(520px, 92vw);  /* shrink on phones */
+  max-height: 80vh;
+  overflow: auto;
+  width: min(520px, 92vw);
   box-sizing: border-box;
 }
 
-.modalRow.stacked { flex-direction: column; align-items: stretch; }
-.modalRow.stacked .iconBtn { width: 100%; }
+/* ========== 5) Mode Picker ========== */
+#modeModal .modalHeader { justify-content: center; }
+#modeModal #modeTitle { text-align: center; width: 100%; }
+#modeModal .modalRow.stacked { align-items: center; gap: 12px; }
 
-#loginModal { z-index: 1000; }
-#loginProgressModal { z-index: 2000; } /* ensure it’s above */
-
-/* Screen-reader-only helper */
-.srOnly { position: absolute; left: -9999px; }
-
-/* ===== Centered end-game UI ===== */
-.centerMsg {
-  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -60%);
-  font-size: 28px; font-weight: 800; color: #00324d; text-align: center;
-  text-shadow: 0 2px 6px rgba(0,0,0,.25); z-index: 20;
+#modeModal .iconBtn {
+  width: 88px; height: 88px; padding: 8px; border-radius: 14px;
+  font-size: 0.9rem; line-height: 1.05; text-align: center; white-space: normal;
 }
-#restartBtn {
-  position: fixed; left: 50%; top: calc(50% + 24px); transform: translateX(-50%); z-index: 20;
-  border: 0; border-radius: 14px; padding: 12px 16px; font-size: 16px; font-weight: 700;
-  background: white; box-shadow: 0 8px 20px rgba(0,0,0,.15); cursor: pointer; display: none;
-}
-#restartBtn:active { transform: translateX(-50%) translateY(1px); }
+#modeClassicBtn   { background: #4da6ff; }
+#modeChallengeBtn { background: #ff944d; }
+#modeBioBtn       { background: #66cc66; }
 
-/* ===== Hidden webcam (rendering offscreen) ===== */
-.hiddenVideo {
-  position: fixed; left: -9999px; top: 0;
-  width: 320px; height: auto; opacity: 0; pointer-events: none;
-}
+#modeClassicBtn:hover   { background: #3399ff; }
+#modeClassicBtn:active  { background: #267acc; transform: translateY(1px) scale(0.96); }
+#modeChallengeBtn:hover { background: #ff8533; }
+#modeChallengeBtn:active{ background: #e67300; transform: translateY(1px) scale(0.96); }
+#modeBioBtn:hover       { background: #4db84d; }
+#modeBioBtn:active      { background: #339933; transform: translateY(1px) scale(0.96); }
 
-/* When preview is enabled, show in lower-right of the viewport */
-#webcamPreview.preview {
-  position: fixed; right: 16px; bottom: 16px; top: auto; opacity: 1;
-  width: 160px; height: auto; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2);
-  transform: scaleX(-1); transform-origin: center; pointer-events: none; z-index: 9998;
-}
-
-/* Utility: hidden but keeps element alive */
-.camHidden { width: 1px !important; height: 1px !important; opacity: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
-
-/* ===== Responsive tweaks ===== */
-@media (max-width: 420px) {
-  #modeBar.compact select { max-width: 96px; }
-  .modalPreview { width: 180px; }
-}
-
-@media (max-width: 480px) {
-  #loginModal .modalRow {
-    flex-direction: column;     /* stack input and button */
-    align-items: stretch;
-  }
-  #loginModal input[type="text"] { width: 100%; }
-  #loginModal .iconBtn.small { width: 100%; }  /* full-width OK button */
-}
-
-/* ===== Splash Screen ===== */
+/* ========== 6) Splash Screen ========== */
 #splash {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: grid;
-  place-items: center;
+  position: fixed; inset: 0; z-index: 9999;
+  display: grid; place-items: center;
   background: linear-gradient(160deg, #9ad4ff 0%, #b8e1ff 40%, #eef7ff 100%);
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0; pointer-events: none;
   transition: opacity 400ms ease;
 }
-
-/* Reduce-motion friendly */
-@media (prefers-reduced-motion: reduce) {
-  #splash { transition: none; }
-}
-
-#splash.is-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-#splash.is-fading-out {
-  opacity: 0;
-  pointer-events: none;
-}
-
+@media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
+#splash.is-visible { opacity: 1; pointer-events: auto; }
+#splash.is-fading-out { opacity: 0; pointer-events: none; }
 .splash-inner {
-  text-align: center;
-  padding: 2rem 2.5rem;
-  border-radius: 20px;
+  text-align: center; padding: 2rem 2.5rem; border-radius: 20px;
   background: rgba(255, 255, 255, 0.35);
   box-shadow: 0 10px 30px rgba(0,0,0,0.12);
   backdrop-filter: blur(6px);
 }
+.splash-title { margin: 0 0 0.4rem 0; font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.1; letter-spacing: 0.5px; color: #0c2a43; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
+.splash-subtitle { margin: 0; font-size: clamp(1rem, 3.2vw, 1.25rem); color: #1a4366; opacity: 0.9; }
 
-.splash-title {
-  margin: 0 0 0.4rem 0;
-  font-size: clamp(2rem, 6vw, 3.2rem);
-  line-height: 1.1;
-  letter-spacing: 0.5px;
-  color: #0c2a43;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
-}
-
-.splash-subtitle {
-  margin: 0;
-  font-size: clamp(1rem, 3.2vw, 1.25rem);
-  color: #1a4366;
-  opacity: 0.9;
-}
-
-/* Make sure this sits above your top bar or other fixed UI */
-.top-bar, header, nav {
-  position: relative;
-  z-index: 10;
-}
-
-/* ===== Login Modal overrides (center the dialog) ===== */
-#loginModal { place-items: center; }
-#loginModal .modalContent {
-  border-radius: 16px;            /* full-rounded when centered */
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-}
-#loginModal input[type="text"] {
-  flex: 1 1 auto;
-  border-radius: 10px;
-  border: 1px solid rgba(0,0,0,.15);
-  padding: 8px 10px;
-}
+/* ========== 7) Login Modal overrides ========== */
+#loginModal { place-items: center; z-index: 1000; }
+#loginModal .modalContent { border-radius: 16px; }
+#loginModal input[type="text"] { flex: 1 1 auto; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; }
 #loginModal .iconBtn.small { min-width: 64px; }
-
-/* Hide top bar while logging in (no UI until username set) */
 body.login-active #topBar { display: none; }
 
+/* ========== 8) Hidden Webcam & Preview ========== */
+.hiddenVideo { position: fixed; left: -9999px; top: 0; width: 320px; height: auto; opacity: 0; pointer-events: none; }
+#webcamPreview.preview { position: fixed; right: 16px; bottom: 16px; opacity: 1; width: 160px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2); transform: scaleX(-1); pointer-events: none; z-index: 9998; }
+.camHidden { width: 1px !important; height: 1px !important; opacity: 0 !important; }
 
+/* ========== 9) Centered End-game UI ========== */
+.centerMsg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -60%); font-size: 28px; font-weight: 800; color: #00324d; text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,.25); z-index: 20; }
+#restartBtn { position: fixed; left: 50%; top: calc(50% + 24px); transform: translateX(-50%); z-index: 20; border: 0; border-radius: 14px; padding: 12px 16px; font-size: 16px; font-weight: 700; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,.15); cursor: pointer; display: none; }
+#restartBtn:active { transform: translateX(-50%) translateY(1px); }
 
-/* Keep positioning static (avoid accidental offsets from older rules) */
-#overlayUI, #bioChip, #modeChip, #cameraBtn { position: static; }
+/* ========== 10) Post-game Modal ========== */
+#postGameClose { display: none; }
+#postGameModal{ place-items: end center; z-index: 15; background: rgba(0,0,0,.20); }
+#postGameModal .modalHeader { justify-content: center; }
+#postGameTitle { text-align: center; width: 100%; }
+#postGameModal .modalContent { width: min(560px, 96vw); border-radius: 16px; box-sizing: border-box; }
+#postGameModal .modalRow.stacked { flex-direction: row; justify-content: center; align-items: center; gap: 12px; }
+#postGameModal .iconBtn { width: 88px; height: 88px; padding: 8px; border-radius: 14px; font-size: 0.9rem; line-height: 1.05; text-align: center; white-space: normal; }
+#postPlayAgain { background: #0077cc; }
+#postChangeMode { background: #cc66cc; }
+#postPlayAgain:hover  { background: #0066b3; }
+#postPlayAgain:active { background: #004c80; transform: translateY(1px) scale(0.96); }
+#postChangeMode:hover { background: #b34db3; }
+#postChangeMode:active{ background: #993399; transform: translateY(1px) scale(0.96); }
+@media (min-height: 700px) { #postGameModal .modalContent { margin-bottom: 20px; } }
+@media (max-width: 480px) { #postGameModal .modalContent { width: 100vw; max-width: 100vw; border-radius: 16px; margin-bottom: 12px; } }
 
-/* Prevent iOS input auto-zoom by ensuring 16px+ */
-html { -webkit-text-size-adjust: 100%; }
-#loginModal input[type="text"],
-#loginModal select,
-#loginModal .iconBtn { font-size: 16px; line-height: 1.2; }
-
-/* Let the centered modals scroll internally */
-.modal.centered .modalContent {
-  max-height: 80vh;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;   /* smooth iOS scrolling */
-  overscroll-behavior: contain;
-  width: min(520px, 92vw);
+/* ========== 11) Responsive Tweaks ========== */
+@media (max-width: 420px) {
+  #modeBar.compact select { max-width: 96px; }
+  .modalPreview { width: 180px; }
 }
-
-/* On small phones, stack input+OK and anchor the login dialog near the keyboard */
 @media (max-width: 480px) {
-  
-  #loginModal .modalContent {
-    width: 100vw;
-    max-width: 100vw;
-    border-radius: 16px 16px 0 0;
-    max-height: 70vh;                   /* a bit shorter so OK stays visible */
-  }
-  #loginModal .modalRow {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  #loginModal .modalRow { flex-direction: column; align-items: stretch; }
   #loginModal input[type="text"] { width: 100%; }
   #loginModal .iconBtn.small    { width: 100%; }
 }
 
-/* Post-game: remove the "X" so players must choose Play again or Change mode */
-#postGameClose { display: none; }
-#postGameModal{ place-items: end center; z-index: 15;background: rgba(0,0,0,.20);}    /* bottom sheet */
-/* Post-game panel sizing & corners */
-#postGameModal .modalContent {
-  width: min(560px, 96vw);
-  border-radius: 16px;                 /* four corners visible when lifted */
-  box-sizing: border-box;
-}
-
-/* On taller screens, float above the bottom so corners show */
-@media (min-height: 700px) {
-  #postGameModal .modalContent {
-    margin-bottom: 20px;               /* not glued to the edge */
-  }
-}
-
-/* On small phones, keep it like a bottom sheet */
-@media (max-width: 480px) {
-  #postGameModal .modalContent {
-    width: 100vw;
-    max-width: 100vw;
-    border-radius: 16px;      /* 4 corners */
-    margin-bottom: 12px;      /* tiny gap so it’s not glued to bottom */
-  }
-}
+/* ========== 12) Utilities ========== */
+.hidden     { display: none !important; }
+.hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
+.srOnly     { position: absolute; left: -9999px; }
+#overlayUI, #bioChip, #modeChip, #cameraBtn { position: static; }
