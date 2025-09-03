@@ -1,4 +1,4 @@
-// Bubble Bio Game — v5.0
+// Bubble Bio Game — v8.0
 // Owner: Ken Pao
 // Note: Coding with ChatGPT assistance
 
