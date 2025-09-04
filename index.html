@@ -50,16 +50,6 @@ Deployment notes
 
   <!-- ===== Unified Top Bar (hidden until gameplay starts) ===== -->
   <div id="topBar" class="hidden">
-    <!-- Left: legacy mode selector (kept for compatibility, hidden) -->
-    <div id="modeBar" class="compact" style="display:none">
-      <label for="modeSelect" class="srOnly">Mode</label>
-      <select id="modeSelect" title="Mode">
-        <option value="classic" selected>Classic</option>
-        <option value="challenge">Challenge</option>
-        <option value="bio">Bio</option>
-      </select>
-    </div>
-
     <!-- Left cluster: Score & Time -->
     <div id="overlayUI">
       <div class="hud">
@@ -84,8 +74,8 @@ Deployment notes
   <!-- End Top Bar -->
 
 
-  <!-- Camera modal (Bio mode only) -->
-  <div id="cameraModal" class="modal hidden">
+  <!-- Camera modal (Mood mode only) -->
+  <div id="cameraModal" class="modal centered hidden">
     <div class="modalContent">
       <div class="modalHeader">
         <h3>Camera</h3>
@@ -131,12 +121,12 @@ Deployment notes
     <div class="modalContent">
       <div class="modalHeader"><h3 id="modeTitle">Choose a Mode</h3></div>
       <div class="modalRow stacked">
-        <button id="modeClassicBtn"  class="iconBtn">Classic</button>
-        <button id="modeChallengeBtn" class="iconBtn">Challenge</button>
-        <button id="modeBioBtn" class="iconBtn">Bio</button>
+        <button id="modeClassicBtn" class="iconBtn">🎈<br>Classic</button>
+        <button id="modeChallengeBtn" class="iconBtn">⚡<br>Challenge</button>
+        <button id="modeBioBtn" class="iconBtn">😊<br>Mood</button>
       </div>
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
-        Bio mode uses your camera locally to estimate expressions.
+        <bold>Mood</bold> mode uses your camera locally to estimate facial expressions.
       </p>
     </div>
   </div>
@@ -149,8 +139,8 @@ Deployment notes
         <button id="postGameClose" class="iconBtn small" aria-label="Close">✕</button>
       </div>
       <div class="modalRow stacked">
-        <button id="postPlayAgain" class="iconBtn">Play again</button>
-        <button id="postChangeMode" class="iconBtn">Change mode</button>
+        <button id="postPlayAgain" class="iconBtn">🔄<br>Play</button>
+        <button id="postChangeMode" class="iconBtn">🎮<br>Mode</button>
       </div>
     </div>
   </div>
@@ -158,10 +148,10 @@ Deployment notes
   <!-- Bio Consent Modal (centered) -->
   <div id="bioConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="bioConsentTitle">
     <div class="modalContent">
-      <div class="modalHeader"><h3 id="bioConsentTitle">Bio Mode Consent</h3></div>
+      <div class="modalHeader"><h3 id="bioConsentTitle">Mood Mode Consent</h3></div>
       <div class="modalRow">
         <p style="margin:0;">
-          Bio mode uses your device’s camera <b>locally</b> to estimate facial expressions.
+          Mood mode uses your device’s camera <b>locally</b> to estimate facial expressions.
           We do <b>not</b> upload video. We store anonymized scores & gameplay stats in Google Sheets.
         </p>
       </div>
@@ -191,6 +181,7 @@ Deployment notes
         <input id="usernameInput" type="text" placeholder="Your name" autocomplete="username" />
         <button id="submitUsername" class="iconBtn small">OK</button>
       </div>
+      <div class="loginHint">You can keep this name or type a new one.</div>
       <p id="loginStatus" class="loginStatus"></p>
     </div>
   </div>
