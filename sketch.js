@@ -524,25 +524,22 @@ async function submitRun(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'run',
+        runId,
+        sessionId: window.__sessionId,
         deviceId: playerDeviceId,
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
+        gameVersion: 'v8.8', // keep in sync with version comment
         score,
         durationMs,
-        // optional fields; Apps Script accepts empty
         bubblesPopped,
         accuracy: +( (bubblesPoppedGood / Math.max(1, tapsTotal)).toFixed(3) ),
-        // emotion counts (sampler ticks per round)
         emoHappy:    emoCounts.happy,
         emoSad:      emoCounts.sad,
         emoAngry:    emoCounts.angry,
         emoStressed: emoCounts.stressed,
-        emoNeutral:  emoCounts.neutral,
-        // game info
-        gameVersion: 'v8.8',
-        sessionId: window.__sessionId,
-        runId
+        emoNeutral:  emoCounts.neutral
       })
     });
   } catch (e) {
