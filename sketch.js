@@ -75,6 +75,7 @@
 // v8.8   : Telemetry & login UX — detectDeviceType() added and included in Sheets payload;
 //          login field is disabled during profile lookup, then enabled so returning users can keep or edit
 //          their username; version string sent with each run.
+// v8.8.2 : Fix google sheet variable order via app script
 // ============================================================================
 
 
