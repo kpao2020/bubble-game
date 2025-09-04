@@ -1,0 +1,178 @@
+/* ===== Base page ===== */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  background: #cceeff;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+}
+
+/* ===== Unified Top Bar ===== */
+#topBar {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 12px; right: 12px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto 110px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
+  padding: 6px 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+}
+
+/* ===== Left: Mode selector ===== */
+#modeBar { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
+#modeBar select {
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.15);
+  padding: 6px 8px;
+  background: white;
+}
+#modeBar.compact select { max-width: 120px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+
+/* ===== Center: Bio indicator chip ===== */
+#bioChip {
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+  font-weight: 800;
+  justify-self: center;
+}
+.hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
+
+/* Camera icon button */
+.iconBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px; border: 0;
+  background: rgba(255,255,255,.95);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  cursor: pointer;
+}
+.iconBtn.small { width: 32px; height: 32px; border-radius: 8px; }
+
+/* ===== Right: HUD (Score over Time) ===== */
+#overlayUI { pointer-events: none; justify-self: end; }
+.hud {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
+  user-select: none; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
+.chip { display: inline-block; background: rgba(255,255,255,.85); border-radius: 999px; padding: 6px 10px; }
+
+/* Modal */
+.modal.hidden { display: none; }
+.modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.35); display: grid; place-items: end center; }
+.modalContent {
+  width: min(560px, 100vw); background: #fff; border-top-left-radius: 16px; border-top-right-radius: 16px;
+  padding: 12px 14px 16px; box-shadow: 0 -6px 24px rgba(0,0,0,.2);
+}
+.modalHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.modalRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
+.modalRow select { flex: 1 1 auto; max-width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; background: #fff; }
+.previewWrap { margin-top: 8px; display: flex; justify-content: center; }
+.modalPreview { width: 220px; height: auto; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.18); transform: scaleX(-1); }
+
+/* Screen-reader-only helper */
+.srOnly { position: absolute; left: -9999px; }
+
+/* ===== Centered end-game UI ===== */
+.centerMsg {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -60%);
+  font-size: 28px; font-weight: 800; color: #00324d; text-align: center;
+  text-shadow: 0 2px 6px rgba(0,0,0,.25); z-index: 20;
+}
+#restartBtn {
+  position: fixed; left: 50%; top: calc(50% + 24px); transform: translateX(-50%); z-index: 20;
+  border: 0; border-radius: 14px; padding: 12px 16px; font-size: 16px; font-weight: 700;
+  background: white; box-shadow: 0 8px 20px rgba(0,0,0,.15); cursor: pointer; display: none;
+}
+#restartBtn:active { transform: translateX(-50%) translateY(1px); }
+
+/* ===== Hidden webcam (rendering offscreen) ===== */
+.hiddenVideo {
+  position: fixed; left: -9999px; top: 0;
+  width: 320px; height: auto; opacity: 0; pointer-events: none;
+}
+
+/* When preview is enabled, show in lower-right of the viewport */
+#webcamPreview.preview {
+  position: fixed; right: 16px; bottom: 16px; top: auto; opacity: 1;
+  width: 160px; height: auto; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2);
+  transform: scaleX(-1); transform-origin: center; pointer-events: none; z-index: 9998;
+}
+
+/* Utility: hidden but keeps element alive */
+.camHidden { width: 1px !important; height: 1px !important; opacity: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
+
+/* ===== Responsive tweaks ===== */
+@media (max-width: 420px) {
+  #modeBar.compact select { max-width: 96px; }
+  .modalPreview { width: 180px; }
+}
+
+/* ===== Splash Screen ===== */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  /* Simple gradient background */
+  background: linear-gradient(160deg, #9ad4ff 0%, #b8e1ff 40%, #eef7ff 100%);
+  /* Start hidden, then use classes to animate */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+/* Reduce-motion friendly */
+@media (prefers-reduced-motion: reduce) {
+  #splash { transition: none; }
+}
+
+#splash.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#splash.is-fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-inner {
+  text-align: center;
+  padding: 2rem 2.5rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  backdrop-filter: blur(6px);
+}
+
+.splash-title {
+  margin: 0 0 0.4rem 0;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  color: #0c2a43;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.splash-subtitle {
+  margin: 0;
+  font-size: clamp(1rem, 3.2vw, 1.25rem);
+  color: #1a4366;
+  opacity: 0.9;
+}
+
+/* Make sure this sits above your top bar or other fixed UI */
+.top-bar, header, nav {
+  position: relative; /* keep your existing rules; this is defensive */
+  z-index: 10;
+}

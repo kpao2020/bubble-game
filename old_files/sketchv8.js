@@ -1,109 +1,6 @@
-// ============================================================================
-// Popping Bubbles — Production Game Script (sketch.js)
+// Bubble Bio Game — v8.0
 // Owner: Ken Pao
-//
-// About this file
-// - q5.js + p5play v3 game loop (setup/draw) with three modes: classic | challenge | bio
-// - Bio mode: face-api.js sampling, emotion smoothing, "stressed" blend (fearful+disgusted+surprised)
-// - UI flow: Splash -> Login (device check + username) -> Mode Picker -> Gameplay -> Post-game
-// - Stats posted to Google Apps Script via a Cloudflare Worker proxy
-//
-// Structure guide (search for these section banners):
-//   [Game constants]        core tunables for gameplay + bio thresholds
-//   [Backend config]        worker endpoint for Google Apps Script
-//   [Identity & storage]    deviceId/username/bioConsent keys
-//   [Troubleshooting mode]  laptop-only toggle 't' to reveal camera button
-//   [UI helpers]            viewport sizing, walls/safe area, overlay for face box, body-mode classes
-//   [Submit Run]            sends round results (score + emotion counts) to Sheets
-//   [Setup & Draw]          q5 lifecycle; input wiring; per-frame UI updates
-//   [Gameplay]              bubble spawn, hit logic, restart/endGame
-//   [Bio (face-api)]        model loading, webcam controls, sampler and dominantEmotion()
-//   [Modals & Splash]       helpers to open/close, splash controller
-//   [Login & start]         device profile check, username flow, mode picker trigger
-//
-// Safe customization points
-// - GAME_DURATION, bubble sizes/speeds
-// - EMO_CFG and EMO_FORCE thresholds (tune bio responsiveness)
-// - CHALLENGE_TRICK_RATE for trick bubble frequency
-// - Consent copy is in index.html; Sheets columns are handled in Apps Script
-//
-// ============================================================================
-// NOTE: 
-// a. Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
-// b. Coding with ChatGPT assistance
-//
-// ============================================================================
-// Version history
-// v1.0   : Initial game built with basic popping bubbles and mousePressed input
-//
-// v2.2   : Fix bubbles spawn issues. Adjust walls. Minor bug fix.
-//
-// v3.2   : Add score system, Add timer. Update CSS and JS. Minor bug fix.
-//
-// v4.5   : Add splash screen. Minor fix HTML layout. Add Challenge Mode and Bio Mode. Add face-api.js
-//
-// v5.6   : Add topBar display. Add camera for facial expression troubleshooting. Adjust 3 Bio 
-//          states - happy, sad, angry attributes and fix neutral values for improving detection.
-//          Add google sheet to capture data. Add cloudflare worker for secret management.
-//          Major update and bug fix.
-//
-// v6.2   : Add splash screen. Redesign topBar layout - remove "New Game" button. Adjust walls for proper playarea.
-//
-// v7.6   : Change Bio detection from 5s to 1s. Add login screen. Add end game screen.
-//
-// v8.0   : Baseline release — Classic / Challenge / Mood (Bio) modes; Sheets logging via Worker;
-//          face-api sampling; splash → login → mode picker → gameplay → post-game flow.
-//
-// v8.1   : Minor adjust sampling to improve facial expression detection.
-//
-// v8.2   : Update payload to send updated game statistic in correct order to google sheet.
-//
-// v8.3   : Update Google app script to fix the ordering. Update Google sheet headers manually.
-//
-// v8.4   : Optimize CSS, JS into logical groups to improve SDLC maintenance.
-//
-// v8.5   : Gameplay polish — switched normal bubble tint to a curated, high-contrast palette
-//          (more visible colors; consistent alpha).
-//
-// v8.6   : UI pass — global button restyle (rounded, taller, tighter width) with clear hover/active/focus.
-//
-// v8.6.1 : Button shape tweaks — squarish icon feel (not pills), darker top-bar camera button.
-//
-// v8.6.2 : Mode picker buttons → square icon tiles with emoji + text (no overflow).
-//
-// v8.6.3 : Mode picker layout — centered “Choose a Mode” header and centered button column;
-//          ensured labels don’t overflow on narrow screens.
-//
-// v8.6.4 : Color coding — distinct backgrounds for Classic/Challenge/Mood tiles;
-//          post-game actions (Play/Mode) converted to square, color-coded tiles with emoji.
-//
-// v8.6.5 : Feedback states — added per-button hover (slightly darker) and active (deeper + press scale).
-//
-// v8.6.6 : Post-game UI — centered the two action tiles; kept them as square tiles with press feedback.
-//
-// v8.6.7 : Mode chip visibility & theming — mode chip always visible (Classic/Challenge/Mood);
-//          CSS prepared for per-mode chip backgrounds (blue/orange/green); consolidated CSS structure.
-//
-// v8.6.7.1: Minor CSS fix — corrected the Challenge selector spacing so its chip color updates correctly.
-//
-// v8.6.8 : JS/CSS sync — added body mode-class toggling (mode-classic / mode-challenge / mode-bio) so
-//          CSS can theme #modeChip automatically; no gameplay changes.
-//
-// v8.6.8.1: Simplified UX — removed legacy top-bar mode dropdown; the Mode Picker dialog is now the only way
-//           to choose Classic / Challenge / Mood.
-//
-// v8.7   : Dialog system — responsive, four-corner rounded modals; camera modal centered;
-//          post-game behaves like a bottom sheet on phones and “floats” slightly above bottom on larger screens.
-//
-// v8.7.1 : Dialog option (B) — even on small phones, keep four corners with a small bottom gap (no flush edge).
-//
-// v8.8   : Telemetry & login UX — detectDeviceType() added and included in Sheets payload;
-//          login field is disabled during profile lookup, then enabled so returning users can keep or edit
-//          their username; version string sent with each run.
-//
-// v8.8.2 : Fix google sheet variable order via app script
-// ============================================================================
-
+// Note: Coding with ChatGPT assistance
 
 
 /* =============================
@@ -114,18 +11,8 @@ const START_BUBBLES = 24;
 const MIN_DIAM = 50, MAX_DIAM = 88;   // bubble size range
 const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
 const MIN_PLAY_SPEED = 0.9;           // floor after multipliers
-// High-contrast, cheerful palette for bubble tints (RGB)
-const BUBBLE_COLORS = [
-  [ 66, 135, 245],  // lively blue
-  [ 52, 199,  89],  // green
-  [255, 159,  10],  // orange
-  [255,  99, 132],  // pink/red
-  [175,  82, 222],  // purple
-  [ 50, 212, 222],  // teal
-  [255, 204,  77],  // warm yellow
-];
 
-const BIO_SAMPLE_MS = 1500;           // face sampling cadence (ms)
+const BIO_SAMPLE_MS = 1000;           // face sampling cadence (ms)
 
 // Bio end-game behavior: 'pause' (sampler only) or 'stop' (sampler + camera)
 const BIO_STOP_STRATEGY = 'pause';
@@ -163,8 +50,6 @@ let selectedDeviceId = null;
 let modelsReady = false;
 let bioTimerId = null;
 let overlay, octx;         // overlay canvas for green box
-// Hidden detector canvas we control (to avoid face-api creating its own readback-heavy canvas)
-let detectorCanvas = null, dctx = null;
 
 // Aggregated expression state (smoothed)
 const bioState = { gaze: { x: 0.5, y: 0.5 }, happy: 0, sad: 0, angry: 0, stressed:0, neutral: 1 };
@@ -193,7 +78,6 @@ let lastEmotion = 'neutral', lastSwitchMs = 0;
 // Per-round emotion counts (incremented by the Bio sampler)
 let emoCounts = { happy: 0, sad: 0, angry: 0, stressed: 0, neutral: 0 };
 
-
 /* =============================
  *        Backend config
  * ============================= */
@@ -202,7 +86,6 @@ const GOOGLE_SCRIPT_URL = "https://bubble-game-proxy.xoakuma.workers.dev/";
 // If (and only if) you POST directly to Apps Script with SECRET enforced, you can append it here.
 // Recommended: leave empty and let your proxy add the secret server-side.
 const GOOGLE_SCRIPT_POST_SUFFIX = "";
-
 
 /* =============================
  *        Identity & storage
@@ -229,10 +112,10 @@ function getOrCreateDeviceId() {
   }
 }
 
-
 /* =============================
  *        Troubleshooting mode
  * ============================= */
+
 // Troubleshoot visibility (toggles the camera button on laptops in Bio mode)
 let troubleshootMode = false;
 
@@ -243,24 +126,6 @@ function isLaptop(){
   const ua = (navigator.userAgent || '').toLowerCase();
   const desktopUA = /(macintosh|mac os x|windows nt|linux|cros)/.test(ua);
   return !hasTouch && !coarse && (desktopUA || w >= 900);
-}
-
-// this function must place after isLaptop() function
-function detectDeviceType(){
-  const ua = (navigator.userAgent || '').toLowerCase();
-  const isIpad = /ipad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isIphone = /iphone/.test(ua);
-  const isAndroid = /android/.test(ua);
-  const isSamsung = /sm-|samsungbrowser/.test(ua);
-  const isPixel = /pixel/.test(ua);
-  const isTablet = isAndroid && !/mobile/.test(ua);
-  if (isIphone) return 'iphone';
-  if (isIpad) return 'ipad';
-  if (isSamsung && isAndroid) return 'samsung_phone';
-  if (isPixel && isAndroid) return 'google_phone';
-  if (isAndroid && !isTablet) return 'android_phone';
-  if (isTablet) return 'android_tablet';
-  return isLaptop() ? 'laptop' : 'desktop';
 }
 
 function refreshCameraBtn(){
@@ -278,14 +143,13 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-
 /* =============================
  *        UI helpers
  * ============================= */
+
 /** Get viewport width/height with visualViewport support */
 function viewportW(){ return (window.visualViewport ? Math.round(window.visualViewport.width)  : window.innerWidth); }
 function viewportH(){ return (window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight); }
-
 // ===== Viewport sizing =====
 function fitCanvasToViewport() {
   const w = viewportW();
@@ -294,7 +158,6 @@ function fitCanvasToViewport() {
   // Only rebuild walls after login so mobile keyboards/resize during login don't touch physics
   if (window.__playerReady) rebuildWallsIfNeeded();
 }
-
 /** Return the y-px of the safe play area's top (just below the top bar + padding) */
 function safeTopPx(){
   const bar = document.getElementById('topBar');
@@ -346,22 +209,6 @@ function ensureOverlay(){
   overlay.height = vid.videoHeight || 480;
 }
 
-/** Hidden canvas as face-api input (readback-friendly) */
-function ensureDetectorCanvas(w, h){
-  if (!detectorCanvas){
-    detectorCanvas = document.createElement('canvas');
-    detectorCanvas.width = Math.max(1, w || 640);
-    detectorCanvas.height = Math.max(1, h || 480);
-    dctx = detectorCanvas.getContext('2d', { willReadFrequently: true });
-  } else {
-    // keep it sized to the current video
-    if (w && h && (detectorCanvas.width !== w || detectorCanvas.height !== h)){
-      detectorCanvas.width = w; detectorCanvas.height = h;
-    }
-  }
-  return detectorCanvas;
-}
-
 /** Simple EMA smoothing */
 function ema(prev, next, a = 0.75){ return prev == null ? next : (a*next + (1-a)*prev); }
 
@@ -374,15 +221,6 @@ function isBioMode(){
 function setEmotionChip(next){
   const chip = document.getElementById('bioChip');
   if (chip) chip.textContent = String(next || 'neutral').toUpperCase();
-}
-
-/** Keep <body> mode class in sync with currentMode so CSS can theme chips */
-function setBodyModeClass(){
-  const root = document.body;
-  if (!root) return;
-  root.classList.remove('mode-classic','mode-challenge','mode-bio');
-  const cls = (currentMode === 'classic') ? 'mode-classic' : (currentMode === 'challenge') ? 'mode-challenge' : 'mode-bio';
-  root.classList.add(cls);
 }
 
 function hasBioConsent(){
@@ -399,7 +237,6 @@ function showBioConsentModal(onAccept, onDecline){
   const no  = document.getElementById('bioConsentDeclineBtn');
   if (!m || !yes || !no){ onAccept && onAccept(); return; }
 
-  closeAllModalsExcept('bioConsentModal');
   m.classList.remove('hidden');
   yes.onclick = () => { acceptBioConsent(); m.classList.add('hidden'); onAccept && onAccept(); };
   no.onclick  = () => { m.classList.add('hidden'); onDecline && onDecline(); };
@@ -421,21 +258,19 @@ function showModePicker(){
 
   if (!m || !bC || !bH || !bB){ 
     currentMode = 'classic'; 
-    setBodyModeClass();
     afterModeSelected(false); 
     return; 
   }
 
   const hide = () => m.classList.add('hidden');
-  closeAllModalsExcept('modeModal');
   m.classList.remove('hidden');
 
-  bC.onclick = () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); };
-  bH.onclick = () => { currentMode = 'challenge'; setBodyModeClass(); hide(); afterModeSelected(false); };
+  bC.onclick = () => { currentMode = 'classic'; hide(); afterModeSelected(false); };
+  bH.onclick = () => { currentMode = 'challenge'; hide(); afterModeSelected(false); };
   bB.onclick = () => {
-    const proceedBio = () => { currentMode = 'bio'; setBodyModeClass(); hide(); afterModeSelected(true); };
+    const proceedBio = () => { currentMode = 'bio'; hide(); afterModeSelected(true); };
     if (hasBioConsent()) proceedBio();
-    else showBioConsentModal(proceedBio, () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); });
+    else showBioConsentModal(proceedBio, () => { currentMode = 'classic'; hide(); afterModeSelected(false); });
   };
 }
 
@@ -472,7 +307,6 @@ function afterModeSelected(isBio){
   }
 
   refreshCameraBtn();
-  setBodyModeClass(); // keep CSS theming in sync
   restart(false);
 }
 
@@ -481,11 +315,7 @@ function openLoginProgress(msg){
   const m = document.getElementById('loginProgressModal');
   const p = document.getElementById('loginProgressMsg');
   const c = document.getElementById('loginProgressContinue');
-  if (m && p){ 
-    closeAllModalsExcept('loginProgressModal'); 
-    p.textContent = msg || ''; 
-    m.classList.remove('hidden'); 
-  }
+  if (m && p){ p.textContent = msg || ''; m.classList.remove('hidden'); }
   if (c){ 
     c.classList.add('hidden');  // keep hidden during fetch
     c.disabled = true;          // and not focusable
@@ -538,6 +368,7 @@ function setLoginStatus(msg, cls='info') {
 /* =======================================
  *        Update Game Run and Profile
  * ======================================= */
+
 function nowMs(){ return (typeof millis === 'function') ? millis() : Date.now(); }
 
 async function submitRun(){
@@ -552,22 +383,24 @@ async function submitRun(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'run',
-        runId,
-        sessionId: window.__sessionId,
         deviceId: playerDeviceId,
-        deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v8.8', // keep in sync with version comment
         score,
         durationMs,
+        // optional fields; Apps Script accepts empty
         bubblesPopped,
         accuracy: +( (bubblesPoppedGood / Math.max(1, tapsTotal)).toFixed(3) ),
+        // emotion counts (sampler ticks per round)
         emoHappy:    emoCounts.happy,
         emoSad:      emoCounts.sad,
         emoAngry:    emoCounts.angry,
         emoStressed: emoCounts.stressed,
-        emoNeutral:  emoCounts.neutral
+        emoNeutral:  emoCounts.neutral,
+        // game info
+        gameVersion: 'v8.0',
+        sessionId: window.__sessionId,
+        runId
       })
     });
   } catch (e) {
@@ -580,14 +413,27 @@ async function submitRun(){
  *        Setup & Draw
  * ============================= */
 function setup(){
-  const mainCanvas = createCanvas(viewportW(), viewportH());
-  if (mainCanvas?.drawingContext){
-    try { mainCanvas.drawingContext.willReadFrequently = true; } catch(e){}
-  }
+  createCanvas(viewportW(), viewportH());
   noStroke();
   world.gravity.y = 0;
 
-  setBodyModeClass();
+  // Mode selector wiring
+  const modeSelect = document.getElementById('modeSelect');
+  if (modeSelect){
+    currentMode = modeSelect.value;
+    modeSelect.onchange = async () => {
+      currentMode = modeSelect.value;
+      if (window.__playerReady) restart(true);  // restart only after login
+      if (isBioMode()){
+        await loadFaceApiModels();
+        await startWebcam(true);
+        startSampler();
+      }else{
+        stopSampler();
+        stopWebcam();
+      }
+    };
+  }
 
   // Camera modal buttons
   const camBtn = document.getElementById('cameraBtn');
@@ -691,10 +537,11 @@ function draw(){
   if (modeChip){
     const label = (currentMode === 'classic') ? 'Classic'
                 : (currentMode === 'challenge') ? 'Challenge'
-                : 'Mood';
+                : 'Bio';
     // Always keep the text current
     modeChip.textContent = `Mode: ${label}`;
-    modeChip.style.display = 'inline-flex';   // always visible
+    // Visible only in Bio mode (per your spec)
+    modeChip.style.display = isBioMode() ? 'inline-flex' : 'none';
   }
 
   const bioChip  = document.getElementById('bioChip');
@@ -760,7 +607,6 @@ function draw(){
   if (!gameOver && timeLeft <= 0) endGame();
 }
 
-
 /* =============================
  *        Gameplay
  * ============================= */
@@ -778,11 +624,7 @@ function spawnBubble(){
 
   const b = new Sprite(sx, sy, d);
   b.shape = 'circle'; b.color = color(255,255,255,0); b.diameter = d;
-  // new (choose a palette color with a stronger, visible alpha):
-  const cIdx = Math.floor(random(BUBBLE_COLORS.length));
-  const [cr,cg,cb] = BUBBLE_COLORS[cIdx];
-  b._tint = color(cr, cg, cb, 200);
-
+  b._tint = color(random(120,210), random(140,220), 255, 150);
   b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
   b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
   b._type = (currentMode === 'challenge' && random() < 0.22) ? 'trick' : 'normal';
@@ -897,7 +739,6 @@ function restart(fromModeButton){
   loop();
 }
 function windowResized(){ const w = viewportW(), h = viewportH(); if (width !== w || height !== h) resizeCanvas(w, h); rebuildWallsIfNeeded(); }
-
 
 /* =============================
  *        Bio (face-api.js)
@@ -1039,13 +880,8 @@ async function sampleBio(){
 
   let detections = [];
   try {
-    const vw = v.videoWidth  || 640;
-    const vh = v.videoHeight || 480;
-    const det = ensureDetectorCanvas(vw, vh);
-    // draw the current video frame onto our own canvas
-    if (dctx){ dctx.drawImage(v, 0, 0, vw, vh); }
     const tinyOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.08 });
-    detections = await faceapi.detectAllFaces(det, tinyOpts).withFaceLandmarks().withFaceExpressions();
+    detections = await faceapi.detectAllFaces(v, tinyOpts).withFaceLandmarks().withFaceExpressions();
   } catch (e) { console.warn('[bio] tinyFace error:', e); }
 
   if (!detections || !detections.length){
@@ -1161,14 +997,8 @@ function dominantEmotion(){
 /* =============================
  *        Modal helpers
  * ============================= */
-function openCameraModal(){ closeAllModalsExcept('cameraModal'); document.getElementById('cameraModal')?.classList.remove('hidden'); }
+function openCameraModal(){ document.getElementById('cameraModal')?.classList.remove('hidden'); }
 function closeCameraModal(){ document.getElementById('cameraModal')?.classList.add('hidden'); }
-// this function closeAllModalsExcept will ensure only 1 modal is ever visible - prevent "grey window behind"
-function closeAllModalsExcept(id){
-  document.querySelectorAll('.modal').forEach(el => {
-    if (el.id !== id) el.classList.add('hidden');
-  });
-}
 
 // ===== Splash Controller =====
 (function initSplash() {
@@ -1208,11 +1038,10 @@ window.__splashActive = true;
 window.onSplashDismiss = function () {
   window.__splashActive = false;
   playerDeviceId = playerDeviceId || getOrCreateDeviceId();
-  window.__deviceType = detectDeviceType(); // set once
   showLoginScreen(playerDeviceId); // open login after splash
 };
 
-function openPostGameModal(){ closeAllModalsExcept('postGameModal'); document.getElementById('postGameModal')?.classList.remove('hidden'); }
+function openPostGameModal(){ document.getElementById('postGameModal')?.classList.remove('hidden'); }
 function closePostGameModal(){ document.getElementById('postGameModal')?.classList.add('hidden'); }
 
 
@@ -1239,9 +1068,6 @@ function showLoginScreen(deviceId){
   const input  = document.getElementById('usernameInput');
   const submit = document.getElementById('submitUsername');
   if (!modal || !input || !submit) return;
-
-  // Disable input while we check if this device has a saved username
-  input.disabled = true;
 
   // keep top bar hidden here
   const topBar = document.getElementById('topBar');
@@ -1279,11 +1105,9 @@ function showLoginScreen(deviceId){
 
       if (data && data.ok && data.profile) {
         priorProfile = data.profile;
-        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new username.`, 'ok');
-        input.disabled = false;  // returning device -> allow editing
+        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new name.`, 'ok');
       } else {
         setLoginStatus('New device detected. Please create a username.', 'info');
-        input.disabled = false; // new device -> enable typing
       }
     })
     .catch(() => {
@@ -1291,7 +1115,6 @@ function showLoginScreen(deviceId){
       if (!loginUserEdited && (!input.value || input.value.trim() === '')) input.value = suggested;
       else input.placeholder = suggested;
       setLoginStatus('Could not check device right now. You can still create a username.', 'err');
-      input.disabled = false; // assume new device on error -> allow typing
     });
 
   // SUBMIT: check availability first (keep modal open). Only show "Saving…" progress after it’s available.
