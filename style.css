@@ -190,10 +190,25 @@ body.mode-bio      #modeChip { background: #66cc66; color: #0b2a45; }
 
 /* ========== 7) Login Modal overrides ========== */
 #loginModal { place-items: center; z-index: 1000; }
-#loginModal .modalContent { border-radius: 16px; }
+/* Login modal: avoid bottom hairline on some browsers */
+#loginModal .modalContent {
+  box-shadow: 0 12px 28px rgba(0,0,0,.18);  /* symmetric shadow */
+  border: 0;
+  outline: 0;
+  background-clip: padding-box;             /* prevents border bleed */
+  -webkit-font-smoothing: antialiased;
+}
+
 #loginModal input[type="text"] { flex: 1 1 auto; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; }
 #loginModal .iconBtn.small { min-width: 64px; }
 body.login-active #topBar { display: none; }
+
+.loginHint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #3a5872;
+  opacity: 0.9;
+}
 
 /* ========== 8) Hidden Webcam & Preview ========== */
 .hiddenVideo { position: fixed; left: -9999px; top: 0; width: 320px; height: auto; opacity: 0; pointer-events: none; }

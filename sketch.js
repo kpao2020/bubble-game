@@ -27,27 +27,54 @@
 // - CHALLENGE_TRICK_RATE for trick bubble frequency
 // - Consent copy is in index.html; Sheets columns are handled in Apps Script
 //
-// NOTE: Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // ============================================================================
-// Version:
-//    v8.6.1: Buttons redesigned to be squarish with softened corners (12px radius), darker top-bar background, equal padding for icon-like feel, improved press/hover/focus visuals.
-//    v8.6.2: Mode picker buttons redesigned as square icon-like tiles (64×64px, rounded corners, centered text). Optional emojis give quick visual identity for each mode.
-//    v8.6.3: Centered Mode dialog title + column; square icon-style mode buttons with emoji+text; prevent label overflow.
-//    v8.6.4: Mode Picker + Post-Game buttons redesigned as square, color-coded tiles with emoji+text. Prevents text overflow and improves visual clarity.
-//    v8.6.5: Added hover/active states for all Mode Picker and Post-Game buttons.
-//            Hover → slightly darker shade
-//            Active (press) → deeper shade
-//    v8.6.6: Post-game buttons centered + square tiles with emoji+text, full hover/active press feedback; Mode Picker tiles colored with press feedback; Mode chip shows only in Mood mode.
-//    v8.6.7: Mode chip now shows in all modes (Classic, Challenge, Mood), always visible at top bar.
-//    v8.6.8: Added body mode classes (mode-classic / mode-challenge / mode-bio) and lightweight helper to keep the
-//            <body> class synced with currentMode. This enables per-mode chip background colors via CSS.
-//            No functional gameplay changes; variables/functions unchanged.
-//    v8.6.8.1: Removes the <select id="modeSelect"> block from the top bar.
-//              Keeps the Mode Picker dialog as the only way to choose Classic / Challenge / Mood.
-//              Emoji + text on the mode buttons (🎈 Classic, ⚡ Challenge, 😊 Mood).
-//              In code, drops the modeSelect wiring from setup() and just syncs the body class with the current mode.
+// NOTE: 
+// a. Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
+// b. Coding with ChatGPT assistance
 //
-// Note: Coding with ChatGPT assistance
+// ============================================================================
+// Version history
+// v8.0   : Baseline release — Classic / Challenge / Mood (Bio) modes; Sheets logging via Worker;
+//          face-api sampling; splash → login → mode picker → gameplay → post-game flow.
+//
+// v8.5   : Gameplay polish — switched normal bubble tint to a curated, high-contrast palette
+//          (more visible colors; consistent alpha).
+//
+// v8.6   : UI pass — global button restyle (rounded, taller, tighter width) with clear hover/active/focus.
+//
+// v8.6.1 : Button shape tweaks — squarish icon feel (not pills), darker top-bar camera button.
+//
+// v8.6.2 : Mode picker buttons → square icon tiles with emoji + text (no overflow).
+//
+// v8.6.3 : Mode picker layout — centered “Choose a Mode” header and centered button column;
+//          ensured labels don’t overflow on narrow screens.
+//
+// v8.6.4 : Color coding — distinct backgrounds for Classic/Challenge/Mood tiles;
+//          post-game actions (Play/Mode) converted to square, color-coded tiles with emoji.
+//
+// v8.6.5 : Feedback states — added per-button hover (slightly darker) and active (deeper + press scale).
+//
+// v8.6.6 : Post-game UI — centered the two action tiles; kept them as square tiles with press feedback.
+//
+// v8.7   : Dialog system — responsive, four-corner rounded modals; camera modal centered;
+//          post-game behaves like a bottom sheet on phones and “floats” slightly above bottom on larger screens.
+//
+// v8.7.1 : Dialog option (B) — even on small phones, keep four corners with a small bottom gap (no flush edge).
+//
+// v8.6.7 : Mode chip visibility & theming — mode chip always visible (Classic/Challenge/Mood);
+//          CSS prepared for per-mode chip backgrounds (blue/orange/green); consolidated CSS structure.
+//
+// v8.6.7.1: Minor CSS fix — corrected the Challenge selector spacing so its chip color updates correctly.
+//
+// v8.6.8 : JS/CSS sync — added body mode-class toggling (mode-classic / mode-challenge / mode-bio) so
+//          CSS can theme #modeChip automatically; no gameplay changes.
+//
+// v8.6.8.1: Simplified UX — removed legacy top-bar mode dropdown; the Mode Picker dialog is now the only way
+//           to choose Classic / Challenge / Mood.
+//
+// v8.8   : Telemetry & login UX — detectDeviceType() added and included in Sheets payload;
+//          login field is disabled during profile lookup, then enabled so returning users can keep or edit
+//          their username; version string sent with each run.
 // ============================================================================
 
 
@@ -188,6 +215,24 @@ function isLaptop(){
   const ua = (navigator.userAgent || '').toLowerCase();
   const desktopUA = /(macintosh|mac os x|windows nt|linux|cros)/.test(ua);
   return !hasTouch && !coarse && (desktopUA || w >= 900);
+}
+
+// this function must place after isLaptop() function
+function detectDeviceType(){
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const isIpad = /ipad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isIphone = /iphone/.test(ua);
+  const isAndroid = /android/.test(ua);
+  const isSamsung = /sm-|samsungbrowser/.test(ua);
+  const isPixel = /pixel/.test(ua);
+  const isTablet = isAndroid && !/mobile/.test(ua);
+  if (isIphone) return 'iphone';
+  if (isIpad) return 'ipad';
+  if (isSamsung && isAndroid) return 'samsung_phone';
+  if (isPixel && isAndroid) return 'google_phone';
+  if (isAndroid && !isTablet) return 'android_phone';
+  if (isTablet) return 'android_tablet';
+  return isLaptop() ? 'laptop' : 'desktop';
 }
 
 function refreshCameraBtn(){
@@ -480,6 +525,7 @@ async function submitRun(){
       body: JSON.stringify({
         action: 'run',
         deviceId: playerDeviceId,
+        deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
         score,
@@ -494,7 +540,7 @@ async function submitRun(){
         emoStressed: emoCounts.stressed,
         emoNeutral:  emoCounts.neutral,
         // game info
-        gameVersion: 'v8.6.8',
+        gameVersion: 'v8.8',
         sessionId: window.__sessionId,
         runId
       })
@@ -1137,6 +1183,7 @@ window.__splashActive = true;
 window.onSplashDismiss = function () {
   window.__splashActive = false;
   playerDeviceId = playerDeviceId || getOrCreateDeviceId();
+  window.__deviceType = detectDeviceType(); // set once
   showLoginScreen(playerDeviceId); // open login after splash
 };
 
@@ -1167,6 +1214,9 @@ function showLoginScreen(deviceId){
   const input  = document.getElementById('usernameInput');
   const submit = document.getElementById('submitUsername');
   if (!modal || !input || !submit) return;
+
+  // Disable input while we check if this device has a saved username
+  input.disabled = true;
 
   // keep top bar hidden here
   const topBar = document.getElementById('topBar');
@@ -1204,9 +1254,11 @@ function showLoginScreen(deviceId){
 
       if (data && data.ok && data.profile) {
         priorProfile = data.profile;
-        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new name.`, 'ok');
+        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new username.`, 'ok');
+        input.disabled = false;  // returning device -> allow editing
       } else {
         setLoginStatus('New device detected. Please create a username.', 'info');
+        input.disabled = false; // new device -> enable typing
       }
     })
     .catch(() => {
@@ -1214,6 +1266,7 @@ function showLoginScreen(deviceId){
       if (!loginUserEdited && (!input.value || input.value.trim() === '')) input.value = suggested;
       else input.placeholder = suggested;
       setLoginStatus('Could not check device right now. You can still create a username.', 'err');
+      input.disabled = false; // assume new device on error -> allow typing
     });
 
   // SUBMIT: check availability first (keep modal open). Only show "Saving…" progress after it’s available.
