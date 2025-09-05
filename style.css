@@ -241,6 +241,9 @@ body.login-active #topBar { display: none; }
   padding: 10px 12px;
   resize: vertical;
 }
+#feedbackModal.modal {
+  z-index: 1000; /* higher than other modals if needed */
+}
 
 /* ========== 8) Hidden Webcam & Preview ========== */
 .hiddenVideo { position: fixed; left: -9999px; top: 0; width: 320px; height: auto; opacity: 0; pointer-events: none; }

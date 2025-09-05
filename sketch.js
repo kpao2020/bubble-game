@@ -1289,12 +1289,13 @@ function openFeedbackModal(context){
   ttl.textContent = (__feedbackContext === 'after') ? 'Post-game Feedback' : 'Feedback (optional)';
   txt.value = (__feedbackContext === 'after') ? (window.__feedbackAfter || '') : (window.__feedbackBefore || '');
 
-  closeAllModalsExcept('feedbackModal');
+  // Do not close other modals.
   m.classList.remove('hidden');
 }
 
 function closeFeedbackModal(){
-  document.getElementById('feedbackModal')?.classList.add('hidden');
+  const m = document.getElementById('feedbackModal');
+  if (m) m.classList.add('hidden');
 }
 
 function wireFeedbackModal(){
