@@ -40,18 +40,18 @@
 //
 // v3.2   : Add score system, Add timer. Update CSS and JS. Minor bug fix.
 //
-// v4.5   : Add splash screen. Minor fix HTML layout. Add Challenge Mode and Mood Mode. Add face-api.js
+// v4.5   : Add splash screen. Minor fix HTML layout. Add Challenge Mode and Bio Mode. Add face-api.js
 //
-// v5.6   : Add topBar display. Add camera for facial expression troubleshooting. Adjust 3 Mood 
+// v5.6   : Add topBar display. Add camera for facial expression troubleshooting. Adjust 3 Bio 
 //          states - happy, sad, angry attributes and fix neutral values for improving detection.
 //          Add google sheet to capture data. Add cloudflare worker for secret management.
 //          Major update and bug fix.
 //
 // v6.2   : Add splash screen. Redesign topBar layout - remove "New Game" button. Adjust walls for proper playarea.
 //
-// v7.6   : Change Mood detection from 5s to 1s. Add login screen. Add end game screen.
+// v7.6   : Change facial expression detection from 5s to 1s. Add login screen. Add end game screen.
 //
-// v8.0   : Baseline release — Classic / Challenge / Mood (Mood) modes; Sheets logging via Worker;
+// v8.0   : Baseline release — Classic / Challenge / Mood (Bio) modes; Sheets logging via Worker;
 //          face-api sampling; splash → login → mode picker → gameplay → post-game flow.
 //
 // v8.1   : Minor adjust sampling to improve facial expression detection.
@@ -125,12 +125,12 @@
 //            of feedback if the player skips Save.
 //          - Guard logic still ensures only one POST per round (no duplicates).
 //
-// v9.1 : “mood” → “mood” refactor (no behavior change)
-//          - Replaced all remaining mood* ids/selectors/keys with mood* across HTML/CSS/JS.
-//          - Fixed isMoodMode() to check 'mood' (was 'mood') so Mood features always run.
+// v9.1 : “bio” → “mood” refactor (no behavior change)
+//          - Replaced all remaining bio* ids/selectors/keys with mood* across HTML/CSS/JS.
+//          - Fixed isMoodMode() to check 'mood' (was 'bio') so Mood features always run.
 //          - Renamed consent helpers and modal ids to moodConsent*; added one-time localStorage migration.
 //          - Renamed top-bar chip id to #moodChip and updated JS to use it.
-//          - (Optional) Renamed sampleMood() → sampleMood() and console tags “[mood]” → “[mood]”.
+//          - (Optional) Renamed sampleBio() → sampleMood() and console tags “[bio]” → “[mood]”.
 // ============================================================================
 
 
@@ -246,10 +246,10 @@ let playerDeviceId = null;
 let playerUsername = null;
 window.__playerReady = false; // gate the draw loop & inputs until username exists
 
-// v9.1 migration: carry over any old 'mood' consent key once
-(function migrateMoodConsentToMood(){
+// v9.1 migration: carry over any old 'bio' consent key once
+(function migrateBioConsentToMood(){
   try {
-    const oldKey = 'bbg_mood_consent';
+    const oldKey = 'bbg_bio_consent';
     const newKey = STORAGE_KEYS.moodConsent;
     if (localStorage.getItem(oldKey) !== null && localStorage.getItem(newKey) === null) {
       localStorage.setItem(newKey, localStorage.getItem(oldKey));
@@ -960,9 +960,6 @@ function endGame(){
     clearTimeout(moodIdleStopTO);
     moodIdleStopTO = setTimeout(() => { if (gameOver && isMoodMode()) stopWebcam(); }, MOOD_IDLE_STOP_MS);
   }
-
-  // Send game stat to google sheet
-  submitRun();
 
   openPostGameModal();
 }
