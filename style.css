@@ -24,6 +24,10 @@
  *   (Wired in JS setBodyModeClass())
  * ========================================================= */
 
+/* v9.2.10 — Consolidate survey styles: remove earlier duplicate, keep final block */
+/* v9.2.11 — Show post-game Close button (was hidden) */
+/* v9.2.12 — Remove unused #modeBar rules + media tweak */
+
 /* ========== 1) Base & Resets ========== */
 html, body {
   margin: 0;
@@ -56,15 +60,6 @@ html { -webkit-text-size-adjust: 100%; }
 body.login-active #topBar,
 body.mode-pick   #topBar{ display: none !important; }
 body.game-active #topBar{ display: grid; }
-
-#modeBar { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
-#modeBar select {
-  border-radius: 10px;
-  border: 1px solid rgba(0,0,0,.15);
-  padding: 6px 8px;
-  background: #fff;
-}
-#modeBar.compact select { max-width: 120px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 
 #overlayUI{ grid-column: 1; justify-self: start; }
 .hud{ display: flex; gap: 8px; align-items: center; }
@@ -256,7 +251,6 @@ body.login-active #topBar { display: none; }
 #restartBtn:active { transform: translateX(-50%) translateY(1px); }
 
 /* ========== 10) Post-game Modal ========== */
-#postGameClose { display: none; }
 #postGameModal{ place-items: end center; z-index: 15; background: rgba(0,0,0,.20); }
 #postGameModal .modalHeader { justify-content: center; }
 #postGameTitle { text-align: center; width: 100%; }
@@ -274,7 +268,6 @@ body.login-active #topBar { display: none; }
 
 /* ========== 11) Responsive Tweaks ========== */
 @media (max-width: 420px) {
-  #modeBar.compact select { max-width: 96px; }
   .modalPreview { width: 180px; }
 }
 @media (max-width: 480px) {
@@ -326,4 +319,130 @@ button,
   border-radius: 10px;
   /* if you previously set font-size < 16px anywhere, this helps override */
   font-size: 16px;
+}
+
+
+
+/* v9.2 — survey styles */
+.surveyQ { margin-bottom: 12px; }
+.qLabel { font-size: 14px; margin-bottom: 6px; color: #2b4a62; }
+.choiceGroup { display: grid; gap: 6px; }
+.choiceRow { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.choiceRow input[type="radio"] { transform: scale(1.1); }
+
+@media (max-width: 480px) {
+  .qLabel { font-size: 13px; }
+  .choiceRow { font-size: 13px; }
+}
+
+/* v9.2.1 — compact post-game survey & disabled button state */
+.choiceGroup { display: grid; gap: 6px; }
+@media (max-width: 480px) {
+  .choiceGroup { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .choiceRow { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); }
+  .choiceRow input[type="radio"] { transform: scale(1.2); }
+}
+
+.feedbackThanks {
+  font-size: 14px;
+  color: #2b4a62;
+  background: rgba(0,0,0,.04);
+  padding: 10px 12px;
+  border-radius: 12px;
+  margin: 8px 0;
+}
+
+/* =========================================================
+   v9.2.2 — Login tidy + post-game rows + scrollable survey
+   ========================================================= */
+
+/* Login row: compact input + two buttons */
+.loginRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.loginRow #usernameInput {
+  min-width: 0;
+  width: 100%;
+  font-size: 16px;           /* prevent iOS auto-zoom */
+  padding: 10px 12px;
+  border: 1px solid rgba(0,0,0,.15);
+  border-radius: 10px;
+}
+.loginRow .btnGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.studyNote {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #34536d;
+}
+.disclaimerBox {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #2b4a62;
+  background: rgba(0,0,0,.04);
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+/* Buttons: colors + hover/active */
+.btnPrimary,
+.btnAccent,
+.iconTile {
+  cursor: pointer;
+  transition: transform .05s ease, filter .12s ease, background-color .12s ease;
+}
+.btnPrimary { background: #1a73e8; color: #fff; border: none; border-radius: 10px; padding: 10px 14px; }
+.btnPrimary:hover { filter: brightness(1.05); }
+.btnPrimary:active { transform: translateY(1px); }
+
+.btnAccent { background: #0aa; color: #fff; border: none; border-radius: 10px; padding: 10px 12px; }
+.btnAccent:hover { filter: brightness(1.05); }
+.btnAccent:active { transform: translateY(1px); }
+
+/* Post-game tiles with distinct colors */
+.iconTile { min-width: 112px; min-height: 84px; border-radius: 16px; border: none; font-size: 14px; }
+.tilePlay   { background: #2ea043; color: #fff; }
+.tilePlay:hover { filter: brightness(1.05); }
+.tilePlay:active { transform: translateY(1px); }
+
+.tileMode   { background: #8a63d2; color: #fff; }
+.tileMode:hover { filter: brightness(1.05); }
+.tileMode:active { transform: translateY(1px); }
+
+.tileAccent { background: #0aa; color: #fff; }
+.tileAccent:hover { filter: brightness(1.05); }
+.tileAccent:active { transform: translateY(1px); }
+
+/* Place Feedback on its own row */
+.postFeedbackRow { justify-content: center; }
+
+/* Disabled look (reused) */
+.iconBtn.is-disabled, .iconTile.is-disabled, .btnAccent.is-disabled {
+  opacity: .55; pointer-events: none; filter: grayscale(15%);
+}
+
+/* Scrollable survey: fixed header/footer, scrolling body */
+#feedbackModal .modalContent {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 560px);
+}
+#feedbackModal .modalHeader { flex: 0 0 auto; }
+#feedbackModal .modalRow.stacked { flex: 1 1 auto; overflow: auto; }
+#feedbackModal .modalRow:last-child { flex: 0 0 auto; }
+
+/* Mobile: two-column radio grid for compactness */
+.choiceGroup { display: grid; gap: 6px; }
+@media (max-width: 480px) {
+  .choiceGroup { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .choiceRow { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); }
+  .choiceRow input[type="radio"] { transform: scale(1.2); }
 }

@@ -136,13 +136,18 @@ Deployment notes
     <div class="modalContent">
       <div class="modalHeader">
         <h3 id="postGameTitle">Round complete</h3>
-        <button id="postGameClose" class="iconBtn small" aria-label="Close">✕</button>
       </div>
-      <div class="modalRow stacked">
-        <button id="postPlayAgain" class="iconBtn">🔄<br>Play</button>
-        <button id="postChangeMode" class="iconBtn">🎮<br>Mode</button>
-        <button id="postFeedbackBtn" class="iconBtn small">📝<br>Feedback</button>
+      <!-- Row 1: Play Again + Change Mode -->
+      <div class="modalRow postActions">
+        <button id="postPlayAgain" class="iconTile tilePlay">▶️<br>Play Again</button>
+        <button id="postChangeMode" class="iconTile tileMode">🎛️<br>Change Mode</button>
       </div>
+
+      <!-- Row 2: Feedback alone, accent color -->
+      <div class="modalRow postFeedbackRow">
+        <button id="postFeedbackBtn" class="iconTile tileAccent" aria-label="Post-game feedback survey">📝<br>Feedback</button>
+      </div>
+
     </div>
   </div>
 
@@ -178,20 +183,31 @@ Deployment notes
   <div id="loginModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
     <div class="modalContent">
       <div class="modalHeader"><h3 id="loginTitle">Enter your name</h3></div>
-      <div class="modalRow">
-        <input id="usernameInput" type="text" placeholder="Your name" autocomplete="username" />
-        <button id="submitUsername" class="iconBtn small">OK</button>
+
+      <!-- login status update -->
+      <p id="loginStatus" class="loginStatus"></p>
+
+      <!-- Username row: shorter input + OK + Feedback side-by-side -->
+      <div class="modalRow loginRow">
+        <input id="usernameInput" type="text" maxlength="24" placeholder="Username" autocomplete="nickname">
+        <div class="btnGroup">
+          <button id="loginOkBtn" class="btnPrimary">OK</button>
+          <button id="preFeedbackBtn" class="btnAccent" aria-label="Pre-game feedback survey">📝 Feedback</button>
+        </div>
       </div>
+
       <div class="loginHint">You can keep this name or type a new one.</div>
       
-      <!-- Study note + optional feedback (before) -->
+      <!-- Compact study note (one-liner) -->
       <div class="studyNote">
-        Heads-up: this game is part of an educational research study (not for commercial use).
-        We don’t collect personal data. Feedback is optional and appreciated.
+        This game is for educational research (not commercial). No personal data collected.
       </div>
-      <button id="loginFeedbackBtn" class="iconBtn small">📝 Feedback</button>
 
-      <p id="loginStatus" class="loginStatus"></p>
+      <!-- Separate disclaimer box -->
+      <div class="disclaimerBox">
+        Feedback is voluntary and appreciated. Your responses help improve stress-relief design.
+      </div>
+
     </div>
   </div>
 
@@ -199,17 +215,86 @@ Deployment notes
   <div id="feedbackModal" class="modal hidden centered">
     <div class="modalContent">
       <div class="modalHeader">
-        <h3 id="feedbackTitle" style="margin:0;font-size:1.1rem;">Feedback</h3>
+        <h3 id="feedbackTitle" style="margin:0;font-size:1.1rem;">Survey</h3>
         <button id="feedbackClose" class="iconBtn small" aria-label="Close">✖</button>
       </div>
+
       <div class="modalRow stacked">
-        <textarea id="feedbackText" rows="6" placeholder="Share your thoughts (optional)…"></textarea>
+        <!-- Pre-game questions -->
+        <div class="surveyQ preOnly">
+          <div class="qLabel">Q1. How stressed are you feeling right now before playing?</div>
+          <div class="choiceGroup" data-name="preQ1">
+            <label class="choiceRow"><input type="radio" name="preQ1" value="Very stressed"> Very stressed</label>
+            <label class="choiceRow"><input type="radio" name="preQ1" value="Somewhat stressed"> Somewhat stressed</label>
+            <label class="choiceRow"><input type="radio" name="preQ1" value="Neutral"> Neutral</label>
+            <label class="choiceRow"><input type="radio" name="preQ1" value="Not stressed"> Not stressed</label>
+          </div>
+        </div>
+
+        <div class="surveyQ preOnly">
+          <div class="qLabel">Q2. What’s your current mood before starting?</div>
+          <div class="choiceGroup" data-name="preQ2">
+            <label class="choiceRow"><input type="radio" name="preQ2" value="Happy"> Happy</label>
+            <label class="choiceRow"><input type="radio" name="preQ2" value="Neutral"> Neutral</label>
+            <label class="choiceRow"><input type="radio" name="preQ2" value="Sad"> Sad</label>
+            <label class="choiceRow"><input type="radio" name="preQ2" value="Frustrated"> Frustrated</label>
+          </div>
+        </div>
+
+        <!-- Post-game questions -->
+        <div class="surveyQ postOnly">
+          <div class="qLabel">Q1. If you were feeling stressed before this round, how do you feel now compared to before?</div>
+          <div class="choiceGroup" data-name="postQ1">
+            <label class="choiceRow"><input type="radio" name="postQ1" value="Much less stressed"> Much less stressed</label>
+            <label class="choiceRow"><input type="radio" name="postQ1" value="A little less stressed"> A little less stressed</label>
+            <label class="choiceRow"><input type="radio" name="postQ1" value="About the same"> About the same</label>
+            <label class="choiceRow"><input type="radio" name="postQ1" value="More stressed"> More stressed</label>
+            <label class="choiceRow"><input type="radio" name="postQ1" value="Other"> Other</label>
+          </div>
+        </div>
+
+        <div class="surveyQ postOnly">
+          <div class="qLabel">Q2. How was the difficulty this round?</div>
+          <div class="choiceGroup" data-name="postQ2">
+            <label class="choiceRow"><input type="radio" name="postQ2" value="Too easy"> Too easy</label>
+            <label class="choiceRow"><input type="radio" name="postQ2" value="Just right"> Just right</label>
+            <label class="choiceRow"><input type="radio" name="postQ2" value="A bit hard"> A bit hard</label>
+            <label class="choiceRow"><input type="radio" name="postQ2" value="Too hard"> Too hard</label>
+          </div>
+        </div>
+
+        <div class="surveyQ postOnly">
+          <div class="qLabel">Q3. How enjoyable was this round?</div>
+          <div class="choiceGroup" data-name="postQ3">
+            <label class="choiceRow"><input type="radio" name="postQ3" value="Very enjoyable"> Very enjoyable</label>
+            <label class="choiceRow"><input type="radio" name="postQ3" value="Somewhat enjoyable"> Somewhat enjoyable</label>
+            <label class="choiceRow"><input type="radio" name="postQ3" value="Neutral"> Neutral</label>
+            <label class="choiceRow"><input type="radio" name="postQ3" value="Not enjoyable"> Not enjoyable</label>
+          </div>
+        </div>
+
+        <div class="surveyQ postOnly">
+          <div class="qLabel">Q4. Did this round help you feel less stressed?</div>
+          <div class="choiceGroup" data-name="postQ4">
+            <label class="choiceRow"><input type="radio" name="postQ4" value="Yes, a lot"> Yes, a lot</label>
+            <label class="choiceRow"><input type="radio" name="postQ4" value="Yes, a little"> Yes, a little</label>
+            <label class="choiceRow"><input type="radio" name="postQ4" value="Not really"> Not really</label>
+            <label class="choiceRow"><input type="radio" name="postQ4" value="Not at all"> Not at all</label>
+          </div>
+        </div>
+
+        <div class="surveyQ postOnly">
+          <div class="qLabel">Q5. What’s one thing we could change to make the game more fun for you?</div>
+          <textarea id="postQ5" rows="3" placeholder="Your suggestion"></textarea>
+        </div>
       </div>
+
       <div class="modalRow" style="justify-content:flex-end;gap:8px;">
         <button id="feedbackCancel" class="iconBtn small">Cancel</button>
         <button id="feedbackSave" class="iconBtn small">Save</button>
       </div>
     </div>
+
   </div>
 
 </body>

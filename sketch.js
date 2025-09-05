@@ -134,12 +134,45 @@
 //
 // v9.1.1 : fix comment bio -> mood on certain spots
 //
-// v9.2   : Post-game survey (4 choices + 1 short answer), JSON in single cell
-//          - Replaces the post-game free-text feedback with a compact survey:
-//            Q1–Q4 multiple choice, Q5 short answer.
-//          - Stores answers as a JSON string in a single column (feedbackAfter).
-//          - Optional pre-game survey (feedbackBefore) kept for future; unchanged.
+// v9.2   : Pre- and Post-game surveys, JSON in single cell
+//          - Added 2 baseline (pre-game) questions: stress level + mood.
+//          - Added 4 multiple choice + 1 short answer survey after each round.
+//          - Both stored as JSON strings in feedbackBefore / feedbackAfter.
+//          - Replaces old free-text feedback field.
 //          - Single-POST flow preserved via submitRunOnce(); no duplicate rows.
+//
+// v9.2.1 : Post-game feedback polish (mobile + UX)
+//          - After saving post-game feedback: show “Thank you” state, disable the Feedback button,
+//            and prevent reopening for the same round.
+//          - Clear answers for the next round automatically.
+//          - Compact mobile layout for post-game survey (2-column choices, larger tap targets).
+//
+// v9.2.2 : Login tidy + post-game layout + scrollable survey
+//          - Login: shorter username field; OK + Feedback side-by-side; clearer note + separate disclaimer.
+//          - Pre-game Feedback: when saved, lock button (no “thank you” modal).
+//          - Post-game: Feedback moved to its own row; distinct colors on all three buttons.
+//          - Feedback modal: header/footer fixed; questions area scrolls on mobile; hover/active states kept.
+//
+// v9.2.3 : Fix duplicate usernameInput reference in setup(); reuse single const (no functional change).
+//          - Login OK wiring — replaced legacy #submitUsername with #loginOkBtn to match HTML; click handler now attaches correctly.
+//
+// v9.2.4 : Fix mismatch submitRun and submitRunOnce
+//
+// v9.2.5 : Feedback textarea id aligned to #postQ5 (was #feedbackText) so post-game comments are captured.
+//
+// v9.2.6 : Troubleshooting begins...
+//
+// v9.2.7 : Stabilize draw() — guard bubble loop (null-safe + try/catch) so a bad frame doesn’t black-screen.
+//
+// v9.2.8 : Remove undefined onLoginSave; bind loginOkBtn directly to showLoginScreen(playerDeviceId).
+//
+// v9.2.9 : Telemetry — gameVersion in submitRun() now matches header; start of cleanup pass.
+//
+// v9.2.10 : draw() cleanup — remove duplicate refreshCameraBtn() in Mood branch.
+//
+// v9.2.11 : Remove dead DOM refs — delete #modeSelect disables in endGame() and restart().
+//
+// v9.2.12 : Optimize code in sketch.js style.css and index.html
 // ============================================================================
 
 
@@ -617,6 +650,64 @@ function wireViewportGuard() {
   });
 }
 
+function readSurveyJSON(context){
+  if (context === 'before'){
+    const q1 = document.querySelector('input[name="preQ1"]:checked')?.value || '';
+    const q2 = document.querySelector('input[name="preQ2"]:checked')?.value || '';
+    return JSON.stringify({ q1, q2 });
+  } else {
+    const q1 = document.querySelector('input[name="postQ1"]:checked')?.value || '';
+    const q2 = document.querySelector('input[name="postQ2"]:checked')?.value || '';
+    const q3 = document.querySelector('input[name="postQ3"]:checked')?.value || '';
+    const q4 = document.querySelector('input[name="postQ4"]:checked')?.value || '';
+    const q5 = (document.getElementById('postQ5')?.value || '').trim();
+    return JSON.stringify({ q1, q2, q3, q4, free: q5 });
+  }
+}
+
+function hydrateSurveyFromJSON(context, jsonStr){
+  try {
+    const obj = JSON.parse(jsonStr || '{}');
+    if (context === 'before'){
+      if (obj.q1) document.querySelector(`input[name="preQ1"][value="${CSS.escape(obj.q1)}"]`)?.setAttribute('checked',true);
+      if (obj.q2) document.querySelector(`input[name="preQ2"][value="${CSS.escape(obj.q2)}"]`)?.setAttribute('checked',true);
+    } else {
+      if (obj.q1) document.querySelector(`input[name="postQ1"][value="${CSS.escape(obj.q1)}"]`)?.setAttribute('checked',true);
+      if (obj.q2) document.querySelector(`input[name="postQ2"][value="${CSS.escape(obj.q2)}"]`)?.setAttribute('checked',true);
+      if (obj.q3) document.querySelector(`input[name="postQ3"][value="${CSS.escape(obj.q3)}"]`)?.setAttribute('checked',true);
+      if (obj.q4) document.querySelector(`input[name="postQ4"][value="${CSS.escape(obj.q4)}"]`)?.setAttribute('checked',true);
+      if (obj.free) document.getElementById('postQ5').value = obj.free;
+    }
+  } catch(_) { }
+}
+
+function renderFeedbackThanks(context){
+  const container = document.querySelector('#feedbackModal .modalRow.stacked');
+  if (!container) return;
+
+  // Replace the questions with a persistent thank-you block
+  container.innerHTML = `
+    <div class="feedbackThanks">
+      Thank you for your feedback for this round. You can play again or change mode anytime.
+    </div>
+  `;
+
+  const ttl = document.getElementById('feedbackTitle');
+  if (ttl) ttl.textContent = 'Thank you!';
+
+  // Hide Save; turn Cancel into Close
+  const save = document.getElementById('feedbackSave');
+  if (save) save.style.display = 'none';
+
+  const cancel = document.getElementById('feedbackCancel');
+  if (cancel) {
+    cancel.textContent = 'Close';
+    // ensure it closes the modal
+    cancel.onclick = () => closeFeedbackModal();
+    // focus the Close button for accessibility
+    setTimeout(() => cancel.focus(), 50);
+  }
+}
 
 /* =======================================
  *        Update Game Run and Profile
@@ -641,7 +732,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.2', // keep in sync with version comment
+        gameVersion: 'v9.2.11', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -755,25 +846,21 @@ function setup(){
   // Pause draw loop until player completes login
   try { noLoop(); } catch {}
 
-  // Post-game modal buttons
-  const pg = document.getElementById('postGameModal');
-  const pgClose = document.getElementById('postGameClose');
-  const pgPlay  = document.getElementById('postPlayAgain');
-  const pgMode  = document.getElementById('postChangeMode');
-
-  // close X handler
-  if (pgClose) pgClose.onclick = () => {
+  // Helper: if Feedback modal is open, capture text & close it
+  function sealFeedbackIfOpen(){
     const fm = document.getElementById('feedbackModal');
-    const ft = document.getElementById('feedbackText');
     if (fm && !fm.classList.contains('hidden')) {
+      const ft = document.getElementById('postQ5');
       const v = (ft && ft.value) ? ft.value.trim() : '';
       if (v && !window.__feedbackAfter) window.__feedbackAfter = v;
       closeFeedbackModal();
     }
+  }
 
-    submitRunOnce();   // ensures the round is recorded even on close
-    closePostGameModal();
-  };
+  // Post-game modal buttons
+  const pg = document.getElementById('postGameModal');
+  const pgPlay  = document.getElementById('postPlayAgain');
+  const pgMode  = document.getElementById('postChangeMode');
 
   // prevent the game close if not clicking the play again button or change mode button
   // if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
@@ -781,14 +868,7 @@ function setup(){
   // Play Again handler
   if (pgPlay) pgPlay.onclick = () => {
     // If the feedback modal is open, auto-capture unsaved text
-    const fm = document.getElementById('feedbackModal');
-    const ft = document.getElementById('feedbackText');
-    if (fm && !fm.classList.contains('hidden')) {
-      const v = (ft && ft.value) ? ft.value.trim() : '';
-      if (v && !window.__feedbackAfter) window.__feedbackAfter = v;
-      closeFeedbackModal();
-    }
-
+    sealFeedbackIfOpen();
     submitRunOnce();         // first trigger wins; no double-posts
     closePostGameModal();
     if (window.__playerReady) restart(false);
@@ -796,26 +876,18 @@ function setup(){
 
   // Change Mode handler
   if (pgMode) pgMode.onclick = () => {
-    const fm = document.getElementById('feedbackModal');
-    const ft = document.getElementById('feedbackText');
-    if (fm && !fm.classList.contains('hidden')) {
-      const v = (ft && ft.value) ? ft.value.trim() : '';
-      if (v && !window.__feedbackAfter) window.__feedbackAfter = v;
-      closeFeedbackModal();
-    }
-
+    sealFeedbackIfOpen();
     submitRunOnce();
     closePostGameModal();
     showModePicker();
   };
-
 
   // --- Post-game "Feedback" button (after-game feedback) ---
   const pgFeedback = document.getElementById('postFeedbackBtn');
   if (pgFeedback) pgFeedback.onclick = () => openFeedbackModal('after');
 
   // --- Login "Feedback" button (before-game feedback) ---
-  const loginFb = document.getElementById('loginFeedbackBtn');
+  const loginFb = document.getElementById('preFeedbackBtn');
   if (loginFb) loginFb.onclick = () => openFeedbackModal('before');
 
   // Make sure the reusable Feedback modal is wired once
@@ -827,13 +899,37 @@ function setup(){
     u.addEventListener('focus', onKbFocus, { passive: true });
     u.addEventListener('blur',  onKbBlur,  { passive: true });
   }
-  const ftxt = document.getElementById('feedbackText');
+  const ftxt = document.getElementById('postQ5');
   if (ftxt) {
     ftxt.addEventListener('focus', onKbFocus, { passive: true });
     ftxt.addEventListener('blur',  onKbBlur,  { passive: true });
   }
   wireViewportGuard();
-}
+
+  // Login OK
+  const okBtn = document.getElementById('loginOkBtn');
+  if (okBtn) okBtn.onclick = () => {
+    if (typeof playerDeviceId === 'undefined') {
+      playerDeviceId = getOrCreateDeviceId();
+    }
+    showLoginScreen(playerDeviceId);
+  };
+
+  // Allow feedback if username changed
+  if (u) {
+    u.addEventListener('input', () => {
+      const lfb = document.getElementById('preFeedbackBtn');
+      if (lfb && lfb.classList.contains('is-disabled')) {
+        lfb.classList.remove('is-disabled');
+        lfb.textContent = '📝 Feedback';
+        lfb.onclick = () => openFeedbackModal('before');
+        // Optionally clear stored baseline if changing identity should reset it:
+        // window.__feedbackBefore = '';
+      }
+    });
+  }
+
+} // end of setup()
 
 function draw(){
   if (window.__splashActive || !window.__playerReady) return; // do nothing until after login
@@ -870,7 +966,6 @@ function draw(){
     // Mood mode
     refreshCameraBtn(); // decides visibility based on laptop + toggle
     moodChip?.classList.remove('hiddenChip');
-    refreshCameraBtn();
 
     const emo = dominantEmotion();
     moodChip.textContent = emo.toUpperCase();
@@ -884,34 +979,42 @@ function draw(){
   const sTop = safeTopPx();
   const MINF = MIN_PLAY_SPEED;
 
-  for (let i = 0; i < bubbles.length; i++){
-    const b = bubbles[i];
-    b.direction += random(-0.35, 0.35);
-    const r = currentRadius(b);
+  // Guard against uninitialized bubbles & surface errors instead of hard-crashing the frame
+  if (!bubbles || typeof bubbles.length !== 'number') return;
 
-    if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MINF);
-    else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult, MINF);
-    else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MINF);
+  try {
 
-    if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-    if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-    if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
-    if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+    for (let i = 0; i < bubbles.length; i++){
+      const b = bubbles[i];
+      b.direction += random(-0.35, 0.35);
+      const r = currentRadius(b);
 
-    const d = r * 2;
-    fill(b._type === 'trick' ? color(255,120,120,170) : b._tint);
-    circle(b.x, b.y, d);
-    fill(255,255,255,60);
-    circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+      if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MINF);
+      else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult, MINF);
+      else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MINF);
 
-    if (b._stuck == null) b._stuck = 0;
-    if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
-    if (b._stuck > 18){
-      b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
-      if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
-      if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
-      b._stuck = 0;
+      if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+      if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+      if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+      if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+
+      const d = r * 2;
+      fill(b._type === 'trick' ? color(255,120,120,170) : b._tint);
+      circle(b.x, b.y, d);
+      fill(255,255,255,60);
+      circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+
+      if (b._stuck == null) b._stuck = 0;
+      if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
+      if (b._stuck > 18){
+        b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
+        if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
+        if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
+        b._stuck = 0;
+      }
     }
+  } catch (err) {
+    console.warn('[draw] bubble loop error:', err);
   }
 
   if (!gameOver && timeLeft <= 0) endGame();
@@ -1001,9 +1104,6 @@ function endGame(){
   if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
   if (btn){ btn.style.display = 'none'; }
 
-  const ms = document.getElementById('modeSelect');
-  if (ms) ms.disabled = true; // keep mode locked during post-game UI
-
   if (isMoodMode()){
     if (MOOD_STOP_STRATEGY === 'pause') { stopSampler(); }
     else { stopSampler(); stopWebcam(); }
@@ -1037,6 +1137,14 @@ function restart(fromModeButton){
   bubblesPoppedTrick = 0;
   // v9.0.1 — feedback + submit guards (per round)
   window.__feedbackAfter = '';   // only after-feedback is cleared each round
+  // v9.2.1 — reset post-game Feedback button state for the new round
+  const pgFeedback = document.getElementById('postFeedbackBtn');
+  if (pgFeedback) {
+    pgFeedback.classList.remove('is-disabled');
+    pgFeedback.innerHTML = '📝<br>Feedback';   // original label
+    pgFeedback.onclick = () => openFeedbackModal('after');  // re-bind
+  }
+
   window.__runSubmitted  = false;
 
   score = 0;
@@ -1044,8 +1152,6 @@ function restart(fromModeButton){
   gameOver = false;
 
   closePostGameModal();                     // close post-game UI if it was open
-  const ms = document.getElementById('modeSelect');
-  if (ms) ms.disabled = true;               // lock mode during the round
 
   const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
   if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
@@ -1332,14 +1438,35 @@ let __feedbackContext = 'before'; // 'before' | 'after'
 function openFeedbackModal(context){
   __feedbackContext = (context === 'after') ? 'after' : 'before';
   const m   = document.getElementById('feedbackModal');
-  const txt = document.getElementById('feedbackText');
   const ttl = document.getElementById('feedbackTitle');
-  if (!m || !txt || !ttl) return;
+  if (!m || !ttl) return;
 
-  ttl.textContent = (__feedbackContext === 'after') ? 'Post-game Feedback' : 'Feedback (optional)';
-  txt.value = (__feedbackContext === 'after') ? (window.__feedbackAfter || '') : (window.__feedbackBefore || '');
+  // Title
+  ttl.textContent = (__feedbackContext === 'after') ? 'Post-game Survey' : 'Pre-game Survey';
 
-  // Do not close other modals.
+  // Show relevant question blocks
+  document.querySelectorAll('.preOnly').forEach(el => el.style.display = (__feedbackContext==='before'?'block':'none'));
+  document.querySelectorAll('.postOnly').forEach(el => el.style.display = (__feedbackContext==='after'?'block':'none'));
+
+  // Prefill OR show “thanks” if already submitted for this round
+  const alreadySaved = (__feedbackContext === 'after') && !!window.__feedbackAfter;
+  if (alreadySaved){
+    renderFeedbackThanks('after');
+  } else {
+    // restore survey markup if we previously showed thanks
+    const container = document.querySelector('#feedbackModal .modalRow.stacked');
+    if (container && container.querySelector('.feedbackThanks')) {
+      // re-render original inner HTML by reopening page (fallback) or simply no-op because
+      // we will hydrate; but if you prefer full restore, consider storing original HTML.
+      // For simplicity we’ll just close if user tries to re-open after save:
+      // (alreadySaved above prevents this path for 'after')
+    }
+    const saved = (__feedbackContext === 'after') ? (window.__feedbackAfter || '') : (window.__feedbackBefore || '');
+    hydrateSurveyFromJSON(__feedbackContext==='after' ? 'after' : 'before', saved);
+    const save = document.getElementById('feedbackSave');
+    if (save) save.style.display = ''; // ensure visible when editing
+  }
+
   m.classList.remove('hidden');
 }
 
@@ -1356,19 +1483,41 @@ function wireFeedbackModal(){
 
   if (!m || !save || !cancel || !closeBtn) return;
 
+  // Save Handler
   save.onclick = () => {
-    const txt = document.getElementById('feedbackText');
-    const v = (txt && txt.value) ? txt.value.trim() : '';
+    // Serialize answers
+    const json = readSurveyJSON(__feedbackContext==='after' ? 'after' : 'before');
+
     if (__feedbackContext === 'after'){
-      window.__feedbackAfter = v;
-      // If run not submitted yet, submit now (single POST per round)
+      window.__feedbackAfter = json;     // lock-in for this round
+
+      // Disable the post-game Feedback button and mark as saved
+      const pgFeedback = document.getElementById('postFeedbackBtn');
+      if (pgFeedback) {
+        pgFeedback.classList.add('is-disabled');
+        pgFeedback.innerHTML = '✅<br>Saved';
+        // Prevent reopening (optional hard block)
+        pgFeedback.onclick = null;
+      }
+
+      // Show thank-you in the modal immediately
+      renderFeedbackThanks('after');
+
+      // Submit the run (guarded — only once)
       submitRunOnce();
     } else {
-      // store for the next run
-      window.__feedbackBefore = v;
+      // PRE-GAME: store JSON and lock the Login feedback button (no “thank you” modal)
+      window.__feedbackBefore = json;
+      const lfb = document.getElementById('preFeedbackBtn');
+      if (lfb) {
+        lfb.classList.add('is-disabled');
+        lfb.textContent = '✅ Saved';
+        lfb.onclick = null;
+      }
+      closeFeedbackModal();
     }
-    closeFeedbackModal();
   };
+
   cancel.onclick  = closeFeedbackModal;
   closeBtn.onclick = closeFeedbackModal;
 
@@ -1443,7 +1592,7 @@ function startGame() {
 function showLoginScreen(deviceId){
   const modal  = document.getElementById('loginModal');
   const input  = document.getElementById('usernameInput');
-  const submit = document.getElementById('submitUsername');
+  const submit = document.getElementById('loginOkBtn');
   if (!modal || !input || !submit) return;
 
   // Disable input while we check if this device has a saved username
