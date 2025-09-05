@@ -288,3 +288,42 @@ body.login-active #topBar { display: none; }
 .hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
 .srOnly     { position: absolute; left: -9999px; }
 #overlayUI, #moodChip, #modeChip, #cameraBtn { position: static; }
+
+/* =========================================================
+   v9.1.2 — Mobile typing / auto-zoom fixes (iOS & Android)
+   Place this block at the very end of style.css
+   ========================================================= */
+
+html, body {
+  -webkit-text-size-adjust: 100%;  /* iOS text scaling guard */
+}
+
+/* KEY: keep inputs/textarea at >=16px to prevent iOS auto-zoom */
+input,
+select,
+textarea {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+/* Ensure our specific fields also respect the 16px rule */
+#loginModal input,
+#feedbackModal textarea {
+  font-size: 16px;
+}
+
+/* Better tap behavior; avoids double-tap zoom on older Safari */
+button,
+.iconBtn,
+.textBtn {
+  touch-action: manipulation;
+}
+
+/* Optional: keep small icon buttons finger-friendly on mobile */
+.iconBtn.small {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  /* if you previously set font-size < 16px anywhere, this helps override */
+  font-size: 16px;
+}

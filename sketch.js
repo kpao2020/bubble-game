@@ -125,12 +125,21 @@
 //            of feedback if the player skips Save.
 //          - Guard logic still ensures only one POST per round (no duplicates).
 //
-// v9.1 : “bio” → “mood” refactor (no behavior change)
+// v9.1   : “bio” → “mood” refactor (no behavior change)
 //          - Replaced all remaining bio* ids/selectors/keys with mood* across HTML/CSS/JS.
 //          - Fixed isMoodMode() to check 'mood' (was 'bio') so Mood features always run.
 //          - Renamed consent helpers and modal ids to moodConsent*; added one-time localStorage migration.
 //          - Renamed top-bar chip id to #moodChip and updated JS to use it.
 //          - (Optional) Renamed sampleBio() → sampleMood() and console tags “[bio]” → “[mood]”.
+//
+// v9.1.1 : fix comment bio -> mood on certain spots
+//
+// v9.2   : Post-game survey (4 choices + 1 short answer), JSON in single cell
+//          - Replaces the post-game free-text feedback with a compact survey:
+//            Q1–Q4 multiple choice, Q5 short answer.
+//          - Stores answers as a JSON string in a single column (feedbackAfter).
+//          - Optional pre-game survey (feedbackBefore) kept for future; unchanged.
+//          - Single-POST flow preserved via submitRunOnce(); no duplicate rows.
 // ============================================================================
 
 
@@ -580,6 +589,34 @@ function setLoginStatus(msg, cls='info') {
   el.className = `loginStatus ${cls}`;
 }
 
+function onKbFocus() {
+  document.body.classList.add('kbd-open');  // if you ever want special styles
+}
+function onKbBlur() {
+  document.body.classList.remove('kbd-open');
+  // After the keyboard closes, recenter and ensure canvas/layout refresh
+  setTimeout(() => {
+    window.scrollTo(0, 0);
+    if (typeof resizeCanvas === 'function') {
+      try { resizeCanvas(windowWidth, windowHeight); } catch (_) {}
+    }
+  }, 120);
+}
+
+function wireViewportGuard() {
+  // iOS/Android: track visual viewport changes (keyboard/zoom)
+  if (!window.visualViewport) return;
+  let lastScale = window.visualViewport.scale;
+  window.visualViewport.addEventListener('resize', () => {
+    // If scale drifts and no text field is focused, nudge back to top
+    const active = document.activeElement && /^(input|textarea|select)$/i.test(document.activeElement.tagName);
+    if (!active && window.visualViewport.scale !== 1) {
+      setTimeout(() => window.scrollTo(0, 0), 60);
+    }
+    lastScale = window.visualViewport.scale;
+  });
+}
+
 
 /* =======================================
  *        Update Game Run and Profile
@@ -604,7 +641,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.1', // keep in sync with version comment
+        gameVersion: 'v9.2', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -783,6 +820,19 @@ function setup(){
 
   // Make sure the reusable Feedback modal is wired once
   wireFeedbackModal();
+
+  // v9.1.2 — mobile typing glue
+  const u = document.getElementById('usernameInput') || document.querySelector('input[name="username"]');
+  if (u) {
+    u.addEventListener('focus', onKbFocus, { passive: true });
+    u.addEventListener('blur',  onKbBlur,  { passive: true });
+  }
+  const ftxt = document.getElementById('feedbackText');
+  if (ftxt) {
+    ftxt.addEventListener('focus', onKbFocus, { passive: true });
+    ftxt.addEventListener('blur',  onKbBlur,  { passive: true });
+  }
+  wireViewportGuard();
 }
 
 function draw(){
