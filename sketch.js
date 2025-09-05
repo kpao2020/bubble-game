@@ -134,12 +134,19 @@
 //
 // v9.1.1 : fix comment bio -> mood on certain spots
 //
-// v9.2   : Post-game survey (4 choices + 1 short answer), JSON in single cell
-//          - Replaces the post-game free-text feedback with a compact survey:
-//            Q1–Q4 multiple choice, Q5 short answer.
-//          - Stores answers as a JSON string in a single column (feedbackAfter).
-//          - Optional pre-game survey (feedbackBefore) kept for future; unchanged.
+// v9.2   : Pre- and Post-game surveys, JSON in single cell
+//          - Added 2 baseline (pre-game) questions: stress level + mood.
+//          - Added 4 multiple choice + 1 short answer survey after each round.
+//          - Both stored as JSON strings in feedbackBefore / feedbackAfter.
+//          - Replaces old free-text feedback field.
 //          - Single-POST flow preserved via submitRunOnce(); no duplicate rows.
+//
+// v9.2.1 : Post-game feedback polish (mobile + UX)
+//          - After saving post-game feedback: show “Thank you” state, disable the Feedback button,
+//            and prevent reopening for the same round.
+//          - Clear answers for the next round automatically.
+//          - Compact mobile layout for post-game survey (2-column choices, larger tap targets).
+//
 // ============================================================================
 
 
@@ -617,6 +624,64 @@ function wireViewportGuard() {
   });
 }
 
+function readSurveyJSON(context){
+  if (context === 'before'){
+    const q1 = document.querySelector('input[name="preQ1"]:checked')?.value || '';
+    const q2 = document.querySelector('input[name="preQ2"]:checked')?.value || '';
+    return JSON.stringify({ q1, q2 });
+  } else {
+    const q1 = document.querySelector('input[name="postQ1"]:checked')?.value || '';
+    const q2 = document.querySelector('input[name="postQ2"]:checked')?.value || '';
+    const q3 = document.querySelector('input[name="postQ3"]:checked')?.value || '';
+    const q4 = document.querySelector('input[name="postQ4"]:checked')?.value || '';
+    const q5 = (document.getElementById('postQ5')?.value || '').trim();
+    return JSON.stringify({ q1, q2, q3, q4, free: q5 });
+  }
+}
+
+function hydrateSurveyFromJSON(context, jsonStr){
+  try {
+    const obj = JSON.parse(jsonStr || '{}');
+    if (context === 'before'){
+      if (obj.q1) document.querySelector(`input[name="preQ1"][value="${CSS.escape(obj.q1)}"]`)?.setAttribute('checked',true);
+      if (obj.q2) document.querySelector(`input[name="preQ2"][value="${CSS.escape(obj.q2)}"]`)?.setAttribute('checked',true);
+    } else {
+      if (obj.q1) document.querySelector(`input[name="postQ1"][value="${CSS.escape(obj.q1)}"]`)?.setAttribute('checked',true);
+      if (obj.q2) document.querySelector(`input[name="postQ2"][value="${CSS.escape(obj.q2)}"]`)?.setAttribute('checked',true);
+      if (obj.q3) document.querySelector(`input[name="postQ3"][value="${CSS.escape(obj.q3)}"]`)?.setAttribute('checked',true);
+      if (obj.q4) document.querySelector(`input[name="postQ4"][value="${CSS.escape(obj.q4)}"]`)?.setAttribute('checked',true);
+      if (obj.free) document.getElementById('postQ5').value = obj.free;
+    }
+  } catch(_) { }
+}
+
+function renderFeedbackThanks(context){
+  const container = document.querySelector('#feedbackModal .modalRow.stacked');
+  if (!container) return;
+
+  // Replace the questions with a persistent thank-you block
+  container.innerHTML = `
+    <div class="feedbackThanks">
+      Thank you for your feedback for this round. You can play again or change mode anytime.
+    </div>
+  `;
+
+  const ttl = document.getElementById('feedbackTitle');
+  if (ttl) ttl.textContent = 'Thank you!';
+
+  // Hide Save; turn Cancel into Close
+  const save = document.getElementById('feedbackSave');
+  if (save) save.style.display = 'none';
+
+  const cancel = document.getElementById('feedbackCancel');
+  if (cancel) {
+    cancel.textContent = 'Close';
+    // ensure it closes the modal
+    cancel.onclick = () => closeFeedbackModal();
+    // focus the Close button for accessibility
+    setTimeout(() => cancel.focus(), 50);
+  }
+}
 
 /* =======================================
  *        Update Game Run and Profile
@@ -1037,6 +1102,14 @@ function restart(fromModeButton){
   bubblesPoppedTrick = 0;
   // v9.0.1 — feedback + submit guards (per round)
   window.__feedbackAfter = '';   // only after-feedback is cleared each round
+  // v9.2.1 — reset post-game Feedback button state for the new round
+  const pgFeedback = document.getElementById('postFeedbackBtn');
+  if (pgFeedback) {
+    pgFeedback.classList.remove('is-disabled');
+    pgFeedback.innerHTML = '📝<br>Feedback';   // original label
+    pgFeedback.onclick = () => openFeedbackModal('after');  // re-bind
+  }
+
   window.__runSubmitted  = false;
 
   score = 0;
@@ -1332,14 +1405,35 @@ let __feedbackContext = 'before'; // 'before' | 'after'
 function openFeedbackModal(context){
   __feedbackContext = (context === 'after') ? 'after' : 'before';
   const m   = document.getElementById('feedbackModal');
-  const txt = document.getElementById('feedbackText');
   const ttl = document.getElementById('feedbackTitle');
-  if (!m || !txt || !ttl) return;
+  if (!m || !ttl) return;
 
-  ttl.textContent = (__feedbackContext === 'after') ? 'Post-game Feedback' : 'Feedback (optional)';
-  txt.value = (__feedbackContext === 'after') ? (window.__feedbackAfter || '') : (window.__feedbackBefore || '');
+  // Title
+  ttl.textContent = (__feedbackContext === 'after') ? 'Post-game Survey' : 'Pre-game Survey';
 
-  // Do not close other modals.
+  // Show relevant question blocks
+  document.querySelectorAll('.preOnly').forEach(el => el.style.display = (__feedbackContext==='before'?'block':'none'));
+  document.querySelectorAll('.postOnly').forEach(el => el.style.display = (__feedbackContext==='after'?'block':'none'));
+
+  // Prefill OR show “thanks” if already submitted for this round
+  const alreadySaved = (__feedbackContext === 'after') && !!window.__feedbackAfter;
+  if (alreadySaved){
+    renderFeedbackThanks('after');
+  } else {
+    // restore survey markup if we previously showed thanks
+    const container = document.querySelector('#feedbackModal .modalRow.stacked');
+    if (container && container.querySelector('.feedbackThanks')) {
+      // re-render original inner HTML by reopening page (fallback) or simply no-op because
+      // we will hydrate; but if you prefer full restore, consider storing original HTML.
+      // For simplicity we’ll just close if user tries to re-open after save:
+      // (alreadySaved above prevents this path for 'after')
+    }
+    const saved = (__feedbackContext === 'after') ? (window.__feedbackAfter || '') : (window.__feedbackBefore || '');
+    hydrateSurveyFromJSON(__feedbackContext==='after' ? 'after' : 'before', saved);
+    const save = document.getElementById('feedbackSave');
+    if (save) save.style.display = ''; // ensure visible when editing
+  }
+
   m.classList.remove('hidden');
 }
 
@@ -1356,19 +1450,35 @@ function wireFeedbackModal(){
 
   if (!m || !save || !cancel || !closeBtn) return;
 
+  // Save Handler
   save.onclick = () => {
-    const txt = document.getElementById('feedbackText');
-    const v = (txt && txt.value) ? txt.value.trim() : '';
+    // Serialize answers
+    const json = readSurveyJSON(__feedbackContext==='after' ? 'after' : 'before');
+
     if (__feedbackContext === 'after'){
-      window.__feedbackAfter = v;
-      // If run not submitted yet, submit now (single POST per round)
+      window.__feedbackAfter = json;     // lock-in for this round
+
+      // Disable the post-game Feedback button and mark as saved
+      const pgFeedback = document.getElementById('postFeedbackBtn');
+      if (pgFeedback) {
+        pgFeedback.classList.add('is-disabled');
+        pgFeedback.innerHTML = '✅<br>Saved';
+        // Prevent reopening (optional hard block)
+        pgFeedback.onclick = null;
+      }
+
+      // Show thank-you in the modal immediately
+      renderFeedbackThanks('after');
+
+      // Submit the run (guarded — only once)
       submitRunOnce();
     } else {
-      // store for the next run
-      window.__feedbackBefore = v;
+      window.__feedbackBefore = json;    // stored for next run
+      // For pre-game we’ll simply close after saving
+      closeFeedbackModal();
     }
-    closeFeedbackModal();
   };
+
   cancel.onclick  = closeFeedbackModal;
   closeBtn.onclick = closeFeedbackModal;
 

@@ -327,3 +327,52 @@ button,
   /* if you previously set font-size < 16px anywhere, this helps override */
   font-size: 16px;
 }
+
+/* v9.2 — compact survey */
+.surveyQ { margin-bottom: 10px; }
+.qLabel { font-size: 14px; margin-bottom: 6px; color: #2b4a62; }
+.choiceGroup { display: grid; gap: 6px; }
+.choiceRow { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.choiceRow input[type="radio"] { transform: scale(1.1); }
+
+/* mobile spacing */
+@media (max-width: 480px) {
+  .qLabel { font-size: 13px; }
+  .choiceRow { font-size: 13px; }
+}
+
+/* v9.2 — survey styles */
+.surveyQ { margin-bottom: 12px; }
+.qLabel { font-size: 14px; margin-bottom: 6px; color: #2b4a62; }
+.choiceGroup { display: grid; gap: 6px; }
+.choiceRow { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.choiceRow input[type="radio"] { transform: scale(1.1); }
+
+@media (max-width: 480px) {
+  .qLabel { font-size: 13px; }
+  .choiceRow { font-size: 13px; }
+}
+
+/* v9.2.1 — compact post-game survey & disabled button state */
+.choiceGroup { display: grid; gap: 6px; }
+@media (max-width: 480px) {
+  .choiceGroup { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .choiceRow { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); }
+  .choiceRow input[type="radio"] { transform: scale(1.2); }
+}
+
+.iconBtn.is-disabled,
+.iconTile.is-disabled {
+  opacity: .55;
+  pointer-events: none;
+  filter: grayscale(15%);
+}
+
+.feedbackThanks {
+  font-size: 14px;
+  color: #2b4a62;
+  background: rgba(0,0,0,.04);
+  padding: 10px 12px;
+  border-radius: 12px;
+  margin: 8px 0;
+}
