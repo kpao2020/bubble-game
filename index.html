@@ -136,13 +136,18 @@ Deployment notes
     <div class="modalContent">
       <div class="modalHeader">
         <h3 id="postGameTitle">Round complete</h3>
-        <button id="postGameClose" class="iconBtn small" aria-label="Close">✕</button>
       </div>
-      <div class="modalRow stacked">
-        <button id="postPlayAgain" class="iconBtn">🔄<br>Play</button>
-        <button id="postChangeMode" class="iconBtn">🎮<br>Mode</button>
-        <button id="postFeedbackBtn" class="iconBtn small">📝<br>Feedback</button>
+      <!-- Row 1: Play Again + Change Mode -->
+      <div class="modalRow postActions">
+        <button id="postPlayAgain" class="iconTile tilePlay">▶️<br>Play Again</button>
+        <button id="postChangeMode" class="iconTile tileMode">🎛️<br>Change Mode</button>
       </div>
+
+      <!-- Row 2: Feedback alone, accent color -->
+      <div class="modalRow postFeedbackRow">
+        <button id="postFeedbackBtn" class="iconTile tileAccent" aria-label="Post-game feedback survey">📝<br>Feedback</button>
+      </div>
+
     </div>
   </div>
 
@@ -178,20 +183,31 @@ Deployment notes
   <div id="loginModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
     <div class="modalContent">
       <div class="modalHeader"><h3 id="loginTitle">Enter your name</h3></div>
-      <div class="modalRow">
-        <input id="usernameInput" type="text" placeholder="Your name" autocomplete="username" />
-        <button id="submitUsername" class="iconBtn small">OK</button>
+
+      <!-- login status update -->
+      <p id="loginStatus" class="loginStatus"></p>
+
+      <!-- Username row: shorter input + OK + Feedback side-by-side -->
+      <div class="modalRow loginRow">
+        <input id="usernameInput" type="text" maxlength="24" placeholder="Username" autocomplete="nickname">
+        <div class="btnGroup">
+          <button id="loginOkBtn" class="btnPrimary">OK</button>
+          <button id="preFeedbackBtn" class="btnAccent" aria-label="Pre-game feedback survey">📝 Feedback</button>
+        </div>
       </div>
+
       <div class="loginHint">You can keep this name or type a new one.</div>
       
-      <!-- Study note + optional feedback (before) -->
+      <!-- Compact study note (one-liner) -->
       <div class="studyNote">
-        Heads-up: this game is part of an educational research study (not for commercial use).
-        We don’t collect personal data. Feedback is optional and appreciated.
+        This game is for educational research (not commercial). No personal data collected.
       </div>
-      <button id="loginFeedbackBtn" class="iconBtn small">📝 Feedback</button>
 
-      <p id="loginStatus" class="loginStatus"></p>
+      <!-- Separate disclaimer box -->
+      <div class="disclaimerBox">
+        Feedback is voluntary and appreciated. Your responses help improve stress-relief design.
+      </div>
+
     </div>
   </div>
 
