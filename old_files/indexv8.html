@@ -1,24 +1,3 @@
-<!--
-Popping Bubbles — Production HTML
-Owner: Ken Pao  |  Game title: "Popping Bubbles"
-
-What this file does
-- Loads q5.js + p5play v3 + face-api.js
-- Defines the slim top bar: score/time (left), emotion chip (center), mode chip + camera (right)
-- Declares modals used by the app: camera, splash, login, progress, consent, mode picker, post‑game
-- IMPORTANT: Top bar is hidden until gameplay starts (body.game-active). Shown only after a mode is chosen.
-- Mobile: viewport-fit=cover enables safe‑area padding on iOS; CSS handles scrolling within centered modals.
-
-Where to customize safely
-- Change the game title text inside #splashTitle (keeps logic intact)
-- Consent copy: #moodConsentModal paragraph
-- Mode names: the three buttons in #modeModal (UI labels only; actual mode keys remain 'classic'|'challenge'|'mood')
-
-Deployment notes
-- Served from GitHub Pages at https://kpao2020.github.io/bubble-game
-- Camera permission is required for Mood mode (laptop/mobile). Use the site permissions UI if preview shows black.
---> 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,7 +5,7 @@ Deployment notes
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Popping Bubbles</title>
 
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="stylev8.css" />
 
   <!-- Libraries (deferred so they don't block parsing) -->
   <!-- If you switch back to p5, restore these two and remove q5 -->
@@ -41,7 +20,7 @@ Deployment notes
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
 
   <!-- Your game code -->
-  <script src="sketch.js" defer></script>
+  <script src="sketchv8.js" defer></script>
 
   <!-- Quiet the favicon 404 in dev -->
   <link rel="icon" href="data:,">
@@ -50,6 +29,16 @@ Deployment notes
 
   <!-- ===== Unified Top Bar (hidden until gameplay starts) ===== -->
   <div id="topBar" class="hidden">
+    <!-- Left: legacy mode selector (kept for compatibility, hidden) -->
+    <div id="modeBar" class="compact" style="display:none">
+      <label for="modeSelect" class="srOnly">Mode</label>
+      <select id="modeSelect" title="Mode">
+        <option value="classic" selected>Classic</option>
+        <option value="challenge">Challenge</option>
+        <option value="bio">Bio</option>
+      </select>
+    </div>
+
     <!-- Left cluster: Score & Time -->
     <div id="overlayUI">
       <div class="hud">
@@ -58,8 +47,8 @@ Deployment notes
       </div>
     </div>
 
-    <!-- Center: Mood indicator -->
-    <span class="chip" id="moodChip">NEUTRAL</span>
+    <!-- Center: Bio indicator -->
+    <span class="chip" id="bioChip">NEUTRAL</span>
 
     <!-- Right: Mode chip + Camera (wrapped so both sit on the same row) -->
     <div id="rightWrap">
@@ -74,8 +63,8 @@ Deployment notes
   <!-- End Top Bar -->
 
 
-  <!-- Camera modal (Mood mode only) -->
-  <div id="cameraModal" class="modal centered hidden">
+  <!-- Camera modal (Bio mode only) -->
+  <div id="cameraModal" class="modal hidden">
     <div class="modalContent">
       <div class="modalHeader">
         <h3>Camera</h3>
@@ -121,12 +110,12 @@ Deployment notes
     <div class="modalContent">
       <div class="modalHeader"><h3 id="modeTitle">Choose a Mode</h3></div>
       <div class="modalRow stacked">
-        <button id="modeClassicBtn" class="iconBtn">🎈<br>Classic</button>
-        <button id="modeChallengeBtn" class="iconBtn">⚡<br>Challenge</button>
-        <button id="modeMoodBtn" class="iconBtn">😊<br>Mood</button>
+        <button id="modeClassicBtn"  class="iconBtn">Classic</button>
+        <button id="modeChallengeBtn" class="iconBtn">Challenge</button>
+        <button id="modeBioBtn" class="iconBtn">Bio</button>
       </div>
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
-        <strong>Mood</strong> mode uses your camera locally to estimate facial expressions.
+        Bio mode uses your camera locally to estimate expressions.
       </p>
     </div>
   </div>
@@ -139,26 +128,25 @@ Deployment notes
         <button id="postGameClose" class="iconBtn small" aria-label="Close">✕</button>
       </div>
       <div class="modalRow stacked">
-        <button id="postPlayAgain" class="iconBtn">🔄<br>Play</button>
-        <button id="postChangeMode" class="iconBtn">🎮<br>Mode</button>
-        <button id="postFeedbackBtn" class="iconBtn small">📝<br>Feedback</button>
+        <button id="postPlayAgain" class="iconBtn">Play again</button>
+        <button id="postChangeMode" class="iconBtn">Change mode</button>
       </div>
     </div>
   </div>
 
-  <!-- Mood Consent Modal (centered) -->
-  <div id="moodConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="moodConsentTitle">
+  <!-- Bio Consent Modal (centered) -->
+  <div id="bioConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="bioConsentTitle">
     <div class="modalContent">
-      <div class="modalHeader"><h3 id="moodConsentTitle">Mood Mode Consent</h3></div>
+      <div class="modalHeader"><h3 id="bioConsentTitle">Bio Mode Consent</h3></div>
       <div class="modalRow">
         <p style="margin:0;">
-          Mood mode uses your device’s camera <b>locally</b> to estimate facial expressions.
+          Bio mode uses your device’s camera <b>locally</b> to estimate facial expressions.
           We do <b>not</b> upload video. We store anonymized scores & gameplay stats in Google Sheets.
         </p>
       </div>
       <div class="modalRow stacked">
-        <button id="moodConsentAgreeBtn" class="iconBtn">I agree</button>
-        <button id="moodConsentDeclineBtn" class="iconBtn">No thanks</button>
+        <button id="bioConsentAgreeBtn" class="iconBtn">I agree</button>
+        <button id="bioConsentDeclineBtn" class="iconBtn">No thanks</button>
       </div>
     </div>
   </div>
@@ -182,33 +170,7 @@ Deployment notes
         <input id="usernameInput" type="text" placeholder="Your name" autocomplete="username" />
         <button id="submitUsername" class="iconBtn small">OK</button>
       </div>
-      <div class="loginHint">You can keep this name or type a new one.</div>
-      
-      <!-- Study note + optional feedback (before) -->
-      <div class="studyNote">
-        Heads-up: this game is part of an educational research study (not for commercial use).
-        We don’t collect personal data. Feedback is optional and appreciated.
-      </div>
-      <button id="loginFeedbackBtn" class="iconBtn small">📝 Feedback</button>
-
       <p id="loginStatus" class="loginStatus"></p>
-    </div>
-  </div>
-
-  <!-- Feedback Modal (used for BEFORE and AFTER) -->
-  <div id="feedbackModal" class="modal hidden centered">
-    <div class="modalContent">
-      <div class="modalHeader">
-        <h3 id="feedbackTitle" style="margin:0;font-size:1.1rem;">Feedback</h3>
-        <button id="feedbackClose" class="iconBtn small" aria-label="Close">✖</button>
-      </div>
-      <div class="modalRow stacked">
-        <textarea id="feedbackText" rows="6" placeholder="Share your thoughts (optional)…"></textarea>
-      </div>
-      <div class="modalRow" style="justify-content:flex-end;gap:8px;">
-        <button id="feedbackCancel" class="iconBtn small">Cancel</button>
-        <button id="feedbackSave" class="iconBtn small">Save</button>
-      </div>
     </div>
   </div>
 
