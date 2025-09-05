@@ -20,7 +20,7 @@
  * - Mode chip color per mode is handled via body classes:
  *     body.mode-classic  #modeChip { ... }
  *     body.mode-challenge #modeChip { ... }
- *     body.mode-bio      #modeChip { ... }
+ *     body.mode-mood      #modeChip { ... }
  *   (Wired in JS setBodyModeClass())
  * ========================================================= */
 
@@ -69,7 +69,7 @@ body.game-active #topBar{ display: grid; }
 #overlayUI{ grid-column: 1; justify-self: start; }
 .hud{ display: flex; gap: 8px; align-items: center; }
 
-#bioChip{ grid-column: 2; justify-self: center; align-self: center; }
+#moodChip{ grid-column: 2; justify-self: center; align-self: center; }
 
 #rightWrap{ grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 8px; }
 
@@ -78,7 +78,7 @@ body.game-active #topBar{ display: grid; }
 /* Per-mode background */
 body.mode-classic  #modeChip { background: #4da6ff; color: #ffffff; }
 body.mode-challenge #modeChip { background: #ff944d; color: #ffffff; }
-body.mode-bio      #modeChip { background: #66cc66; color: #0b2a45; }
+body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
 
 #cameraBtn {
   display: none;
@@ -159,14 +159,14 @@ body.mode-bio      #modeChip { background: #66cc66; color: #0b2a45; }
 }
 #modeClassicBtn   { background: #4da6ff; }
 #modeChallengeBtn { background: #ff944d; }
-#modeBioBtn       { background: #66cc66; }
+#modeMoodBtn       { background: #66cc66; }
 
 #modeClassicBtn:hover   { background: #3399ff; }
 #modeClassicBtn:active  { background: #267acc; transform: translateY(1px) scale(0.96); }
 #modeChallengeBtn:hover { background: #ff8533; }
 #modeChallengeBtn:active{ background: #e67300; transform: translateY(1px) scale(0.96); }
-#modeBioBtn:hover       { background: #4db84d; }
-#modeBioBtn:active      { background: #339933; transform: translateY(1px) scale(0.96); }
+#modeMoodBtn:hover       { background: #4db84d; }
+#modeMoodBtn:active      { background: #339933; transform: translateY(1px) scale(0.96); }
 
 /* ========== 6) Splash Screen ========== */
 #splash {
@@ -208,6 +208,38 @@ body.login-active #topBar { display: none; }
   font-size: 12px;
   color: #3a5872;
   opacity: 0.9;
+}
+
+/* Study note on Login */
+.studyNote {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #34536d;
+  opacity: 0.95;
+}
+
+/* Text button look (for "Feedback (optional)" under login) */
+.textBtn {
+  margin-top: 6px;
+  background: transparent;
+  border: none;
+  color: #0066cc;
+  padding: 6px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.textBtn:hover { text-decoration: underline; }
+
+/* Feedback modal textarea */
+#feedbackModal textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.15);
+  padding: 10px 12px;
+  resize: vertical;
 }
 
 /* ========== 8) Hidden Webcam & Preview ========== */
@@ -252,4 +284,4 @@ body.login-active #topBar { display: none; }
 .hidden     { display: none !important; }
 .hiddenChip { visibility: hidden; opacity: 0; pointer-events: none; }
 .srOnly     { position: absolute; left: -9999px; }
-#overlayUI, #bioChip, #modeChip, #cameraBtn { position: static; }
+#overlayUI, #moodChip, #modeChip, #cameraBtn { position: static; }

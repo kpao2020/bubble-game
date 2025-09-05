@@ -11,12 +11,12 @@ What this file does
 
 Where to customize safely
 - Change the game title text inside #splashTitle (keeps logic intact)
-- Consent copy: #bioConsentModal paragraph
-- Mode names: the three buttons in #modeModal (UI labels only; actual mode keys remain 'classic'|'challenge'|'bio')
+- Consent copy: #moodConsentModal paragraph
+- Mode names: the three buttons in #modeModal (UI labels only; actual mode keys remain 'classic'|'challenge'|'mood')
 
 Deployment notes
 - Served from GitHub Pages at https://kpao2020.github.io/bubble-game
-- Camera permission is required for Bio mode (laptop/mobile). Use the site permissions UI if preview shows black.
+- Camera permission is required for Mood mode (laptop/mobile). Use the site permissions UI if preview shows black.
 --> 
 
 <!DOCTYPE html>
@@ -58,8 +58,8 @@ Deployment notes
       </div>
     </div>
 
-    <!-- Center: Bio indicator -->
-    <span class="chip" id="bioChip">NEUTRAL</span>
+    <!-- Center: Mood indicator -->
+    <span class="chip" id="moodChip">NEUTRAL</span>
 
     <!-- Right: Mode chip + Camera (wrapped so both sit on the same row) -->
     <div id="rightWrap">
@@ -123,7 +123,7 @@ Deployment notes
       <div class="modalRow stacked">
         <button id="modeClassicBtn" class="iconBtn">🎈<br>Classic</button>
         <button id="modeChallengeBtn" class="iconBtn">⚡<br>Challenge</button>
-        <button id="modeBioBtn" class="iconBtn">😊<br>Mood</button>
+        <button id="modeMoodBtn" class="iconBtn">😊<br>Mood</button>
       </div>
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
         <bold>Mood</bold> mode uses your camera locally to estimate facial expressions.
@@ -141,14 +141,15 @@ Deployment notes
       <div class="modalRow stacked">
         <button id="postPlayAgain" class="iconBtn">🔄<br>Play</button>
         <button id="postChangeMode" class="iconBtn">🎮<br>Mode</button>
+        <button id="postFeedbackBtn" class="iconBtn">📝<br>Feedback</button>
       </div>
     </div>
   </div>
 
-  <!-- Bio Consent Modal (centered) -->
-  <div id="bioConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="bioConsentTitle">
+  <!-- Mood Consent Modal (centered) -->
+  <div id="moodConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="moodConsentTitle">
     <div class="modalContent">
-      <div class="modalHeader"><h3 id="bioConsentTitle">Mood Mode Consent</h3></div>
+      <div class="modalHeader"><h3 id="moodConsentTitle">Mood Mode Consent</h3></div>
       <div class="modalRow">
         <p style="margin:0;">
           Mood mode uses your device’s camera <b>locally</b> to estimate facial expressions.
@@ -156,8 +157,8 @@ Deployment notes
         </p>
       </div>
       <div class="modalRow stacked">
-        <button id="bioConsentAgreeBtn" class="iconBtn">I agree</button>
-        <button id="bioConsentDeclineBtn" class="iconBtn">No thanks</button>
+        <button id="moodConsentAgreeBtn" class="iconBtn">I agree</button>
+        <button id="moodConsentDeclineBtn" class="iconBtn">No thanks</button>
       </div>
     </div>
   </div>
@@ -182,7 +183,32 @@ Deployment notes
         <button id="submitUsername" class="iconBtn small">OK</button>
       </div>
       <div class="loginHint">You can keep this name or type a new one.</div>
+      
+      <!-- Study note + optional feedback (before) -->
+      <div class="studyNote">
+        Heads-up: this game is part of an educational research study (not for commercial use).
+        We don’t collect personal data. Feedback is optional and appreciated.
+      </div>
+      <button id="loginFeedbackBtn" class="textBtn">📝 Feedback</button>
+
       <p id="loginStatus" class="loginStatus"></p>
+    </div>
+  </div>
+
+  <!-- Feedback Modal (used for BEFORE and AFTER) -->
+  <div id="feedbackModal" class="modal hidden centered">
+    <div class="modalContent">
+      <div class="modalHeader">
+        <h3 id="feedbackTitle" style="margin:0;font-size:1.1rem;">Feedback</h3>
+        <button id="feedbackClose" class="iconBtn small" aria-label="Close">✖</button>
+      </div>
+      <div class="modalRow stacked">
+        <textarea id="feedbackText" rows="6" placeholder="Share your thoughts (optional)…"></textarea>
+      </div>
+      <div class="modalRow" style="justify-content:flex-end;gap:8px;">
+        <button id="feedbackCancel" class="iconBtn small">Cancel</button>
+        <button id="feedbackSave" class="iconBtn small">Save</button>
+      </div>
     </div>
   </div>
 
