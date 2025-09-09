@@ -173,6 +173,9 @@
 // v9.2.11 : Remove dead DOM refs — delete #modeSelect disables in endGame() and restart().
 //
 // v9.2.12 : Optimize code in sketch.js style.css and index.html
+//
+// v9.3    : Optimized Mood mode (lazy-load face-api, lighter models)
+//           - Balanced gameplay: fewer bubbles per mode, size-based scoring, miss-streak easing
 // ============================================================================
 
 
@@ -181,10 +184,24 @@
  *        Game constants
  * ============================= */
 const GAME_DURATION = 30;             // seconds
-const START_BUBBLES = 24;
+const START_BUBBLES_CLASSIC   = 12;
+const START_BUBBLES_CHALLENGE = 16;
+const START_BUBBLES_MOOD      = 10;
+
 const MIN_DIAM = 50, MAX_DIAM = 88;   // bubble size range
 const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
 const MIN_PLAY_SPEED = 0.9;           // floor after multipliers
+
+// Scoring (size-based): smaller bubbles => more points
+const SCORE_BASE = 1;                  // base points for a normal pop
+const SCORE_SIZE_MULTIPLIER = 1.8;     // tune how much small size boosts score
+const SCORE_TRICK_PENALTY = 1;         // points removed for trick bubbles
+
+// Miss-streak easing (reduce frustration on phones)
+const MISS_STREAK_TRIGGER        = 3;    // start easing after this many consecutive misses
+const MISS_STREAK_SLOW_PER_MISS  = 0.08; // each miss beyond trigger slows ~8%
+const MISS_STREAK_SLOW_CAP       = 0.35; // never slow more than 35%
+
 // High-contrast, cheerful palette for bubble tints (RGB)
 const BUBBLE_COLORS = [
   [ 66, 135, 245],  // lively blue
@@ -218,6 +235,9 @@ let prevSafeTop = -1;      // last safe top for wall rebuild
 let score = 0;
 let startTime = 0;
 let gameOver = false;
+
+let missStreak = 0;    // consecutive misses since last hit
+let rubberSlow = 0;    // 0..MISS_STREAK_SLOW_CAP
 
 // NEW: per-round input & pop stats
 let tapsTotal = 0;              // all tap/click attempts
@@ -518,16 +538,25 @@ function showModePicker(){
   closeAllModalsExcept('modeModal');
   m.classList.remove('hidden');
 
+  // Light prefetch on idle while the mode menu is visible
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => prefetchFaceApi(), { timeout: 1200 });
+  } else {
+    setTimeout(prefetchFaceApi, 800);
+  }
+
   bC.onclick = () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); };
   bH.onclick = () => { currentMode = 'challenge'; setBodyModeClass(); hide(); afterModeSelected(false); };
   bB.onclick = () => {
+    bB.addEventListener('mouseenter', prefetchFaceApi, {once: true});
+    bB.addEventListener('touchstart', prefetchFaceApi, {once: true});
     const proceedMood = () => { currentMode = 'mood'; setBodyModeClass(); hide(); afterModeSelected(true); };
     if (hasMoodConsent()) proceedMood();
     else showMoodConsentModal(proceedMood, () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); });
   };
 }
 
-function afterModeSelected(isMood){
+async function afterModeSelected(isMood){
   // show the top bar again
   const topBar = document.getElementById('topBar');
   if (topBar){
@@ -551,7 +580,8 @@ function afterModeSelected(isMood){
   window.__playerReady = true;
 
   if (isMood){
-    loadFaceApiModels();
+    await ensureFaceApiLib();
+    await loadFaceApiModels();
     startWebcam();
     startSampler();
   } else {
@@ -709,6 +739,37 @@ function renderFeedbackThanks(context){
   }
 }
 
+function startBubblesForMode(){
+  return (currentMode === 'classic')
+    ? START_BUBBLES_CLASSIC
+    : (currentMode === 'challenge')
+      ? START_BUBBLES_CHALLENGE
+      : START_BUBBLES_MOOD; // mood
+}
+
+function rubberSpeedFactor(){
+  // factor that multiplies whatever speed your update uses
+  const f = 1 - rubberSlow;
+  // honor your existing floor:
+  return Math.max(f, MIN_PLAY_SPEED);
+}
+
+function noteHit(){
+  // reset streak and recover one step of slowdown per successful pop
+  missStreak = 0;
+  rubberSlow = Math.max(0, rubberSlow - MISS_STREAK_SLOW_PER_MISS);
+}
+
+function noteMiss(){
+  // increase slowdown only after a few consecutive misses
+  missStreak++;
+  if (missStreak >= MISS_STREAK_TRIGGER){
+    rubberSlow = Math.min(MISS_STREAK_SLOW_CAP, rubberSlow + MISS_STREAK_SLOW_PER_MISS);
+  }
+}
+
+// End of UI Helper section
+
 /* =======================================
  *        Update Game Run and Profile
  * ======================================= */
@@ -732,7 +793,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.2.11', // keep in sync with version comment
+        gameVersion: 'v9.3', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -989,9 +1050,9 @@ function draw(){
       b.direction += random(-0.35, 0.35);
       const r = currentRadius(b);
 
-      if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult, CLASSIC_SPEED_CAP), MINF);
-      else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult, MINF);
-      else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6), MINF);
+      if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), CLASSIC_SPEED_CAP), MINF);
+      else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), MINF);
+      else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6) * rubberSpeedFactor(), MINF);
 
       if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
       if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
@@ -1045,7 +1106,7 @@ function spawnBubble(){
 
   b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
   b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
-  b._type = (currentMode === 'challenge' && random() < 0.22) ? 'trick' : 'normal';
+  b._type = (currentMode === 'challenge' && random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
   bubbles.add(b); return b;
 }
 
@@ -1069,8 +1130,14 @@ function handlePop(px, py){
     if (dx*dx + dy*dy <= rHit*rHit){
       hit = true;
 
-      // update score exactly like before
-      score += (b._type === 'trick') ? -1 : 1;
+      // size-based scoring: smaller bubble => more points
+      const diameterNow = r * 2; // r from currentRadius(b), includes mood scaling
+      const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
+      const delta = (b._type === 'trick')
+        ? -SCORE_TRICK_PENALTY
+        : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
+      score += delta;
+      noteHit();
       if (score < 0) score = 0;
 
       // NEW: stats
@@ -1084,7 +1151,10 @@ function handlePop(px, py){
     }
   }
 
-  if (!hit) tapsMissed++;
+  if (!hit) {
+    tapsMissed++;
+    noteMiss();
+  }
 }
 
 
@@ -1126,7 +1196,8 @@ function restart(fromModeButton){
   } else {
     for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
   }
-  for (let i = 0; i < START_BUBBLES; i++) spawnBubble();
+  const N0 = startBubblesForMode();
+  for (let i = 0; i < N0; i++) spawnBubble();
   if (!walls || walls.length < 4) buildWalls();
 
   // reset per-round stats
@@ -1161,6 +1232,40 @@ function restart(fromModeButton){
 }
 function windowResized(){ const w = viewportW(), h = viewportH(); if (width !== w || height !== h) resizeCanvas(w, h); rebuildWallsIfNeeded(); }
 
+// --- Lazy load & prefetch helpers for face-api.js ---------------------------
+const FACE_API_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+
+function prefetchFaceApi(){
+  if (document.querySelector('link[data-face-prefetch]') || window.faceapi) return;
+  const link = document.createElement('link');
+  link.rel = 'prefetch';
+  link.as = 'script';
+  link.href = FACE_API_URL;
+  link.crossOrigin = 'anonymous';
+  link.setAttribute('data-face-prefetch', '1');
+  document.head.appendChild(link);
+}
+
+let __faceApiPromise = null;
+function ensureFaceApiLib(){
+  if (window.faceapi) return Promise.resolve(true);
+  if (__faceApiPromise) return __faceApiPromise;
+
+  __faceApiPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = FACE_API_URL;
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.onload = () => resolve(true);
+    s.onerror = (e) => reject(e);
+    document.head.appendChild(s);
+  });
+
+  return __faceApiPromise;
+}
+// ---------------------------------------------------------------------------
+
+
 
 /* =============================
  *        Mood (face-api.js)
@@ -1174,8 +1279,7 @@ async function loadFaceApiModels(){
   try {
     await Promise.all([
       faceapi.nets.tinyFaceDetector.isLoaded  || faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-      faceapi.nets.faceExpressionNet.isLoaded || faceapi.nets.faceExpressionNet.loadFromUri('./models'),
-      faceapi.nets.faceLandmark68Net.isLoaded || faceapi.nets.faceLandmark68Net.loadFromUri('./models')
+      faceapi.nets.faceExpressionNet.isLoaded || faceapi.nets.faceExpressionNet.loadFromUri('./models')
     ]);
     modelsReady = true; console.log('[mood] models loaded'); return true;
   } catch (e) { console.warn('Model load error:', e); return false; }
@@ -1308,7 +1412,7 @@ async function sampleMood(){
     // draw the current video frame onto our own canvas
     if (dctx){ dctx.drawImage(v, 0, 0, vw, vh); }
     const tinyOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.08 });
-    detections = await faceapi.detectAllFaces(det, tinyOpts).withFaceLandmarks().withFaceExpressions();
+    detections = await faceapi.detectAllFaces(det, tinyOpts).withFaceExpressions();
   } catch (e) { console.warn('[mood] tinyFace error:', e); }
 
   if (!detections || !detections.length){
