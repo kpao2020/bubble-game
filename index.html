@@ -102,7 +102,6 @@ Deployment notes
 
   <!-- Centered end-game UI -->
   <div id="center" class="centerMsg" style="display:none;"></div>
-  <button id="restartBtn" class="primary" style="display:none;">Play Again</button>
 
   <!-- Offscreen detector video (always rendering) -->
   <video id="webcam" autoplay muted playsinline class="hiddenVideo"></video>
@@ -140,10 +139,6 @@ Deployment notes
       <div class="modalRow postActions">
         <button id="postPlayAgain" class="iconTile tilePlay">▶️<br>Play Again</button>
         <button id="postChangeMode" class="iconTile tileMode">🎛️<br>Change Mode</button>
-      </div>
-
-      <!-- Row 2: Feedback alone, accent color -->
-      <div class="modalRow postFeedbackRow">
         <button id="postFeedbackBtn" class="iconTile tileAccent" aria-label="Post-game feedback survey">📝<br>Feedback</button>
       </div>
 
@@ -189,11 +184,12 @@ Deployment notes
       <!-- Username row: shorter input + OK + Feedback side-by-side -->
       <div class="modalRow loginRow">
         <input id="usernameInput" type="text" maxlength="24" placeholder="Username" autocomplete="nickname">
-        <div class="btnGroup">
-          <button id="loginOkBtn" class="btnPrimary">OK</button>
-          <button id="preFeedbackBtn" class="btnAccent" aria-label="Pre-game feedback survey">📝 Feedback</button>
-        </div>
       </div>
+      <div class="modalRow btnRow">
+        <button id="loginOkBtn" class="btnPrimary">OK</button>
+        <button id="preFeedbackBtn" class="btnAccent" aria-label="Pre-game feedback survey">📝 Feedback</button>
+      </div>
+      
 
       <div class="loginHint">You can keep this name or type a new one.</div>
       
