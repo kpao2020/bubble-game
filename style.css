@@ -133,6 +133,12 @@ body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
 .modalRow.stacked { flex-direction: column; align-items: stretch; }
 .modalRow select { flex: 1 1 auto; max-width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; background: #fff; }
 
+.btnRow {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end; /* align to the right */
+}
+
 .previewWrap { margin-top: 8px; display: flex; justify-content: center; }
 .modalPreview { width: 220px; height: auto; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.18); transform: scaleX(-1); }
 
@@ -247,8 +253,6 @@ body.login-active #topBar { display: none; }
 
 /* ========== 9) Centered End-game UI ========== */
 .centerMsg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -60%); font-size: 28px; font-weight: 800; color: #00324d; text-align: center; text-shadow: 0 2px 6px rgba(0,0,0,.25); z-index: 20; }
-#restartBtn { position: fixed; left: 50%; top: calc(50% + 24px); transform: translateX(-50%); z-index: 20; border: 0; border-radius: 14px; padding: 12px 16px; font-size: 16px; font-weight: 700; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,.15); cursor: pointer; display: none; }
-#restartBtn:active { transform: translateX(-50%) translateY(1px); }
 
 /* ========== 10) Post-game Modal ========== */
 #postGameModal{ place-items: end center; z-index: 15; background: rgba(0,0,0,.20); }
@@ -420,9 +424,6 @@ button,
 .tileAccent { background: #0aa; color: #fff; }
 .tileAccent:hover { filter: brightness(1.05); }
 .tileAccent:active { transform: translateY(1px); }
-
-/* Place Feedback on its own row */
-.postFeedbackRow { justify-content: center; }
 
 /* Disabled look (reused) */
 .iconBtn.is-disabled, .iconTile.is-disabled, .btnAccent.is-disabled {

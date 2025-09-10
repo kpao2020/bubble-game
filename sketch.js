@@ -176,6 +176,10 @@
 //
 // v9.3    : Optimized Mood mode (lazy-load face-api, lighter models)
 //           - Balanced gameplay: fewer bubbles per mode, size-based scoring, miss-streak easing
+//
+// v9.3.1  : Minor UI cleanup
+//          - Removed legacy restartBtn (HTML, CSS, JS) since Post-game modal fully replaces it.
+//          - Login screen: moved OK + Feedback buttons into their own row (right-aligned) for clearer layout.
 // ============================================================================
 
 
@@ -573,9 +577,8 @@ async function afterModeSelected(isMood){
   if (ms) ms.disabled = true;
 
   // Now actually start the game round
-  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  const centerEl = document.getElementById('center');
   if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
-  if (btn){ btn.style.display = 'none'; }
 
   window.__playerReady = true;
 
@@ -793,7 +796,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.3', // keep in sync with version comment
+        gameVersion: 'v9.3.1', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -876,9 +879,7 @@ function setup(){
   // Defer entity creation until after login (startGame -> restart)
   score = 0; startTime = millis(); gameOver = false;
   document.getElementById('center').style.display = 'none';
-  const btn = document.getElementById('restartBtn');
-  if (btn){ btn.style.display = 'none'; btn.onclick = () => { if (window.__playerReady) restart(false); }; }
-
+  
   if (isMoodMode()){
     loadFaceApiModels();
     startWebcam();
@@ -1170,9 +1171,7 @@ function endGame(){
   noLoop();
 
   const centerEl = document.getElementById('center');
-  const btn = document.getElementById('restartBtn');
   if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
-  if (btn){ btn.style.display = 'none'; }
 
   if (isMoodMode()){
     if (MOOD_STOP_STRATEGY === 'pause') { stopSampler(); }
@@ -1224,9 +1223,9 @@ function restart(fromModeButton){
 
   closePostGameModal();                     // close post-game UI if it was open
 
-  const centerEl = document.getElementById('center'), btn = document.getElementById('restartBtn');
+  const centerEl = document.getElementById('center');
   if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
-  if (btn){ btn.style.display = 'none'; btn.blur?.(); }
+
   if (isMoodMode()){ clearTimeout(moodIdleStopTO); startSampler(); }
   loop();
 }
