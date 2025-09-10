@@ -96,6 +96,8 @@ body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
 
 /* ========== 3) Buttons ========== */
 .iconBtn {
+  font-size: 18px;
+  line-height: 1.3;
   display: inline-flex; align-items: center; justify-content: center;
   padding: 10px;
   min-width: 44px; min-height: 44px;
@@ -397,6 +399,13 @@ button,
 }
 
 /* Buttons: colors + hover/active */
+/* Primary/Accent buttons (Login) */
+.btnPrimary,
+.btnAccent {
+  font-size: 17px;      /* bigger than default */
+  font-weight: 600;     /* stronger emphasis */
+}
+
 .btnPrimary,
 .btnAccent,
 .iconTile {
@@ -407,21 +416,21 @@ button,
 .btnPrimary:hover { filter: brightness(1.05); }
 .btnPrimary:active { transform: translateY(1px); }
 
-.btnAccent { background: #0aa; color: #fff; border: none; border-radius: 10px; padding: 10px 12px; }
+.btnAccent { background: #008080; color: #fff; border: none; border-radius: 10px; padding: 10px 12px; }
 .btnAccent:hover { filter: brightness(1.05); }
 .btnAccent:active { transform: translateY(1px); }
 
 /* Post-game tiles with distinct colors */
-.iconTile { min-width: 112px; min-height: 84px; border-radius: 16px; border: none; font-size: 14px; }
-.tilePlay   { background: #2ea043; color: #fff; }
+.iconTile { min-width: 112px; min-height: 84px; border-radius: 16px; border: none; font-size: 20px; }
+.tilePlay   { background: #22863a; color: #fff; }
 .tilePlay:hover { filter: brightness(1.05); }
 .tilePlay:active { transform: translateY(1px); }
 
-.tileMode   { background: #8a63d2; color: #fff; }
+.tileMode   { background: #6f42c1; color: #fff; }
 .tileMode:hover { filter: brightness(1.05); }
 .tileMode:active { transform: translateY(1px); }
 
-.tileAccent { background: #0aa; color: #fff; }
+.tileAccent { background: #006666; color: #fff; }
 .tileAccent:hover { filter: brightness(1.05); }
 .tileAccent:active { transform: translateY(1px); }
 

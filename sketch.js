@@ -180,6 +180,12 @@
 // v9.3.1  : Minor UI cleanup
 //          - Removed legacy restartBtn (HTML, CSS, JS) since Post-game modal fully replaces it.
 //          - Login screen: moved OK + Feedback buttons into their own row (right-aligned) for clearer layout.
+//
+// v9.3.2 : UI readability improvements
+//          - Increased button text and emoji/icon size for better visibility.
+//          - Adjusted button background colors for stronger contrast with text.
+//          - Ensured higher legibility across login, mode picker, and post-game buttons.
+//
 // ============================================================================
 
 
