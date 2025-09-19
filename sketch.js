@@ -186,6 +186,23 @@
 //          - Adjusted button background colors for stronger contrast with text.
 //          - Ensured higher legibility across login, mode picker, and post-game buttons.
 //
+// v9.4   : Login UX overhaul — type immediately, inline “Saving…” (no extra prompt), sleek pill OK button with 
+//          spinner, animated helper text (fade + shake on errors), glassy login card + soft gradient backdrop, 
+//          autofocus + Enter-to-submit, auto-select on first focus, and smooth fade-out into Mode Picker.
+//
+// v9.5   : Login card micro pop-in (scale + fade) on open for a smoother, modern feel.
+//
+// v9.6   : Single-helper copy + consistent “username” — clear which username will be used if you typed while device data loads.
+//
+// v9.6.1 : Remove duplicate helper line in index.html
+//
+// v9.7   : Auto-suggest on empty submit — if no username is typed, we fill with prior profile or Player-XXXXXX, 
+//          update helper, and refocus the input so the user can confirm or edit quickly.
+//
+// v9.8   : Auto dark-mode theming for login and splash using `prefers-color-scheme`. Updates the glassy login card,
+//          backdrop, input, and helper text colors for dark backgrounds. Splash screen gets a darker gradient and
+//          matching card styling. Pure CSS — no changes to HTML or JS.
+//
 // ============================================================================
 
 
@@ -657,8 +674,26 @@ document.addEventListener('keyup', swallowKeysIfModal, true);
 function setLoginStatus(msg, cls='info') {
   const el = document.getElementById('loginStatus');
   if (!el) return;
-  el.textContent = msg || '';
-  el.className = `loginStatus ${cls}`;
+
+  // fade out, then update, then fade in (keeps prior smooth animation)
+  el.classList.add('updating');
+  setTimeout(() => {
+    el.textContent = msg || '';
+    el.className = `loginStatus ${cls}`;
+
+    // fade back in
+    requestAnimationFrame(() => {
+      el.classList.remove('updating');
+
+      // if this is an error, give a subtle shake nudge
+      if (cls === 'err') {
+        el.classList.remove('shake');   // restart animation if already present
+        void el.offsetWidth;            // reflow to reset
+        el.classList.add('shake');
+        setTimeout(() => el.classList.remove('shake'), 360);
+      }
+    });
+  }, 200);
 }
 
 function onKbFocus() {
@@ -802,7 +837,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.3.1', // keep in sync with version comment
+        gameVersion: 'v9.8', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -1684,15 +1719,24 @@ function closePostGameModal(){ document.getElementById('postGameModal')?.classLi
  *        Login & start
  * ============================= */
 function startGame() {
-  // Close login UI
+  // Fade out login if visible, then proceed
   const modal = document.getElementById('loginModal');
-  if (modal) modal.classList.add('hidden');
-  document.body.classList.remove('login-active');
 
-  // Show mode picker instead of starting immediately
-  showModePicker();
+  if (modal && !modal.classList.contains('hidden')) {
+    modal.classList.add('is-fading-out');
+
+    setTimeout(() => {
+      modal.classList.remove('is-fading-out');
+      modal.classList.add('hidden');
+      document.body.classList.remove('login-active');
+      showModePicker();
+    }, 240);
+  } else {
+    // If it was already hidden (edge cases), just continue
+    document.body.classList.remove('login-active');
+    showModePicker();
+  }
 }
-
 
 /**
  * Show login screen: prefill from profile or suggest, validate, then POST setUsername.
@@ -1704,8 +1748,8 @@ function showLoginScreen(deviceId){
   const submit = document.getElementById('loginOkBtn');
   if (!modal || !input || !submit) return;
 
-  // Disable input while we check if this device has a saved username
-  input.disabled = true;
+  // Allow input while we check if this device has a saved username
+  input.disabled = false;
 
   // keep top bar hidden here
   const topBar = document.getElementById('topBar');
@@ -1717,13 +1761,44 @@ function showLoginScreen(deviceId){
 
   modal.classList.remove('hidden');
 
+  /* Autofocus + place cursor at end (no scroll jump) */
+  try {
+    input.setAttribute('inputmode', 'text');      // mobile keyboard hint
+    input.focus({ preventScroll: true });
+    setTimeout(() => {
+      const len = (input.value || '').length;
+      input.setSelectionRange(len, len);
+    }, 30);
+  } catch (_) {}
+
   // track if user started typing
   let loginUserEdited = false;
   input.addEventListener('input', () => { loginUserEdited = true; });
 
+  /* Press Enter to submit (respect busy/disabled state) */
+  input.addEventListener('keydown', (e) => {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'enter') {
+      e.preventDefault();
+      if (!submit.disabled) {
+        // reuse the same click handler
+        submit.onclick();
+      }
+    }
+  }, { passive: false });
+
+  /* Auto-select suggested username on first focus */
+  let firstFocus = true;
+  input.addEventListener('focus', () => {
+    if (firstFocus && input.value) {
+      input.select();
+      firstFocus = false;
+    }
+  });
+
   // reset and show device check status
   input.value = '';
-  setLoginStatus('Checking if this device is already recognized…', 'info');
+  setLoginStatus('Enter your preferred name while we check for an existing name…', 'info');
 
   let priorProfile = null;
 
@@ -1743,10 +1818,17 @@ function showLoginScreen(deviceId){
 
       if (data && data.ok && data.profile) {
         priorProfile = data.profile;
-        setLoginStatus(`Welcome back! This device is linked to “${suggested}”. You can keep it or choose a new username.`, 'ok');
+        const typed = (input.value || '').trim();
+        if (typed && typed.toLowerCase() !== suggested.toLowerCase()) {
+          // User already typed something different — be explicit which will be used
+          setLoginStatus(`We’ll use your username “${typed}”. This device was previously linked to “${suggested}”.`, 'ok');
+        } else {
+          // User hasn’t typed (or matches suggestion)
+          setLoginStatus(`This device is linked to “${suggested}”. You can use this username or type a new one.`, 'ok');
+        }
         input.disabled = false;  // returning device -> allow editing
       } else {
-        setLoginStatus('New device detected. Please create a username.', 'info');
+        setLoginStatus('You’re new here. Pick a username to start.', 'info');
         input.disabled = false; // new device -> enable typing
       }
     })
@@ -1754,14 +1836,29 @@ function showLoginScreen(deviceId){
       const suggested = `Player-${deviceId.slice(0,6)}`;
       if (!loginUserEdited && (!input.value || input.value.trim() === '')) input.value = suggested;
       else input.placeholder = suggested;
-      setLoginStatus('Could not check device right now. You can still create a username.', 'err');
+      setLoginStatus('Can\'t check existing name right now. You can still create a name.', 'err');
       input.disabled = false; // assume new device on error -> allow typing
     });
 
   // SUBMIT: check availability first (keep modal open). Only show "Saving…" progress after it’s available.
   submit.onclick = function() {
-    const username = (input.value || '').trim();
-    if (!username) return;
+    const raw = (input.value || '');
+    const trimmed = raw.trim();
+
+    // If empty (or just spaces), auto-suggest and fill, don't error
+    if (!trimmed) {
+      const suggestedNow = (priorProfile && priorProfile.username)
+        ? String(priorProfile.username).trim()
+        : `Player-${deviceId.slice(0,6)}`;
+
+      input.value = suggestedNow;
+      setLoginStatus(`We suggested the username “${suggestedNow}”. You can edit it or press OK to continue.`, 'info');
+      input.focus();
+      try { input.setSelectionRange(suggestedNow.length, suggestedNow.length); } catch(_) {}
+      return;
+    }
+
+    const username = trimmed;
 
     submit.classList.add('is-busy');
     submit.disabled = true;
@@ -1778,12 +1875,8 @@ function showLoginScreen(deviceId){
           throw new Error('username_taken');
         }
 
-        // Now proceed to save (show progress modal only here)
-        const loginM = document.getElementById('loginModal');
-        if (loginM) loginM.classList.add('hidden');
-        document.body.classList.remove('login-active');
-
-        openLoginProgress(`Saving your username… this can take a moment.\nAfter this, you’ll choose a mode and the round will start.`);
+        // Now proceed to save (keep login visible; show inline status + busy state)
+        setLoginStatus('Saving your username…', 'info');
 
         return fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
           method: 'POST',
@@ -1797,8 +1890,8 @@ function showLoginScreen(deviceId){
             ? `Welcome back, ${username}!`
             : `Saved. Hello, ${username}!`;
 
-          updateLoginProgress(`${greet}\nOpening mode selection…`, false);
-          closeLoginProgress();
+          setLoginStatus(`${greet} Opening mode selection…`, 'ok');
+
           startGame();  // opens Mode Picker immediately
         });
       })

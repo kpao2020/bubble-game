@@ -139,6 +139,7 @@ body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
   display: flex;
   gap: 10px;
   justify-content: flex-end; /* align to the right */
+  padding-top: 2px;
 }
 
 .previewWrap { margin-top: 8px; display: flex; justify-content: center; }
@@ -193,6 +194,24 @@ body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
 
 /* ========== 7) Login Modal overrides ========== */
 #loginModal { place-items: center; z-index: 1000; }
+
+/* Soft gradient backdrop for login modal */
+#loginModal {
+  background: linear-gradient(135deg, rgba(240,245,255,0.9), rgba(255,255,255,0.85));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Soft fade when leaving login */
+#loginModal {
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+#loginModal.is-fading-out {
+  opacity: 0;
+  transform: scale(0.98);
+  pointer-events: none;
+}
+
 /* Login modal: avoid bottom hairline on some browsers */
 #loginModal .modalContent {
   box-shadow: 0 12px 28px rgba(0,0,0,.18);  /* symmetric shadow */
@@ -202,16 +221,189 @@ body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
   -webkit-font-smoothing: antialiased;
 }
 
+/* Modern glassy login card */
+#loginModal .modalContent {
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  border-radius: 18px;
+  padding: 16px 16px 18px;
+  border: 1px solid rgba(255,255,255,0.65);
+}
+
+/* v9.5 — Login card micro pop-in on show */
+#loginModal .modalContent {
+  transform: translateY(4px) scale(0.985);
+  opacity: 0;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+#loginModal:not(.hidden) .modalContent {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  #loginModal .modalContent { transition: none; }
+}
+
+/* Ensure visible text & caret in the login input (light mode defaults) */
+#loginModal input[type="text"] {
+  color: #0b2540;            /* dark blue on light background */
+  caret-color: #0b2540;      /* caret matches text */
+}
+#loginModal input[type="text"]::placeholder {
+  color: rgba(11, 37, 64, 0.50);
+}
+
+/* Dark mode: high-contrast text, caret, and placeholder — override autofill too */
+@media (prefers-color-scheme: dark) {
+  #loginModal input[type="text"] {
+    color: #e6eef7;          /* light text on dark glass */
+    caret-color: #e6eef7;    /* visible caret */
+  }
+  #loginModal input[type="text"]::placeholder {
+    color: rgba(230, 238, 247, 0.55);
+  }
+  /* Safari/Chrome autofill can force low-contrast text; override it here */
+  #loginModal input[type="text"]:-webkit-autofill,
+  #loginModal input[type="text"]:-webkit-autofill:focus {
+    -webkit-text-fill-color: #e6eef7 !important;
+    caret-color: #e6eef7;
+    /* keep your dark input fill instead of autofill’s yellow */
+    box-shadow: 0 0 0px 1000px rgba(20, 24, 32, 0.92) inset;
+  }
+}
+
+/* v9.8 — Dark-mode variant for the glassy login (auto via system preference) */
+@media (prefers-color-scheme: dark) {
+  /* Subtle darker backdrop behind the modal card */
+  #loginModal {
+    background: linear-gradient(135deg, rgba(10,14,20,0.88), rgba(18,22,28,0.88));
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  /* Smoky-glass card with light text */
+  #loginModal .modalContent {
+    background: rgba(20,24,32,0.72);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e6eef7;
+  }
+
+  /* Inputs: darker fill + gentle focus glow */
+  #loginModal input[type="text"] {
+    background: rgba(20,24,32,0.92);
+    border-color: rgba(255,255,255,0.12);
+    color: #e6eef7;
+  }
+  #loginModal input[type="text"]::placeholder { color: rgba(230,238,247,0.55); }
+  #loginModal input[type="text"]:focus {
+    border-color: rgba(147,197,253,0.55);
+    box-shadow: 0 0 0 3px rgba(30,64,175,0.35);
+    outline: none;
+  }
+
+  /* Helper text colors tuned for dark backgrounds */
+  #loginStatus.loginStatus.info { color: #9ecbff; }
+  #loginStatus.loginStatus.ok   { color: #8fe3b3; }
+  #loginStatus.loginStatus.err  { color: #ff9da1; }
+
+  /* Splash screen dark variant */
+  #splash {
+    background: linear-gradient(160deg, #0d1117 0%, #1c1f26 100%);
+    color: #e6eef7;
+  }
+  #splash .splash-inner {
+    background: rgba(20,24,32,0.78);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.55);
+  }
+
+  /* Dark-mode tweak for primary button contrast */
+  #loginModal .btnPrimary {
+    background: linear-gradient(180deg, #3a82ea 0%, #2c6fcd 100%);
+    box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  }
+}
+
+/* Compact header */
+#loginModal .modalHeader {
+  align-items: center;
+  margin-bottom: 6px;
+}
+#loginModal .modalHeader h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: .2px;
+}
+
+/* Tighter row spacing */
+#loginModal .modalRow { gap: 10px; }
+#loginModal .loginRow { margin-top: 4px; }
+
+/* Refined input (no layout shift) */
+#loginModal input[type="text"] {
+  height: 40px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.92);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+}
+#loginModal input[type="text"]:focus {
+  outline: none;
+  border-color: rgba(26,115,232,0.5);
+  box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+}
+
+/* Button row: balanced spacing, right-aligned */
+#loginModal .btnRow {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 #loginModal input[type="text"] { flex: 1 1 auto; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px 10px; }
 #loginModal .iconBtn.small { min-width: 64px; }
-body.login-active #topBar { display: none; }
 
-.loginHint {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #3a5872;
-  opacity: 0.9;
+/* Login helper/status line */
+#loginStatus.loginStatus {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  line-height: 1.35;
 }
+#loginStatus.loginStatus.info { color: #1a4366; }
+#loginStatus.loginStatus.ok   { color: #0f6b3e; }
+#loginStatus.loginStatus.err  { color: #8b1a1a; }
+
+/* Smoothly animate login helper text updates */
+#loginStatus.loginStatus {
+  display: block;
+  min-height: 1.3em;              /* reserve space to avoid jumps */
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+#loginStatus.loginStatus.updating {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+/* Error 'shake' for login helper */
+@keyframes subtle-shake {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(-2px); }
+  30% { transform: translateX(2px); }
+  45% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+  100% { transform: translateX(0); }
+}
+#loginStatus.loginStatus.shake {
+  animation: subtle-shake 320ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  #loginStatus.loginStatus.shake { animation: none; }
+}
+
+body.login-active #topBar { display: none; }
 
 /* Study note on Login */
 .studyNote {
@@ -416,6 +608,39 @@ button,
 .btnPrimary:hover { filter: brightness(1.05); }
 .btnPrimary:active { transform: translateY(1px); }
 
+/* Sleek pill primary button */
+.btnPrimary {
+  border-radius: 999px;                    /* pill */
+  padding: 10px 18px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.12);  /* soft lift */
+  background: linear-gradient(180deg, #1a73e8 0%, #1767cf 100%);
+}
+.btnPrimary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26,115,232,.28), 0 6px 16px rgba(0,0,0,.12);
+}
+
+/* Busy state: dim label, show centered spinner overlay */
+.btnPrimary.is-busy {
+  position: relative;
+  pointer-events: none;
+  filter: saturate(.9) brightness(.98);
+}
+.btnPrimary.is-busy > * { opacity: 0; }   /* hide inner label without shifting */
+.btnPrimary.is-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .btnAccent { background: #008080; color: #fff; border: none; border-radius: 10px; padding: 10px 12px; }
 .btnAccent:hover { filter: brightness(1.05); }
 .btnAccent:active { transform: translateY(1px); }
@@ -455,4 +680,27 @@ button,
   .choiceGroup { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .choiceRow { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); }
   .choiceRow input[type="radio"] { transform: scale(1.2); }
+}
+
+/* ==== v9.8.1 — Dark-mode input visibility hard overrides (placed last to win cascade) ==== */
+@media (prefers-color-scheme: dark) {
+  /* Ensure the login input uses dark fill + light text regardless of earlier rules */
+  #loginModal input[type="text"] {
+    background: rgba(20,24,32,0.92) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    color: #e6eef7 !important;
+    caret-color: #e6eef7 !important;
+  }
+  #loginModal input[type="text"]::placeholder {
+    color: rgba(230,238,247,0.60) !important;
+  }
+
+  /* Defeat WebKit autofill’s light text and yellow fill in dark mode */
+  #loginModal input[type="text"]:-webkit-autofill,
+  #loginModal input[type="text"]:-webkit-autofill:focus {
+    -webkit-text-fill-color: #e6eef7 !important;
+    caret-color: #e6eef7 !important;
+    box-shadow: 0 0 0 1000px rgba(20,24,32,0.92) inset !important;
+    -webkit-box-shadow: 0 0 0 1000px rgba(20,24,32,0.92) inset !important;
+  }
 }
