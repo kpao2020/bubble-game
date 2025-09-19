@@ -245,6 +245,34 @@ body.mode-mood      #modeChip { background: #66cc66; color: #0b2a45; }
   #loginModal .modalContent { transition: none; }
 }
 
+/* Ensure visible text & caret in the login input (light mode defaults) */
+#loginModal input[type="text"] {
+  color: #0b2540;            /* dark blue on light background */
+  caret-color: #0b2540;      /* caret matches text */
+}
+#loginModal input[type="text"]::placeholder {
+  color: rgba(11, 37, 64, 0.50);
+}
+
+/* Dark mode: high-contrast text, caret, and placeholder — override autofill too */
+@media (prefers-color-scheme: dark) {
+  #loginModal input[type="text"] {
+    color: #e6eef7;          /* light text on dark glass */
+    caret-color: #e6eef7;    /* visible caret */
+  }
+  #loginModal input[type="text"]::placeholder {
+    color: rgba(230, 238, 247, 0.55);
+  }
+  /* Safari/Chrome autofill can force low-contrast text; override it here */
+  #loginModal input[type="text"]:-webkit-autofill,
+  #loginModal input[type="text"]:-webkit-autofill:focus {
+    -webkit-text-fill-color: #e6eef7 !important;
+    caret-color: #e6eef7;
+    /* keep your dark input fill instead of autofill’s yellow */
+    box-shadow: 0 0 0px 1000px rgba(20, 24, 32, 0.92) inset;
+  }
+}
+
 /* v9.8 — Dark-mode variant for the glassy login (auto via system preference) */
 @media (prefers-color-scheme: dark) {
   /* Subtle darker backdrop behind the modal card */
@@ -652,4 +680,27 @@ button,
   .choiceGroup { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .choiceRow { padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); }
   .choiceRow input[type="radio"] { transform: scale(1.2); }
+}
+
+/* ==== v9.8.1 — Dark-mode input visibility hard overrides (placed last to win cascade) ==== */
+@media (prefers-color-scheme: dark) {
+  /* Ensure the login input uses dark fill + light text regardless of earlier rules */
+  #loginModal input[type="text"] {
+    background: rgba(20,24,32,0.92) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    color: #e6eef7 !important;
+    caret-color: #e6eef7 !important;
+  }
+  #loginModal input[type="text"]::placeholder {
+    color: rgba(230,238,247,0.60) !important;
+  }
+
+  /* Defeat WebKit autofill’s light text and yellow fill in dark mode */
+  #loginModal input[type="text"]:-webkit-autofill,
+  #loginModal input[type="text"]:-webkit-autofill:focus {
+    -webkit-text-fill-color: #e6eef7 !important;
+    caret-color: #e6eef7 !important;
+    box-shadow: 0 0 0 1000px rgba(20,24,32,0.92) inset !important;
+    -webkit-box-shadow: 0 0 0 1000px rgba(20,24,32,0.92) inset !important;
+  }
 }
