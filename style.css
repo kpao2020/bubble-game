@@ -704,3 +704,52 @@ button,
     -webkit-box-shadow: 0 0 0 1000px rgba(20,24,32,0.92) inset !important;
   }
 }
+
+/* =========================================================
+   v9.9 — Unified Button System + Splash CTA (teal)
+   ========================================================= */
+:root{
+  --btn-bg:#0f766e;         /* teal 700 */
+  --btn-bg-hover:#0b605b;   /* teal 800 */
+  --btn-bg-active:#094e4a;  /* teal 900 */
+  --btn-fg:#ffffff;
+  --btn-focus:rgba(15,118,110,0.35);
+}
+
+/* Primary buttons (iconBtn + Login primary) — keeps Mode Picker tiles teal too */
+.iconBtn,
+#loginModal .btnPrimary{
+  background:var(--btn-bg) !important;
+  color:var(--btn-fg) !important;
+  border:none !important;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);
+  font-weight:700; font-size:16px; line-height:1.2;
+  border-radius:14px; padding:12px 16px;
+}
+.iconBtn:hover,#loginModal .btnPrimary:hover{ background:var(--btn-bg-hover) !important; }
+.iconBtn:active,#loginModal .btnPrimary:active{ background:var(--btn-bg-active) !important; transform:translateY(1px) scale(0.98); }
+.iconBtn:focus-visible,#loginModal .btnPrimary:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--btn-focus); }
+
+/* Splash subtitle as a proper CTA (works in light & dark) */
+#splash .splash-subtitle{
+  display:inline-block;
+  padding:10px 16px;
+  margin-top:.35rem;
+  background:var(--btn-bg);
+  color:var(--btn-fg);
+  border-radius:999px;
+  font-weight:700;
+  box-shadow:0 6px 16px rgba(0,0,0,.18);
+}
+#splash .splash-subtitle:hover{ background:var(--btn-bg-hover); }
+#splash .splash-subtitle:active{ background:var(--btn-bg-active); transform:translateY(1px) scale(0.98); }
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --btn-bg:#14a39a;        /* brighter teal for dark surfaces */
+    --btn-bg-hover:#118c84;
+    --btn-bg-active:#0d726c;
+  }
+}
+#sfxBtn { background:#008080; }
+#sfxBtn[aria-pressed="true"] { filter: brightness(1.05); }
