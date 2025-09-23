@@ -753,3 +753,35 @@ button,
 }
 #sfxBtn { background:#008080; }
 #sfxBtn[aria-pressed="true"] { filter: brightness(1.05); }
+
+/* =========================================================
+   v9.9.2 — Splash Start card teal CTA (wins in cascade)
+   ========================================================= */
+#splash #splashCard {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border-radius: 20px;
+  padding: 2rem 2.5rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  outline: none;
+  transform: translateY(0);
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
+}
+#splash #splashCard:hover    { filter: brightness(1.05); }
+#splash #splashCard:active   { transform: translateY(1px) scale(0.98); }
+#splash #splashCard:focus-visible { box-shadow: 0 0 0 6px var(--btn-focus), 0 10px 30px rgba(0,0,0,0.18); }
+
+/* Ensure the texts inside the card stay high-contrast */
+#splash #splashCard .splash-title,
+#splash #splashCard .splash-subtitle {
+  color: #fff;
+  text-shadow: none;
+}
+
+/* Dark-mode: keep the same teal so it doesn’t go low-contrast */
+@media (prefers-color-scheme: dark) {
+  #splash { background: linear-gradient(160deg, #0b3a4b 0%, #0e4a60 40%, #0f566e 100%); }
+  #splash #splashCard { background: var(--btn-bg); }
+}

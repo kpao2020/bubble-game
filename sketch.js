@@ -206,6 +206,10 @@
 // v9.9   : Add procedural bubble-pop SFX (WebAudio) with top-bar toggle (default muted) and fix dark-mode splash CTA contrast.
 //
 // v9.9.1 : WebAudio SFX (muted by default) + first-tap confirmation pop; dark-mode splash CTA contrast; SFX toggle in header.
+//
+// v9.9.2 : Splash “Start” card acts as a single teal CTA (click/tap/Enter/Space); first tap plays a confirmation pop to 
+//          init WebAudio; Mode Picker tiles unchanged. (minor)
+//
 // ============================================================================
 
 
@@ -841,7 +845,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.9', // keep in sync with version comment
+        gameVersion: 'v9.9.2', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -1786,12 +1790,15 @@ function makePopBuffer(ctx){
 // ===== Splash Controller =====
 (function initSplash() {
   const splash = document.getElementById('splash');
+  const splashCard = document.getElementById('splashCard') || splash.querySelector('.splash-inner');
+
   if (!splash) return;
 
   // Helper to end the splash with fade-out
   function dismissSplash() {
     if (!splash.classList.contains('is-visible')) return;
-    
+    try { initAudioOnce(); maybePop(); } catch (_) {}
+
     // v9.9 — Initialize audio on first gesture + subtle confirmation pop
     if (!window.__audioReady){ initAudioOnce(); try{ playPop(1); }catch(_){} }
 
@@ -1816,11 +1823,14 @@ function makePopBuffer(ctx){
 
   // Interactions: click/tap or keys (Enter/Space)
   const startEvents = ['click', 'touchend'];
-  startEvents.forEach(evt => splash.addEventListener(evt, dismissSplash, { passive: true }));
-  window.addEventListener('keydown', (e) => {
+  startEvents.forEach(evt =>
+    splashCard?.addEventListener(evt, dismissSplash, { passive: true })
+  );
+  splashCard?.addEventListener('keydown', (e) => {
     const k = e.key?.toLowerCase();
     if (k === 'enter' || k === ' ') dismissSplash();
   });
+
 })();
 
 window.__splashActive = true;
