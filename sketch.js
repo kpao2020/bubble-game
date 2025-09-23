@@ -203,6 +203,9 @@
 //          backdrop, input, and helper text colors for dark backgrounds. Splash screen gets a darker gradient and
 //          matching card styling. Pure CSS — no changes to HTML or JS.
 //
+// v9.9   : Add procedural bubble-pop SFX (WebAudio) with top-bar toggle (default muted) and fix dark-mode splash CTA contrast.
+//
+// v9.9.1 : WebAudio SFX (muted by default) + first-tap confirmation pop; dark-mode splash CTA contrast; SFX toggle in header.
 // ============================================================================
 
 
@@ -802,6 +805,7 @@ function noteHit(){
   // reset streak and recover one step of slowdown per successful pop
   missStreak = 0;
   rubberSlow = Math.max(0, rubberSlow - MISS_STREAK_SLOW_PER_MISS);
+  maybePop();
 }
 
 function noteMiss(){
@@ -837,7 +841,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.8', // keep in sync with version comment
+        gameVersion: 'v9.9', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -1030,6 +1034,18 @@ function setup(){
         // window.__feedbackBefore = '';
       }
     });
+  }
+
+  const sfxBtn = document.getElementById('sfxBtn');
+  if (sfxBtn){
+    // default muted; reflect stored state once user toggles
+    sfxBtn.onclick = () => {
+      try { initAudioOnce(); } catch(_){}
+      setSfx(!__sfxOn);
+      if (__sfxOn) maybePop(); // preview when turning on
+    };
+    // ensure label is correct on load
+    setSfx(__sfxOn);
   }
 
 } // end of setup()
@@ -1669,6 +1685,104 @@ function wireFeedbackModal(){
   m.addEventListener('click', (e) => { if (e.target.id === 'feedbackModal') closeFeedbackModal(); });
 }
 
+/* =============================
+ *        Audio SFX (WebAudio)
+ * ============================= */
+function initAudioOnce(){
+  if (window.__audioReady) return;
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    window.__audioCtx = new Ctx();
+    window.__audioReady = true;
+  }catch(e){ console.warn('Audio init failed:', e); }
+}
+
+function playPop(vel=1){
+  const ctx = window.__audioCtx; if (!ctx) return;
+  const t = ctx.currentTime;
+
+  // Noise click (bubble skin snap)
+  const nbuf = ctx.createBuffer(1, 4410, 44100);
+  const data = nbuf.getChannelData(0);
+  for (let i=0; i<data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length);
+  const noise = ctx.createBufferSource(); noise.buffer = nbuf;
+
+  const band = ctx.createBiquadFilter(); band.type='bandpass';
+  band.frequency.value = 1000 + Math.random()*800; band.Q.value = 8;
+
+  const nGain = ctx.createGain();
+  nGain.gain.setValueAtTime(0.7*vel, t);
+  nGain.gain.exponentialRampToValueAtTime(0.001, t+0.06);
+
+  noise.connect(band).connect(nGain).connect(ctx.destination);
+  noise.start(t); noise.stop(t+0.06);
+
+  // Short sine ping with downward sweep (air release)
+  const osc = ctx.createOscillator(); osc.type='sine';
+  const f0 = 700 + Math.random()*400;
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(180, t+0.08);
+
+  const oGain = ctx.createGain();
+  oGain.gain.setValueAtTime(0.55*vel, t);
+  oGain.gain.exponentialRampToValueAtTime(0.001, t+0.09);
+
+  osc.connect(oGain).connect(ctx.destination);
+  osc.start(t); osc.stop(t+0.10);
+}
+
+// ===== Audio SFX (procedural) =====
+let __audioCtx = null, __popBuf = null, __audioReady = false;
+let __sfxOn = false;  // default muted
+
+function initAudioOnce(){
+  if (__audioReady) return;
+  __audioCtx = __audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  __popBuf = __popBuf || makePopBuffer(__audioCtx); // 60ms bubble pop
+  __audioReady = true;
+  // Initialize SFX state from storage (default off)
+  try { setSfx(localStorage.getItem('bbg_sfx_on') === '1'); } catch(_){}
+}
+
+function setSfx(on){
+  __sfxOn = !!on;
+  try { localStorage.setItem('bbg_sfx_on', __sfxOn ? '1':'0'); } catch(_){}
+  const btn = document.getElementById('sfxBtn');
+  if (btn) {
+    btn.setAttribute('aria-pressed', __sfxOn ? 'true' : 'false');
+    btn.textContent = __sfxOn ? '🔊' : '🔇';
+    btn.title = __sfxOn ? 'Sound: On' : 'Sound: Off';
+  }
+}
+
+function maybePop(force=false){
+  if (!__audioReady) return;
+  if (!force && !__sfxOn) return;
+  const ctx = __audioCtx, src = ctx.createBufferSource();
+  src.buffer = __popBuf;
+  const g = ctx.createGain();
+  g.gain.value = force ? 0.35 : 0.28; // confirmation slightly louder
+  src.connect(g).connect(ctx.destination);
+  src.start();
+}
+
+// Render a super-short “pop” into an AudioBuffer (decaying sine with click)
+function makePopBuffer(ctx){
+  const dur = 0.06, sr = ctx.sampleRate, n = Math.floor(sr * dur);
+  const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  // freq glide 650 → 180 Hz with exp envelope
+  for (let i=0;i<n;i++){
+    const t = i/sr;
+    const f = 180 + (650-180) * Math.pow(1 - t/dur, 2.2);
+    const env = Math.pow(1 - t/dur, 2.8);
+    d[i] = Math.sin(2*Math.PI*f*t) * env;
+  }
+  // add a tiny click/pitch bend at start to feel “snappy”
+  d[0] *= 0.6; d[1] *= 0.8;
+  return buf;
+}
+
 // ===== Splash Controller =====
 (function initSplash() {
   const splash = document.getElementById('splash');
@@ -1677,8 +1791,14 @@ function wireFeedbackModal(){
   // Helper to end the splash with fade-out
   function dismissSplash() {
     if (!splash.classList.contains('is-visible')) return;
+    
+    // v9.9 — Initialize audio on first gesture + subtle confirmation pop
+    if (!window.__audioReady){ initAudioOnce(); try{ playPop(1); }catch(_){} }
 
     splash.classList.add('is-fading-out');
+
+    // ensure audio is unlocked on first user gesture + play confirmation
+    try { initAudioOnce(); maybePop(true); } catch(_) {}
 
     // Give the CSS transition time to finish
     setTimeout(() => {
