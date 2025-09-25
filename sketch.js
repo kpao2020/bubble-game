@@ -206,6 +206,12 @@
 // v9.9   : Add procedural bubble-pop SFX (WebAudio) with top-bar toggle (default muted) and fix dark-mode splash CTA contrast.
 //
 // v9.9.1 : WebAudio SFX (muted by default) + first-tap confirmation pop; dark-mode splash CTA contrast; SFX toggle in header.
+//
+// v9.9.2 : Splash “Start” card acts as a single teal CTA (click/tap/Enter/Space); first tap plays a confirmation pop to 
+//          init WebAudio; Mode Picker tiles unchanged. (minor)
+//
+// v9.9.3 : Unmuted SFX by default with first-tap confirm pop; add bottom-left floating sound toggle; canvas ignores taps on it. (minor)
+//
 // ============================================================================
 
 
@@ -841,7 +847,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.9', // keep in sync with version comment
+        gameVersion: 'v9.9.3', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -910,6 +916,12 @@ function setup(){
     cnv.style.touchAction = 'none';
     cnv.addEventListener('pointerdown', (e) => {
       if (!window.__playerReady) return; // ignore clicks until after login
+
+      // ignore taps on the floating SFX button
+      const sfx = document.getElementById('sfxFloat');
+      const r2 = sfx?.getBoundingClientRect?.();
+      if (r2 && e.clientY >= r2.top && e.clientY <= r2.bottom && e.clientX >= r2.left && e.clientX <= r2.right) return;
+
       // ignore clicks on top bar
       const ui = document.getElementById('topBar');
       const r = ui?.getBoundingClientRect?.();
@@ -1036,16 +1048,16 @@ function setup(){
     });
   }
 
-  const sfxBtn = document.getElementById('sfxBtn');
+  // v9.9.3 — floating SFX toggle
+  const sfxBtn = document.getElementById('sfxFloat');
   if (sfxBtn){
-    // default muted; reflect stored state once user toggles
+    // reflect default ON state
+    setSfx(true);
     sfxBtn.onclick = () => {
       try { initAudioOnce(); } catch(_){}
       setSfx(!__sfxOn);
-      if (__sfxOn) maybePop(); // preview when turning on
+      if (__sfxOn) maybePop(); // preview when turning ON
     };
-    // ensure label is correct on load
-    setSfx(__sfxOn);
   }
 
 } // end of setup()
@@ -1734,7 +1746,7 @@ function playPop(vel=1){
 
 // ===== Audio SFX (procedural) =====
 let __audioCtx = null, __popBuf = null, __audioReady = false;
-let __sfxOn = false;  // default muted
+let __sfxOn = true;  // default unmuted
 
 function initAudioOnce(){
   if (__audioReady) return;
@@ -1786,12 +1798,15 @@ function makePopBuffer(ctx){
 // ===== Splash Controller =====
 (function initSplash() {
   const splash = document.getElementById('splash');
+  const splashCard = document.getElementById('splashCard') || splash.querySelector('.splash-inner');
+
   if (!splash) return;
 
   // Helper to end the splash with fade-out
   function dismissSplash() {
     if (!splash.classList.contains('is-visible')) return;
-    
+    try { initAudioOnce(); maybePop(); } catch (_) {}
+
     // v9.9 — Initialize audio on first gesture + subtle confirmation pop
     if (!window.__audioReady){ initAudioOnce(); try{ playPop(1); }catch(_){} }
 
@@ -1816,11 +1831,14 @@ function makePopBuffer(ctx){
 
   // Interactions: click/tap or keys (Enter/Space)
   const startEvents = ['click', 'touchend'];
-  startEvents.forEach(evt => splash.addEventListener(evt, dismissSplash, { passive: true }));
-  window.addEventListener('keydown', (e) => {
+  startEvents.forEach(evt =>
+    splashCard?.addEventListener(evt, dismissSplash, { passive: true })
+  );
+  splashCard?.addEventListener('keydown', (e) => {
     const k = e.key?.toLowerCase();
     if (k === 'enter' || k === ' ') dismissSplash();
   });
+
 })();
 
 window.__splashActive = true;

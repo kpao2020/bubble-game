@@ -104,12 +104,15 @@ Deployment notes
   <!-- Centered end-game UI -->
   <div id="center" class="centerMsg" style="display:none;"></div>
 
+  <!-- Floating SFX toggle (bottom-left) -->
+  <button id="sfxFloat" class="fab" aria-pressed="true" aria-label="Sound: On" title="Sound: On">🔊</button>
+
   <!-- Offscreen detector video (always rendering) -->
   <video id="webcam" autoplay muted playsinline class="hiddenVideo"></video>
 
   <!-- Splash Screen Overlay -->
   <div id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-labelledby="splashTitle" aria-describedby="splashSubtitle">
-    <div class="splash-inner">
+    <div id="splashCard" class="splash-inner" role="button" tabindex="0" aria-labelledby="splashTitle splashSubtitle">
       <h1 id="splashTitle" class="splash-title">Popping Bubbles</h1>
       <p id="splashSubtitle" class="splash-subtitle">Tap to Start</p>
     </div>
