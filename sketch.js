@@ -210,6 +210,8 @@
 // v9.9.2 : Splash “Start” card acts as a single teal CTA (click/tap/Enter/Space); first tap plays a confirmation pop to 
 //          init WebAudio; Mode Picker tiles unchanged. (minor)
 //
+// v9.9.3 : Unmuted SFX by default with first-tap confirm pop; add bottom-left floating sound toggle; canvas ignores taps on it. (minor)
+//
 // ============================================================================
 
 
@@ -845,7 +847,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.9.2', // keep in sync with version comment
+        gameVersion: 'v9.9.3', // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -914,6 +916,12 @@ function setup(){
     cnv.style.touchAction = 'none';
     cnv.addEventListener('pointerdown', (e) => {
       if (!window.__playerReady) return; // ignore clicks until after login
+
+      // ignore taps on the floating SFX button
+      const sfx = document.getElementById('sfxFloat');
+      const r2 = sfx?.getBoundingClientRect?.();
+      if (r2 && e.clientY >= r2.top && e.clientY <= r2.bottom && e.clientX >= r2.left && e.clientX <= r2.right) return;
+
       // ignore clicks on top bar
       const ui = document.getElementById('topBar');
       const r = ui?.getBoundingClientRect?.();
@@ -1040,16 +1048,16 @@ function setup(){
     });
   }
 
-  const sfxBtn = document.getElementById('sfxBtn');
+  // v9.9.3 — floating SFX toggle
+  const sfxBtn = document.getElementById('sfxFloat');
   if (sfxBtn){
-    // default muted; reflect stored state once user toggles
+    // reflect default ON state
+    setSfx(true);
     sfxBtn.onclick = () => {
       try { initAudioOnce(); } catch(_){}
       setSfx(!__sfxOn);
-      if (__sfxOn) maybePop(); // preview when turning on
+      if (__sfxOn) maybePop(); // preview when turning ON
     };
-    // ensure label is correct on load
-    setSfx(__sfxOn);
   }
 
 } // end of setup()
@@ -1738,7 +1746,7 @@ function playPop(vel=1){
 
 // ===== Audio SFX (procedural) =====
 let __audioCtx = null, __popBuf = null, __audioReady = false;
-let __sfxOn = false;  // default muted
+let __sfxOn = true;  // default unmuted
 
 function initAudioOnce(){
   if (__audioReady) return;

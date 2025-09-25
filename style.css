@@ -785,3 +785,25 @@ button,
   #splash { background: linear-gradient(160deg, #0b3a4b 0%, #0e4a60 40%, #0f566e 100%); }
   #splash #splashCard { background: var(--btn-bg); }
 }
+
+/* =========================================================
+   v9.9.3 — Floating SFX toggle (bottom-left)
+   ========================================================= */
+.fab{
+  position: fixed;
+  left: calc(env(safe-area-inset-left, 0px) + 14px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  width: 48px; height: 48px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: #0f766e; color: #ffffff; font-size: 22px;
+  border: none; box-shadow: 0 8px 22px rgba(0,0,0,.25);
+  z-index: 50; cursor: pointer; user-select: none;
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
+}
+.fab:hover  { filter: brightness(1.06); }
+.fab:active { transform: translateY(1px) scale(.98); }
+.fab:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(15,118,110,.35), 0 8px 22px rgba(0,0,0,.25); }
+
+@media (prefers-color-scheme: dark){
+  .fab{ background: #14a39a; }
+}
