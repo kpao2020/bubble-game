@@ -38,6 +38,11 @@ export default {
     // forward query (?action=..., &username=..., &deviceId=...)
     for (const [k, v] of incoming.searchParams) url.searchParams.set(k, v);
 
+    // v9.9.6 — normalize ?limit -> ?n for older GAS handlers (no-op if not present)
+    const limit = incoming.searchParams.get('limit');
+    const hasN  = incoming.searchParams.has('n');
+    if (limit && !hasN) url.searchParams.set('n', limit);
+
     const init = { method: req.method, headers: {} };
 
     if (req.method === 'GET') {

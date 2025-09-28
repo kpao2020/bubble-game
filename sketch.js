@@ -212,13 +212,36 @@
 //
 // v9.9.3 : Unmuted SFX by default with first-tap confirm pop; add bottom-left floating sound toggle; canvas ignores taps on it. (minor)
 //
+// v9.9.4 — Remove duplicate top-bar sound button (#sfxBtn) next to Mode chip; keep bottom-left floating SFX toggle
+//          (#sfxFloat). Update setSfx() to reflect state on #sfxFloat so the visible control always mirrors the current audio
+//          setting. No functional changes elsewhere.
+//
+// v9.9.5 — Replace Mode Picker small icon buttons with full-width teal bar buttons. Reorder as Mood, Challenge, Classic.
+//          Buttons are responsive, stretch to container width, adjust height for icon+text, and keep consistent teal styling.
+//
+// v9.9.6 — GAS: add GET ?action=leaderboard (limit|n, username) over Runs; sort by score desc, accuracy desc, newest.
+//          Return {ok,scores[],me:{rank}}. In doPost, accept "submitRun" as alias for "run". Reuse existing Runs tab; no new sheet.
+//        - Worker: normalize ?limit to ?n for backward-compat with GAS top handler. Keep CORS allowlist and POST secret
+//          append unchanged. No other behavioral changes; leaderboard and submitRun calls are forwarded verbatim.
+//
+// v9.9.7 — Post-game polish
+//          - Removed legacy "Game Over / Score" overlay (#center); post-game modal is now the single source of round
+//            summary.
+//          - Updated renderPostGameContent() to only update #playerStats and #leaderboard, keeping Play Again /
+//            Change Mode / Feedback buttons intact.
+//          - Personalized stats: show "Your name" instead of generic "User"; rank shown when GAS matches username.
+//          - Normalized username handling (trim) before submit/fetch so rank displays correctly; default to Guest if
+//            blank.
+//          - CSS cleanup: removed duplicate survey/login blocks; removed unused leaderboardBlock ul/li rules. Table
+//            (.lbTable) styles finalized.
+//
 // ============================================================================
-
 
 
 /* =============================
  *        Game constants
  * ============================= */
+const GV = 'v9.9.7';                  // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -847,7 +870,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.9.3', // keep in sync with version comment
+        gameVersion: GV, // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -872,6 +895,111 @@ function submitRunOnce(){
   window.__runSubmitted = true;
   submitRun();
 }
+
+// v9.9.7 — leaderboard (no separate rank endpoint)
+// Simple fetch wrapper
+async function fetchJSON(url, opts){
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function computeAccuracyPct(){
+  const acc = (bubblesPoppedGood / Math.max(1, tapsTotal));
+  return Math.round(acc * 100);
+}
+
+// GET Top N leaderboard, ask backend to include my rank via ?username=
+async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
+  // Apps Script supports: action=leaderboard&limit=5&username=...
+  const qs = new URLSearchParams({
+    action: 'leaderboard',
+    limit: String(limit),
+    username: playerUsername || ''
+    // 'mode' is harmless to include, but GAS currently ignores it
+    // mode
+  });
+  return fetchJSON(`${GOOGLE_SCRIPT_URL}?${qs.toString()}`);
+}
+
+// Build the post-game inner HTML (stats + leaderboard)
+function renderPostGameContent({ username, score, accuracyPct, mode, rank, board }){
+  document.getElementById('postGameTitle').textContent = 'Round Summary';
+
+  // Build leaderboard rows
+  const rows = (board || []).map((r, i) => {
+    const rnk = (r.rank != null) ? r.rank : (i + 1);
+    const name = r.username ?? r.name ?? '';
+    const sc   = r.score ?? 0;
+    const md   = r.mode ?? mode;
+    const acc  = (typeof r.accuracyPct === 'number')
+      ? `${r.accuracyPct}%`
+      : (typeof r.accuracy === 'number'
+          ? `${Math.round(r.accuracy * 100)}%`
+          : '');
+    return `<tr>
+              <td>${rnk}</td>
+              <td>${name}</td>
+              <td>${sc}</td>
+              <td>${acc}</td>
+              <td>${md}</td>
+            </tr>`;
+  }).join('');
+
+  // Fill player stats
+  const statsEl = document.getElementById('playerStats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div>Your name: <strong>${username || 'Guest'}</strong></div>
+      <div>Mode: ${mode}</div>
+      <div>Score: ${score}</div>
+      <div>Accuracy: ${accuracyPct}%</div>
+      <div>Your Rank: ${rank ?? '-'}</div>
+    `;
+  }
+
+  // Fill leaderboard
+  const lbEl = document.getElementById('leaderboard');
+  if (lbEl) {
+    lbEl.innerHTML = `
+      <h3>Top 5</h3>
+      <table class="lbTable">
+        <thead>
+          <tr><th>#</th><th>User</th><th>Score</th><th>Acc</th><th>Mode</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+}
+
+// Save the run (once), then fetch & render stats
+async function hydratePostGame(){
+  try {
+    submitRunOnce();                       // ensure row exists before reading
+    const username = (playerUsername || '').trim();
+    const mode = (currentMode || 'classic');
+    const accuracyPct = computeAccuracyPct();
+
+    // Single GET: includes top + my rank when username is provided
+    const data = await getLeaderboard(5, mode);
+    const board = Array.isArray(data?.scores) ? data.scores : (data?.rows || []);
+    const rank  = (data?.me && typeof data.me.rank === 'number') ? data.me.rank : null;
+
+    renderPostGameContent({ username, score, accuracyPct, mode, rank, board });
+  } catch (e){
+    console.warn('[post-game] hydrate failed:', e);
+    renderPostGameContent({
+      username: playerUsername,
+      score,
+      accuracyPct: computeAccuracyPct(),
+      mode: (currentMode||'classic'),
+      rank: null,
+      board: []
+    });
+  }
+}
+
 
 /* =============================
  *        Setup & Draw
@@ -1048,13 +1176,12 @@ function setup(){
     });
   }
 
-  // v9.9.3 — floating SFX toggle
+  // v9.9.6 — floating SFX toggle (respect saved state)
   const sfxBtn = document.getElementById('sfxFloat');
   if (sfxBtn){
-    // reflect default ON state
-    setSfx(true);
-    sfxBtn.onclick = () => {
-      try { initAudioOnce(); } catch(_){}
+    try { initAudioOnce(); } catch(_){}
+    sfxBtn.onclick = async () => {
+      try { await __audioCtx.resume(); } catch(_){}
       setSfx(!__sfxOn);
       if (__sfxOn) maybePop(); // preview when turning ON
     };
@@ -1236,11 +1363,8 @@ function touchStarted(){
 }
 
 function endGame(){
-  gameOver = true; 
+  gameOver = true;
   noLoop();
-
-  const centerEl = document.getElementById('center');
-  if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
 
   if (isMoodMode()){
     if (MOOD_STOP_STRATEGY === 'pause') { stopSampler(); }
@@ -1250,8 +1374,9 @@ function endGame(){
   }
 
   openPostGameModal();
+  // NEW: fill stats + leaderboard (submits run once, then fetches data)
+  hydratePostGame();
 }
-
 
 function restart(fromModeButton){
   // Lazy init groups/walls on first start
@@ -1700,16 +1825,6 @@ function wireFeedbackModal(){
 /* =============================
  *        Audio SFX (WebAudio)
  * ============================= */
-function initAudioOnce(){
-  if (window.__audioReady) return;
-  try{
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    window.__audioCtx = new Ctx();
-    window.__audioReady = true;
-  }catch(e){ console.warn('Audio init failed:', e); }
-}
-
 function playPop(vel=1){
   const ctx = window.__audioCtx; if (!ctx) return;
   const t = ctx.currentTime;
@@ -1751,22 +1866,36 @@ let __sfxOn = true;  // default unmuted
 function initAudioOnce(){
   if (__audioReady) return;
   __audioCtx = __audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  __popBuf = __popBuf || makePopBuffer(__audioCtx); // 60ms bubble pop
+  __popBuf = __popBuf || makePopBuffer(__audioCtx);
   __audioReady = true;
-  // Initialize SFX state from storage (default off)
-  try { setSfx(localStorage.getItem('bbg_sfx_on') === '1'); } catch(_){}
-}
 
-function setSfx(on){
-  __sfxOn = !!on;
-  try { localStorage.setItem('bbg_sfx_on', __sfxOn ? '1':'0'); } catch(_){}
-  const btn = document.getElementById('sfxBtn');
-  if (btn) {
-    btn.setAttribute('aria-pressed', __sfxOn ? 'true' : 'false');
-    btn.textContent = __sfxOn ? '🔊' : '🔇';
-    btn.title = __sfxOn ? 'Sound: On' : 'Sound: Off';
+  // Initialize SFX state from storage (default = ON if nothing stored)
+  try {
+    const saved = localStorage.getItem('bbg_sfx_on');
+    if (saved === null) {
+      setSfx(true);  // first time → default ON
+    } else {
+      setSfx(saved === '1');
+    }
+  } catch(_) {
+    setSfx(true);
   }
 }
+
+// v9.9.4 — unified SFX state sync (top-bar button removed; keep bottom-left floater)
+function setSfx(on){
+  window.__sfxOn = !!on;
+  try { localStorage.setItem('bbg_sfx_on', window.__sfxOn ? '1' : '0'); } catch(_) {}
+
+  // Support both legacy #sfxBtn (now removed) and the floating #sfxFloat
+  const btn = document.getElementById('sfxFloat');   // floating bottom-left (current)
+  if (btn){
+    btn.setAttribute('aria-pressed', window.__sfxOn ? 'true' : 'false');
+    btn.textContent = window.__sfxOn ? '🔊' : '🔇';
+    btn.title = window.__sfxOn ? 'Sound: On' : 'Sound: Off';
+  }
+}
+
 
 function maybePop(force=false){
   if (!__audioReady) return;
