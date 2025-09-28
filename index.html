@@ -139,7 +139,7 @@ Deployment notes
       <div class="modalHeader">
         <h3 id="postGameTitle">Round complete</h3>
       </div>
-      
+
       <!-- v9.9.6 — Player stats + Leaderboard -->
       <div id="postStats" class="modalRow stacked" style="margin:12px 0; text-align:center;">
         <div id="playerStats" class="statsBlock">
@@ -302,6 +302,17 @@ Deployment notes
       </div>
     </div>
 
+  </div>
+
+  <!-- v9.9.8 — Pre-game Loading Overlay -->
+  <div id="loadingOverlay" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="loadingTitle">
+    <div class="modalContent" style="text-align:center; padding:24px;">
+      <h3 id="loadingTitle">Loading game…</h3>
+      <p id="loadingMsg" style="margin:10px 0;">Please wait while we prepare everything.</p>
+      <div class="loadingBarWrap">
+        <div class="loadingBar"></div>
+      </div>
+    </div>
   </div>
 
 </body>

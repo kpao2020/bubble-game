@@ -235,13 +235,22 @@
 //          - CSS cleanup: removed duplicate survey/login blocks; removed unused leaderboardBlock ul/li rules. Table
 //            (.lbTable) styles finalized.
 //
+// v9.9.8 — Leaderboard by mode + UI polish
+//          - Google Apps Script leaderboard now filters by mode; only top 5 scores from the same mode are shown
+//            (Classic / Challenge / Mood).
+//          - Frontend getLeaderboard() passes current mode to GAS so results are mode-specific.
+//          - Post-game stats block updated: align left for easier reading.
+//          - Changed label from "Your name" to "Name" for cleaner presentation.
+//          - Added placeholder text inside Post-game modal while stats + leaderboard are loading, so players see
+//            immediate feedback instead of a blank modal.
+//
 // ============================================================================
 
 
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v9.9.7';                  // game version number
+const GV = 'v9.9.8';                  // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -631,17 +640,21 @@ async function afterModeSelected(isMood){
   const ms = document.getElementById('modeSelect');
   if (ms) ms.disabled = true;
 
-  // Now actually start the game round
-  const centerEl = document.getElementById('center');
-  if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
-
   window.__playerReady = true;
 
   if (isMood){
-    await ensureFaceApiLib();
-    await loadFaceApiModels();
-    startWebcam();
-    startSampler();
+    // NEW: show loading overlay while models load
+    const loading = document.getElementById('loadingOverlay');
+    if (loading) loading.classList.remove('hidden');
+
+    try {
+      await ensureFaceApiLib();
+      await loadFaceApiModels();
+      startWebcam();
+      startSampler();
+    } finally {
+      if (loading) loading.classList.add('hidden');  // hide overlay when ready
+    }
   } else {
     stopSampler();
     stopWebcam();
@@ -915,9 +928,8 @@ async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
   const qs = new URLSearchParams({
     action: 'leaderboard',
     limit: String(limit),
-    username: playerUsername || ''
-    // 'mode' is harmless to include, but GAS currently ignores it
-    // mode
+    username: playerUsername || '',
+    mode: mode
   });
   return fetchJSON(`${GOOGLE_SCRIPT_URL}?${qs.toString()}`);
 }
@@ -981,7 +993,20 @@ async function hydratePostGame(){
     const mode = (currentMode || 'classic');
     const accuracyPct = computeAccuracyPct();
 
-    // Single GET: includes top + my rank when username is provided
+    // NEW: show placeholder immediately
+    const statsEl = document.getElementById('playerStats');
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div><strong>✅ Thank you for playing!</strong></div>
+        <div>Please wait while we prepare your game stats…</div>
+      `;
+    }
+    const lbEl = document.getElementById('leaderboard');
+    if (lbEl) {
+      lbEl.innerHTML = `<p style="opacity:.7;">Loading leaderboard…</p>`;
+    }
+
+    // Fetch leaderboard (includes top + rank if username provided)
     const data = await getLeaderboard(5, mode);
     const board = Array.isArray(data?.scores) ? data.scores : (data?.rows || []);
     const rank  = (data?.me && typeof data.me.rank === 'number') ? data.me.rank : null;
@@ -989,6 +1014,7 @@ async function hydratePostGame(){
     renderPostGameContent({ username, score, accuracyPct, mode, rank, board });
   } catch (e){
     console.warn('[post-game] hydrate failed:', e);
+
     renderPostGameContent({
       username: playerUsername,
       score,
@@ -999,7 +1025,6 @@ async function hydratePostGame(){
     });
   }
 }
-
 
 /* =============================
  *        Setup & Draw

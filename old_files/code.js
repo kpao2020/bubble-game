@@ -6,7 +6,7 @@
 // ============================================================================
 
 // === CONFIG ===
-const SECRET   = "<redact>";  // Cloudflare Worker appends ?secret=...
+const SECRET   = '<redact>';  // Cloudflare Worker appends ?secret=...
 const RUNS     = 'Runs';
 const PROFILES = 'Profiles';
 
@@ -191,12 +191,11 @@ function handleLeaderboard_(qp) {
   const runs = sheet_(RUNS);
   const limit = Math.max(1, Math.min(100, parseInt(qp.limit || qp.n || '5', 10) || 5));
   const userQ = (qp.username || '').trim();
+  const modeQ = (qp.mode || '').trim().toLowerCase();   // NEW
 
   const rowsAll = runs.getDataRange().getValues();
   if (rowsAll.length <= 1) return json_({ ok: true, scores: [], me: null });
 
-  // Strip header; map using your declared indices (see header in this file)
-  // 0 ts | 5 username | 6 mode | 8 score | 11 accuracy
   const data = rowsAll.slice(1).map(r => ({
     ts:       r[0],
     username: (r[5] || '') + '',
@@ -205,14 +204,17 @@ function handleLeaderboard_(qp) {
     accuracy: Number(r[11]) || 0
   }));
 
+  // NEW: filter by mode if provided
+  const filtered = modeQ ? data.filter(x => x.mode.toLowerCase() === modeQ) : data;
+
   // Sort: score ↓, accuracy ↓, newest first
-  data.sort((a, b) =>
+  filtered.sort((a, b) =>
     (b.score - a.score) ||
     (b.accuracy - a.accuracy) ||
     (new Date(b.ts).getTime() - new Date(a.ts).getTime())
   );
 
-  const top = data.slice(0, limit).map(x => ({
+  const top = filtered.slice(0, limit).map(x => ({
     username: x.username,
     score: x.score,
     accuracy: x.accuracy,
@@ -221,13 +223,12 @@ function handleLeaderboard_(qp) {
 
   let me = null;
   if (userQ) {
-    const idx = data.findIndex(r => r.username === userQ);
+    const idx = filtered.findIndex(r => r.username === userQ);
     if (idx >= 0) me = { rank: idx + 1 };
   }
 
   return json_({ ok: true, scores: top, me });
 }
-
 
 // ---- Helpers ----
 function sheet_(name) {
