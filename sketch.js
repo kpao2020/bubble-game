@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.0';                 // game version number
+const GV = 'v10.1.2';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -871,7 +871,7 @@ async function submitRun(){
         score,
         durationMs,
         bubblesPopped,
-        accuracy: +( (bubblesPoppedGood / Math.max(1, tapsTotal)).toFixed(3) ),
+        accuracy: +( (bubblesPopped / Math.max(1, tapsTotal)).toFixed(3) ),
         emoHappy:    emoCounts.happy,
         emoSad:      emoCounts.sad,
         emoAngry:    emoCounts.angry,
@@ -902,7 +902,7 @@ async function fetchJSON(url, opts){
 }
 
 function computeAccuracyPct(){
-  const acc = (bubblesPoppedGood / Math.max(1, tapsTotal));
+  const acc = (bubblesPopped / Math.max(1, tapsTotal));
   return Math.round(acc * 100);
 }
 
@@ -969,8 +969,17 @@ function renderPostGameContent({ username, score, accuracyPct, mode, rank, board
   }
 }
 
+let __lastLbFetch = 0;   // <-- put this at top level (file scope)
+
+
 // Save the run (once), then fetch & render stats
 async function hydratePostGame(){
+  const now = Date.now();
+  if (now - __lastLbFetch < 5000) {
+    console.warn('[leaderboard] Skipping fetch (debounced)');
+    return;
+  }
+  __lastLbFetch = now;
   try {
     submitRunOnce();                       // ensure row exists before reading
     const username = (playerUsername || '').trim();
@@ -1017,6 +1026,11 @@ async function hydratePostGame(){
       rank: null,
       board: []
     });
+
+    const lbEl = document.getElementById('leaderboard');
+    if (lbEl) {
+      lbEl.innerHTML = `<p style="opacity:.7;">Leaderboard unavailable (please try again later).</p>`;
+    }
   }
 }
 
@@ -1503,13 +1517,6 @@ function handlePop(px, py){
       noteMiss();
     }
   }
-}
-
-function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
-function touchStarted(){
-  if (!window.__playerReady) return;
-  if (touches && touches.length) for (const t of touches) handlePop(t.x, t.y);
-  else handlePop(mouseX, mouseY);
 }
 
 function endGame(){

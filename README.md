@@ -383,6 +383,12 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 - AudioContext is now resumed immediately inside the splash tap/click handler (before timeouts),
   eliminating Chrome’s autoplay warnings. (minor)
 
+### v10.1.1
+- Accuracy fix — removed duplicate input handlers (mousePressed/touchStarted) and now compute accuracy using all pops, so displayed accuracy matches actual clicks. (minor)
+
+### v10.1.2
+- Leaderboard guard — debounce leaderboard fetches (5s) and show a fallback message if the proxy returns 429/failed, preventing blank summaries. (minor)
+
 ---
 
 ## ▶️ How to Play
