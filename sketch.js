@@ -244,13 +244,38 @@
 //          - Added placeholder text inside Post-game modal while stats + leaderboard are loading, so players see
 //            immediate feedback instead of a blank modal.
 //
+// v10.0.0 — Classic variants Step 2:
+//          startClassicRound(), buildClassicBoard() (static grid), timed/relax end checks in draw()
+//
+// v10.0.1 — Challenge tuning
+//          - Combo multiplier: after 5 hits → x1.5, after 10 hits → x2.0; reset on miss.
+//          - On-screen badge shows current combo state.
+//          - Updated scoring in handlePop() to apply multiplier (no bonus on trick bubbles).
+//
+// v10.0.2 — Classic polish
+//          - Reduce red penalty (−2 default; tweakable).
+//          - End when all teal bubbles are popped; reds no longer block game end.
+//
+// v10.0.3 — Timer + Audio polish
+//          - Classic Timed: reset timer to 60s on Play Again (re-sets classicDeadline in restart()).
+//          - AudioContext: resume on first user gesture (global pointer/key listener) to satisfy Chrome autoplay policy.
+//
+// v10.0.4 — Color unification + cleanup
+//          - Removed random palette; all modes now teal=score, red=penalty.
+//          - Replaced b.red / b._type with b.kind ('normal' | 'trick').
+//          - Simplified tint logic (_tint set once at spawn, reused in draw).
+//
+// v10.0.5 — Mood trick bubbles
+//          - Mood mode now spawns occasional red 'trick' bubbles (MOOD_TRICK_RATE), same teal/red scheme.
+//          - spawnBubble() sets b.kind for Challenge and Mood; draw/score already use b.kind.
+//
 // ============================================================================
 
 
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v9.9.8';                  // game version number
+const GV = 'v10.0.5';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -270,18 +295,21 @@ const MISS_STREAK_TRIGGER        = 3;    // start easing after this many consecu
 const MISS_STREAK_SLOW_PER_MISS  = 0.08; // each miss beyond trigger slows ~8%
 const MISS_STREAK_SLOW_CAP       = 0.35; // never slow more than 35%
 
-// High-contrast, cheerful palette for bubble tints (RGB)
-const BUBBLE_COLORS = [
-  [ 66, 135, 245],  // lively blue
-  [ 52, 199,  89],  // green
-  [255, 159,  10],  // orange
-  [255,  99, 132],  // pink/red
-  [175,  82, 222],  // purple
-  [ 50, 212, 222],  // teal
-  [255, 204,  77],  // warm yellow
-];
+
+// v10.0.0 — Classic variants + static board (Step 2)
+const CLASSIC_DEFAULT = 'timed';     // 'timed' | 'relax'
+const CLASSIC_TIME_MS = 60000;       // 60s for Timed
+let classicVariant = CLASSIC_DEFAULT;
+let classicDeadline = 0;             // ms; 0 => relax (no timer)
+
+// v10.0.0 — Red penalty & flyout
+const RED_RATE    = 0.15;   // ~15% of bubbles are red in Classic
+const RED_PENALTY = 2;      // popping a red bubble subtracts 2
 
 const MOOD_SAMPLE_MS = 1500;           // face sampling cadence (ms)
+
+const COLOR_TEAL = [15, 118, 110, 200];
+const COLOR_RED  = [198, 40, 40, 200];
 
 // Mood end-game behavior: 'pause' (sampler only) or 'stop' (sampler + camera)
 const MOOD_STOP_STRATEGY = 'pause';
@@ -295,6 +323,7 @@ const CLASSIC_SPEED_CAP   = 3.0;
 
 let currentMode = 'classic'; // 'classic' | 'challenge' | 'mood'
 const CHALLENGE_TRICK_RATE = 0.22;
+const MOOD_TRICK_RATE = 0.18;
 
 let bubbles;               // p5play Group of bubbles
 let walls;                 // boundary walls
@@ -356,6 +385,10 @@ let lastEmotion = 'neutral', lastSwitchMs = 0;
 
 // Per-round emotion counts (incremented by the Mood sampler)
 let emoCounts = { happy: 0, sad: 0, angry: 0, stressed: 0, neutral: 0 };
+
+// v10.0.1 — Step 4A: challenge combo
+let comboHitStreak = 0;
+let comboMult  = 1.0;   // 1.0 → 1.5 after 5 hits → 2.0 after 10 hits
 
 
 /* =============================
@@ -660,6 +693,14 @@ async function afterModeSelected(isMood){
     stopWebcam();
   }
 
+  // If Classic, show the options modal first (Timed/Relax), then start in startClassicRound()
+  if (!isMood && currentMode === 'classic') {
+    const loading = document.getElementById('loadingOverlay');
+    if (loading) loading.classList.add('hidden'); // just in case it was visible
+    openClassicOpts();
+    return; // IMPORTANT: do not call restart() yet
+  }
+
   refreshCameraBtn();
   setBodyModeClass(); // keep CSS theming in sync
   restart(false);
@@ -857,6 +898,132 @@ function noteMiss(){
     rubberSlow = Math.min(MISS_STREAK_SLOW_CAP, rubberSlow + MISS_STREAK_SLOW_PER_MISS);
   }
 }
+
+// v10.0.0 — classic option modal
+function openClassicOpts(){
+  const m = document.getElementById('classicOpts');
+  if (m) m.classList.remove('hidden');
+  // default to Timed after short delay if no click
+  clearTimeout(window.__classicAutoTO);
+  window.__classicAutoTO = setTimeout(()=>{ if (!m || m.classList.contains('hidden')) return;
+    classicVariant='timed'; if (m) m.classList.add('hidden'); startClassicRound(); }, 1600);
+}
+function wireClassicOpts(){
+  const m = document.getElementById('classicOpts');
+  const bt = document.getElementById('classicTimedBtn');
+  const br = document.getElementById('classicRelaxBtn');
+  if (bt) bt.onclick = ()=>{ classicVariant='timed'; if (m) m.classList.add('hidden'); startClassicRound(); };
+  if (br) br.onclick = ()=>{ classicVariant='relax'; if (m) m.classList.add('hidden'); startClassicRound(); };
+}
+document.addEventListener('DOMContentLoaded', wireClassicOpts);
+
+function startClassicRound(){
+  // build static board (no movement, no respawn)
+  buildClassicBoard();
+
+  // set end condition
+  classicDeadline = (classicVariant === 'timed') ? (Date.now() + CLASSIC_TIME_MS) : 0;
+
+  // make sure we’re in classic visuals and start the round
+  currentMode = 'classic';
+  setBodyModeClass?.();          // if you have it
+  refreshCameraBtn?.();          // safe no-op outside Mood
+  restart(false);                // your existing game start/reset
+}
+
+function buildClassicBoard(){
+  // Grid sizing — adjust if you like
+  const cols = 6, rows = 8;
+  const pad = 16;
+  const w = width  - pad * 2;
+  const h = height - pad * 2;
+  const cx = w / cols;
+  const cy = h / rows;
+  const radius = Math.min(cx, cy) * 0.38;
+
+  // Replace existing bubbles with one static grid
+  // (use your array name if different)
+  bubbles = [];
+
+  for (let r = 0; r < rows; r++){
+    for (let c = 0; c < cols; c++){
+      const x = pad + c * cx + cx / 2;
+      const y = pad + r * cy + cy / 2;
+      const isTrick = Math.random() < RED_RATE;
+      bubbles.push({
+        x, y, 
+        r: radius,
+        diameter: radius * 2,
+        alive: true, 
+        kind: isTrick ? 'trick' : 'normal',
+        vx: 0, vy: 0
+      });
+    }
+  }
+
+  // Flag for “no movement” paths if your update loop checks it
+  window.__classicStatic = true;
+}
+
+function onHit(){
+  comboHitStreak++;
+  if (comboHitStreak >= 10) comboMult = 2.0;
+  else if (comboHitStreak >= 5) comboMult = 1.5;
+  else comboMult = 1.0;
+  showComboBadge();
+}
+
+function onMiss(){
+  comboHitStreak = 0;
+  comboMult = 1.0;
+  showComboBadge();
+}
+
+function getComboMultiplier(){
+  return (currentMode === 'challenge') ? comboMult : 1.0;
+}
+
+// Tiny UI badge (creates once and updates text)
+let __comboEl = null;
+function ensureComboEl(){
+  if (!__comboEl){
+    __comboEl = document.createElement('div');
+    __comboEl.className = 'comboBadge';
+    document.body.appendChild(__comboEl);
+  }
+  return __comboEl;
+}
+function showComboBadge(){
+  if (currentMode !== 'challenge') return;
+  const el = ensureComboEl();
+  el.textContent = (comboMult > 1) ? `Combo x${comboMult.toFixed(1)}` : 'Combo x1.0';
+  el.classList.toggle('active', comboMult > 1);
+}
+
+async function resumeAudioOnGesture(){
+  try { initAudioOnce?.(); } catch(_){}
+  if (window.__audioCtx && typeof window.__audioCtx.resume === 'function'){
+    try { await window.__audioCtx.resume(); } catch(_){}
+  }
+}
+
+// One-time global gesture hook to unlock WebAudio (Chrome autoplay policy)
+(function(){
+  if (window.__audioGestureHooked) return;
+  window.__audioGestureHooked = true;
+
+  let resumed = false;
+  const kick = async () => {
+    if (resumed) return;
+    resumed = true;
+    try { await resumeAudioOnGesture(); } catch(_) {}
+    window.removeEventListener('pointerdown', kick, true);
+    window.removeEventListener('keydown', kick, true);
+  };
+
+  window.addEventListener('pointerdown', kick, true);
+  window.addEventListener('keydown', kick, true);
+})();
 
 // End of UI Helper section
 
@@ -1219,9 +1386,29 @@ function draw(){
   fitCanvasToViewport();
   background(200,230,255);
 
-  const timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
+  // Classic mode timer setting
+  let timeLeft;
+  if (currentMode === 'classic'){
+    if (classicDeadline){
+      timeLeft = Math.max(0, Math.ceil((classicDeadline - Date.now())/1000));
+    } else {
+      timeLeft = null; // relax
+    }
+  } else {
+    timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
+  }
+
+  const timeChip = document.getElementById('timeChip');
+  if (timeChip){
+    if (timeLeft == null){
+      timeChip.textContent = 'Time: ∞';   // Relax mode
+    } else {
+      timeChip.textContent = `Time: ${timeLeft}`;
+    }
+  }
+
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
-  document.getElementById('timeChip').textContent  = `Time: ${timeLeft}`;
+
 
   const modeChip = document.getElementById('modeChip');
   if (modeChip){
@@ -1269,39 +1456,75 @@ function draw(){
 
     for (let i = 0; i < bubbles.length; i++){
       const b = bubbles[i];
-      b.direction += random(-0.35, 0.35);
-      const r = currentRadius(b);
 
-      if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), CLASSIC_SPEED_CAP), MINF);
-      else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), MINF);
-      else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6) * rubberSpeedFactor(), MINF);
+      // --- v10.0.0 Step 3C: Classic draw & dead-skip ---
+      if (currentMode === 'classic') {
+        // If we already "popped" it in classic, don't draw or move it
+        if (b.alive === false) continue;
 
-      if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-      if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-      if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
-      if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+        // Force a single tint for normal bubbles, and red for penalties
+        // (we bypass the usual palette/trick tints)
+        b._tint = (b.kind === 'trick') ? color(...COLOR_RED) : color(...COLOR_TEAL);
+      }
 
-      const d = r * 2;
-      fill(b._type === 'trick' ? color(255,120,120,170) : b._tint);
-      circle(b.x, b.y, d);
-      fill(255,255,255,60);
-      circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+      // Skip movement in Classic static mode
+      if (currentMode !== 'classic' || !window.__classicStatic) {
+        b.direction += random(-0.35, 0.35);
+        const r = currentRadius(b);
 
-      if (b._stuck == null) b._stuck = 0;
-      if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
-      if (b._stuck > 18){
-        b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
-        if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
-        if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
-        b._stuck = 0;
+        if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), CLASSIC_SPEED_CAP), MINF);
+        else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), MINF);
+        else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6) * rubberSpeedFactor(), MINF);
+
+        if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+        if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+        if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+        if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+
+        const d = r * 2;
+        fill(b._tint);
+        circle(b.x, b.y, d);
+        fill(255,255,255,60);
+        circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+
+        if (b._stuck == null) b._stuck = 0;
+        if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
+        if (b._stuck > 18){
+          b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
+          if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
+          if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
+          b._stuck = 0;
+        }
+      }
+
+      // NEW: Classic draw when movement is skipped
+      if (currentMode === 'classic') {
+        const r = currentRadius(b), d = r * 2;
+        fill(b._tint);           // you set this earlier based on (b.kind === 'trick')
+        circle(b.x, b.y, d);
+        fill(255,255,255,60);    // highlight
+        circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
       }
     }
   } catch (err) {
     console.warn('[draw] bubble loop error:', err);
   }
 
-  if (!gameOver && timeLeft <= 0) endGame();
-}
+  if (!gameOver && timeLeft != null && timeLeft <= 0) endGame();
+
+  // v10.0.0 — Classic end conditions (place near end of draw loop)
+  if (currentMode === 'classic'){
+    // v10.0.2 — finish Classic when all teal bubbles are popped (reds don’t block end)
+    const anyTealAlive = Array.isArray(bubbles) && bubbles.some(b => b.alive && b.kind !== 'trick');
+    if (!anyTealAlive){ endGame(); }
+
+    // or when timer expires (Timed variant)
+    if (classicDeadline && Date.now() >= classicDeadline){ endGame(); }
+  }
+
+  if (currentMode !== 'classic' || !window.__classicStatic){ /* move */ }
+
+} // end of draw()
 
 
 /* =============================
@@ -1309,27 +1532,46 @@ function draw(){
  * ============================= */
 function spawnBubble(){
   const d = random(MIN_DIAM, MAX_DIAM), r = d / 2, sTop = safeTopPx();
-  let angle = random(TWO_PI); if (abs(sin(angle)) < 0.2) angle += PI/4;
+  let angle = random(TWO_PI); 
+  if (abs(sin(angle)) < 0.2) angle += PI/4;
   const speed = random(MIN_SPEED, MAX_SPEED);
   let sx = random(r, width - r), sy = random(max(sTop + r, sTop + 1), height - r);
 
   if (isMoodMode()){
-    const biasX = width * moodState.gaze.x, biasY = constrain(height * moodState.gaze.y, sTop + r, height - r);
+    const biasX = width * moodState.gaze.x, 
+          biasY = constrain(height * moodState.gaze.y, sTop + r, height - r);
     sx = constrain(lerp(random(r, width - r), biasX, 0.6), r, width - r);
     sy = constrain(lerp(random(sTop + r, height - r), biasY, 0.6), sTop + r, height - r);
   }
 
   const b = new Sprite(sx, sy, d);
-  b.shape = 'circle'; b.color = color(255,255,255,0); b.diameter = d;
-  // new (choose a palette color with a stronger, visible alpha):
-  const cIdx = Math.floor(random(BUBBLE_COLORS.length));
-  const [cr,cg,cb] = BUBBLE_COLORS[cIdx];
-  b._tint = color(cr, cg, cb, 200);
+  b.shape = 'circle'; 
+  b.color = color(255,255,255,0); 
+  b.diameter = d;
 
-  b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
-  b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
-  b._type = (currentMode === 'challenge' && random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
-  bubbles.add(b); return b;
+  // v10.0.5 — Challenge & Mood: spawn trick bubbles by per-mode rates
+  if (currentMode === 'challenge'){
+    b.kind = (random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
+  } else if (currentMode === 'mood'){
+    b.kind = (random() < MOOD_TRICK_RATE) ? 'trick' : 'normal';
+  } else {
+    b.kind = 'normal';
+  }
+
+  const __teal = (typeof COLOR_TEAL !== 'undefined') ? color(...COLOR_TEAL) : color(15,118,110,200);
+  const __red  = (typeof COLOR_RED  !== 'undefined') ? color(...COLOR_RED)  : color(198,40,40,200);
+  b._tint = (b.kind === 'trick') ? __red : __teal;
+
+  b.direction = degrees(angle); 
+  b.speed = speed; 
+  b._baseSpeed = speed; 
+  b.mass = PI * r * r;
+  b.rotationLock = true; 
+  b._hitScale = 1; 
+  b._stuck = 0;
+
+  bubbles.add(b); 
+  return b;
 }
 
 function currentRadius(b){
@@ -1347,38 +1589,77 @@ function handlePop(px, py){
   let hit = false;
 
   for (let i = bubbles.length - 1; i >= 0; i--){
-    const b = bubbles[i], r = currentRadius(b), rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0);
+    const b = bubbles[i], r = currentRadius(b);
+
+    // v10.0.3 — Classic: skip already-popped bubbles
+    if (currentMode === 'classic' && b.alive === false) continue;
+
+    // v10.0.3 — Classic: no hit padding, exact circle only
+    const pad = (currentMode === 'classic') ? 0 : (IS_TOUCH ? TOUCH_HIT_PAD : 0);
+    const rHit = r + pad;
+
     const dx = px - b.x, dy = py - b.y;
     if (dx*dx + dy*dy <= rHit*rHit){
       hit = true;
 
-      // size-based scoring: smaller bubble => more points
-      const diameterNow = r * 2; // r from currentRadius(b), includes mood scaling
-      const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
-      const delta = (b._type === 'trick')
-        ? -SCORE_TRICK_PENALTY
-        : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
-      score += delta;
-      noteHit();
-      if (score < 0) score = 0;
+      if (currentMode === 'classic'){
+        // v10.0.0 — Classic: same-color vs red, no respawn
+        const delta = (b.kind === 'trick') ? -RED_PENALTY : 1;
+        score += delta;
+        if (score < 0) score = 0;
 
-      // NEW: stats
-      bubblesPopped++;
-      if (b._type === 'trick') bubblesPoppedTrick++;
-      else bubblesPoppedGood++;
+        // stats
+        bubblesPopped++;
+        if (b.kind === 'trick') bubblesPoppedTrick++;
+        else bubblesPoppedGood++;
 
-      b.remove();
-      spawnBubble();
-      break;
+        // small +/- flyout at tap position
+        if (typeof spawnFlyout === 'function') spawnFlyout(px, py, delta);
+
+        // mark dead; draw() will skip it, end condition will handle “all popped”
+        b.alive = false;
+        break;
+      } else {
+        // Existing behavior (Challenge/Mood): size-based score + respawn
+        // size-based scoring: smaller bubble => more points
+        const diameterNow = r * 2; // r from currentRadius(b), includes mood scaling
+        const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
+        let delta = (b.kind === 'trick')
+          ? -SCORE_TRICK_PENALTY
+          : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
+
+        // v10.0.1 — apply combo multiplier only to positive (non-trick) hits
+        if (currentMode === 'challenge' && delta > 0){
+          delta = Math.round(delta * getComboMultiplier());
+        }
+
+        score += delta;
+        // Do not increase combo on trick/penalty pops
+        if (delta > 0) onHit();
+        noteHit();
+        if (score < 0) score = 0;
+
+        // stats
+        bubblesPopped++;
+        if (b.kind === 'trick') bubblesPoppedTrick++;
+        else bubblesPoppedGood++;
+
+        // normal modes: remove + respawn
+        b.remove();
+        spawnBubble();
+        break;
+      }
     }
   }
 
   if (!hit) {
     tapsMissed++;
-    noteMiss();
+    if (currentMode !== 'classic'){
+      onMiss();
+      noteMiss();
+    }
   }
 }
-
 
 function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
 function touchStarted(){
@@ -1389,6 +1670,9 @@ function touchStarted(){
 
 function endGame(){
   gameOver = true;
+  if (currentMode === 'classic' && Array.isArray(bubbles)) {
+    for (const b of bubbles) b.alive = false; // hide leftovers (e.g., reds)
+  }
   noLoop();
 
   if (isMoodMode()){
@@ -1404,7 +1688,37 @@ function endGame(){
 }
 
 function restart(fromModeButton){
-  // Lazy init groups/walls on first start
+
+  // === Classic: keep static grid ===
+  if (currentMode === 'classic' && window.__classicStatic){
+    // clear any p5play group without touching classic array objects
+    if (bubbles && bubbles.length && typeof bubbles[0]?.remove === 'function'){
+      for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+    }
+    // rebuild static board and walls as needed
+    buildClassicBoard();
+    if (!walls || walls.length < 4) buildWalls();
+
+    // reset timer for the chosen variant (Timed → 60s; Relax → ∞)
+    classicDeadline = (classicVariant === 'timed')
+      ? (Date.now() + CLASSIC_TIME_MS)
+      : 0; // relax
+
+    // reset per-round stats (same as your existing code)
+    tapsTotal = 0; tapsMissed = 0;
+    bubblesPopped = 0; bubblesPoppedGood = 0; bubblesPoppedTrick = 0;
+    window.__feedbackAfter = '';
+    const pgFeedback = document.getElementById('postFeedbackBtn');
+    if (pgFeedback) { pgFeedback.classList.remove('is-disabled'); pgFeedback.innerHTML = '📝<br>Feedback'; pgFeedback.onclick = () => openFeedbackModal('after'); }
+    window.__runSubmitted = false;
+    score = 0; startTime = millis(); gameOver = false;
+    closePostGameModal();
+    if (isMoodMode()){ clearTimeout(moodIdleStopTO); startSampler(); }
+    loop();
+    return; // <— IMPORTANT: stop here for Classic
+  }
+
+  // Non-Classic Restart logic
   if (!bubbles) {
     bubbles = new Group();
     bubbles.collider = 'dynamic';

@@ -842,3 +842,11 @@ button,
 #playerStats {
   text-align: left;
 }
+/* v10.0.0 */
+.comboBadge{position:fixed;top:8px;right:8px;background:#0f766e;color:#fff;padding:6px 10px;border-radius:12px;
+  font-weight:700;transform:scale(0.9);transition:transform .15s ease;z-index:1200}
+.comboBadge.active{transform:scale(1.05)}
+.fly{position:absolute;pointer-events:none;font-weight:700;opacity:.95;transform:translate(-50%,-50%);
+  animation:flyUp .9s ease forwards}
+.fly.neg{color:#c62828}.fly.pos{color:#0f766e}
+@keyframes flyUp{0%{opacity:0;transform:translate(-50%,-20%)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-120%)}}
