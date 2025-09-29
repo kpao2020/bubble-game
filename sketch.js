@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.0.8';                 // game version number
+const GV = 'v10.1.0';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -995,12 +995,12 @@ async function hydratePostGame(){
     const board = Array.isArray(data?.scores) ? data.scores : (data?.rows || []);
 
     // TEMP: debug what the server is actually returning (remove later)
-    const sampleModes = [...new Set(board.slice(0, 5).map(r => r?.mode).filter(Boolean))];
-    console.log('[leaderboard]', {
-      requestedMode: mode,
-      sampleRowModes: sampleModes,         // e.g., ["mood"] or ["bio"]
-      meMode: data?.me?.mode ?? null       // if your script echoes this
-    });
+    // const sampleModes = [...new Set(board.slice(0, 5).map(r => r?.mode).filter(Boolean))];
+    // console.log('[leaderboard]', {
+    //   requestedMode: mode,
+    //   sampleRowModes: sampleModes,         // e.g., ["mood"] or ["bio"]
+    //   meMode: data?.me?.mode ?? null       // if your script echoes this
+    // });
 
     const rankRaw = data?.me?.rank;
     const rank = (rankRaw != null && !Number.isNaN(Number(rankRaw))) ? Number(rankRaw) : null;
@@ -1222,6 +1222,7 @@ function setup(){
     playerUsername = savedName;
   }
 
+  initSplash();
 } // end of setup()
 
 function draw(){
@@ -1580,7 +1581,18 @@ function restart(fromModeButton){
     bubbles.friction = 0;
     bubbles.drag = 0;
   } else {
-    for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+    // If bubbles was a Classic array, rebuild as Group first
+    if (!bubbles || typeof bubbles[0]?.remove !== 'function') {
+      bubbles = new Group();
+      bubbles.collider = 'dynamic';
+      bubbles.bounciness = 1;
+      bubbles.friction = 0;
+      bubbles.drag = 0;
+    } else {
+      for (let i = bubbles.length - 1; i >= 0; i--) {
+        bubbles[i].remove();
+      }
+    }
   }
   const N0 = startBubblesForMode();
   for (let i = 0; i < N0; i++) spawnBubble();
@@ -2129,40 +2141,36 @@ function makePopBuffer(ctx){
 }
 
 // ===== Splash Controller =====
-(function initSplash() {
+// ===== Splash Controller =====
+function initSplash() {
   const splash = document.getElementById('splash');
   const splashCard = document.getElementById('splashCard') || splash.querySelector('.splash-inner');
-
   if (!splash) return;
 
-  // Helper to end the splash with fade-out
   function dismissSplash() {
     if (!splash.classList.contains('is-visible')) return;
-    try { initAudioOnce(); maybePop(); } catch (_) {}
 
-    // v9.9 — Initialize audio on first gesture + subtle confirmation pop
-    if (!window.__audioReady){ initAudioOnce(); try{ playPop(1); }catch(_){} }
+    // 🔑 only init audio AFTER user taps/clicks splash
+    if (!window.__audioReady) {
+      try { 
+        initAudioOnce(); 
+        __audioCtx?.resume();
+        maybePop(true); 
+      } catch (_) {}
+    }
 
     splash.classList.add('is-fading-out');
 
-    // ensure audio is unlocked on first user gesture + play confirmation
-    try { initAudioOnce(); maybePop(true); } catch(_) {}
-
-    // Give the CSS transition time to finish
     setTimeout(() => {
       splash.classList.remove('is-visible', 'is-fading-out');
-
-      // Hook for your game: start music later, restart level, etc.
       if (typeof window.onSplashDismiss === 'function') {
         try { window.onSplashDismiss(); } catch (e) { console.warn(e); }
       }
     }, 420);
   }
 
-  // Make it visible on load (CSS handles fade-in)
   requestAnimationFrame(() => splash.classList.add('is-visible'));
 
-  // Interactions: click/tap or keys (Enter/Space)
   const startEvents = ['click', 'touchend'];
   startEvents.forEach(evt =>
     splashCard?.addEventListener(evt, dismissSplash, { passive: true })
@@ -2171,8 +2179,7 @@ function makePopBuffer(ctx){
     const k = e.key?.toLowerCase();
     if (k === 'enter' || k === ' ') dismissSplash();
   });
-
-})();
+}
 
 window.__splashActive = true;
 window.onSplashDismiss = function () {

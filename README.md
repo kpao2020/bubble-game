@@ -378,6 +378,11 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 - Classic: always show Timed/Relax picker (no auto-start).
 - Login: saved name pre-fills; “Use previous name” button logs in directly.
 
+### v10.1.0
+- Splash audio fix
+- AudioContext is now resumed immediately inside the splash tap/click handler (before timeouts),
+  eliminating Chrome’s autoplay warnings. (minor)
+
 ---
 
 ## ▶️ How to Play
