@@ -33,192 +33,12 @@
 // b. Coding with ChatGPT assistance
 //
 // ============================================================================
-// Version history
-// v1.0   : Initial game built with basic popping bubbles and mousePressed input
-//
-// v2.2   : Fix bubbles spawn issues. Adjust walls. Minor bug fix.
-//
-// v3.2   : Add score system, Add timer. Update CSS and JS. Minor bug fix.
-//
-// v4.5   : Add splash screen. Minor fix HTML layout. Add Challenge Mode and Bio Mode. Add face-api.js
-//
-// v5.6   : Add topBar display. Add camera for facial expression troubleshooting. Adjust 3 Bio 
-//          states - happy, sad, angry attributes and fix neutral values for improving detection.
-//          Add google sheet to capture data. Add cloudflare worker for secret management.
-//          Major update and bug fix.
-//
-// v6.2   : Add splash screen. Redesign topBar layout - remove "New Game" button. Adjust walls for proper playarea.
-//
-// v7.6   : Change facial expression detection from 5s to 1s. Add login screen. Add end game screen.
-//
-// v8.0   : Baseline release — Classic / Challenge / Mood (Bio) modes; Sheets logging via Worker;
-//          face-api sampling; splash → login → mode picker → gameplay → post-game flow.
-//
-// v8.1   : Minor adjust sampling to improve facial expression detection.
-//
-// v8.2   : Update payload to send updated game statistic in correct order to google sheet.
-//
-// v8.3   : Update Google app script to fix the ordering. Update Google sheet headers manually.
-//
-// v8.4   : Optimize CSS, JS into logical groups to improve SDLC maintenance.
-//
-// v8.5   : Gameplay polish — switched normal bubble tint to a curated, high-contrast palette
-//          (more visible colors; consistent alpha).
-//
-// v8.6   : UI pass — global button restyle (rounded, taller, tighter width) with clear hover/active/focus.
-//
-// v8.6.1 : Button shape tweaks — squarish icon feel (not pills), darker top-bar camera button.
-//
-// v8.6.2 : Mode picker buttons → square icon tiles with emoji + text (no overflow).
-//
-// v8.6.3 : Mode picker layout — centered “Choose a Mode” header and centered button column;
-//          ensured labels don’t overflow on narrow screens.
-//
-// v8.6.4 : Color coding — distinct backgrounds for Classic/Challenge/Mood tiles;
-//          post-game actions (Play/Mode) converted to square, color-coded tiles with emoji.
-//
-// v8.6.5 : Feedback states — added per-button hover (slightly darker) and active (deeper + press scale).
-//
-// v8.6.6 : Post-game UI — centered the two action tiles; kept them as square tiles with press feedback.
-//
-// v8.6.7 : Mode chip visibility & theming — mode chip always visible (Classic/Challenge/Mood);
-//          CSS prepared for per-mode chip backgrounds (blue/orange/green); consolidated CSS structure.
-//
-// v8.6.7.1: Minor CSS fix — corrected the Challenge selector spacing so its chip color updates correctly.
-//
-// v8.6.8 : JS/CSS sync — added body mode-class toggling (mode-classic / mode-challenge / mode-mood) so
-//          CSS can theme #modeChip automatically; no gameplay changes.
-//
-// v8.6.8.1: Simplified UX — removed legacy top-bar mode dropdown; the Mode Picker dialog is now the only way
-//           to choose Classic / Challenge / Mood.
-//
-// v8.7   : Dialog system — responsive, four-corner rounded modals; camera modal centered;
-//          post-game behaves like a bottom sheet on phones and “floats” slightly above bottom on larger screens.
-//
-// v8.7.1 : Dialog option (B) — even on small phones, keep four corners with a small bottom gap (no flush edge).
-//
-// v8.8   : Telemetry & login UX — detectDeviceType() added and included in Sheets payload;
-//          login field is disabled during profile lookup, then enabled so returning users can keep or edit
-//          their username; version string sent with each run.
-//
-// v8.8.2 : Fix google sheet variable order via app script
-//
-// v9.0   : Update google sheet 2 new headers "feedbackBefore", "feedbackAfter". Update google app script
-//
-// v9.0.1 : Feedback system (research note + before/after capture)
-//          - Added study note + "Feedback" button on Login (before-game feedback).
-//          - Added reusable Feedback modal (textarea) for both before/after feedback.
-//          - Added "Feedback" button to Post-game modal (after-game feedback).
-//          - Feedback (before) is stored locally and attached to the next run payload.
-//          - Feedback (after) is captured via modal and included in the run payload.
-//          - Changed submission flow: endGame no longer posts immediately.
-//          - A run is posted exactly once per round when the player chooses Play Again,
-//            Change Mode, or saves post-game feedback.
-//          - Introduced submitRunOnce() guard and runSubmitted flag.
-//
-// v9.0.2 : Feedback safeguards + always-log option
-//          - Adopted "Option 2": Close (✖) on the Post-game modal now also triggers
-//            submitRunOnce(), so every finished round is logged.
-//          - Added safeguard: if the Feedback modal is open with unsaved text when
-//            the player taps Play Again / Change Mode / Close, that text is auto-
-//            captured into feedbackAfter before posting. Prevents accidental loss
-//            of feedback if the player skips Save.
-//          - Guard logic still ensures only one POST per round (no duplicates).
-//
-// v9.1   : “bio” → “mood” refactor (no behavior change)
-//          - Replaced all remaining bio* ids/selectors/keys with mood* across HTML/CSS/JS.
-//          - Fixed isMoodMode() to check 'mood' (was 'bio') so Mood features always run.
-//          - Renamed consent helpers and modal ids to moodConsent*; added one-time localStorage migration.
-//          - Renamed top-bar chip id to #moodChip and updated JS to use it.
-//          - (Optional) Renamed sampleBio() → sampleMood() and console tags “[bio]” → “[mood]”.
-//
-// v9.1.1 : fix comment bio -> mood on certain spots
-//
-// v9.2   : Pre- and Post-game surveys, JSON in single cell
-//          - Added 2 baseline (pre-game) questions: stress level + mood.
-//          - Added 4 multiple choice + 1 short answer survey after each round.
-//          - Both stored as JSON strings in feedbackBefore / feedbackAfter.
-//          - Replaces old free-text feedback field.
-//          - Single-POST flow preserved via submitRunOnce(); no duplicate rows.
-//
-// v9.2.1 : Post-game feedback polish (mobile + UX)
-//          - After saving post-game feedback: show “Thank you” state, disable the Feedback button,
-//            and prevent reopening for the same round.
-//          - Clear answers for the next round automatically.
-//          - Compact mobile layout for post-game survey (2-column choices, larger tap targets).
-//
-// v9.2.2 : Login tidy + post-game layout + scrollable survey
-//          - Login: shorter username field; OK + Feedback side-by-side; clearer note + separate disclaimer.
-//          - Pre-game Feedback: when saved, lock button (no “thank you” modal).
-//          - Post-game: Feedback moved to its own row; distinct colors on all three buttons.
-//          - Feedback modal: header/footer fixed; questions area scrolls on mobile; hover/active states kept.
-//
-// v9.2.3 : Fix duplicate usernameInput reference in setup(); reuse single const (no functional change).
-//          - Login OK wiring — replaced legacy #submitUsername with #loginOkBtn to match HTML; click handler now attaches correctly.
-//
-// v9.2.4 : Fix mismatch submitRun and submitRunOnce
-//
-// v9.2.5 : Feedback textarea id aligned to #postQ5 (was #feedbackText) so post-game comments are captured.
-//
-// v9.2.6 : Troubleshooting begins...
-//
-// v9.2.7 : Stabilize draw() — guard bubble loop (null-safe + try/catch) so a bad frame doesn’t black-screen.
-//
-// v9.2.8 : Remove undefined onLoginSave; bind loginOkBtn directly to showLoginScreen(playerDeviceId).
-//
-// v9.2.9 : Telemetry — gameVersion in submitRun() now matches header; start of cleanup pass.
-//
-// v9.2.10 : draw() cleanup — remove duplicate refreshCameraBtn() in Mood branch.
-//
-// v9.2.11 : Remove dead DOM refs — delete #modeSelect disables in endGame() and restart().
-//
-// v9.2.12 : Optimize code in sketch.js style.css and index.html
-//
-// v9.3    : Optimized Mood mode (lazy-load face-api, lighter models)
-//           - Balanced gameplay: fewer bubbles per mode, size-based scoring, miss-streak easing
-//
-// v9.3.1  : Minor UI cleanup
-//          - Removed legacy restartBtn (HTML, CSS, JS) since Post-game modal fully replaces it.
-//          - Login screen: moved OK + Feedback buttons into their own row (right-aligned) for clearer layout.
-//
-// v9.3.2 : UI readability improvements
-//          - Increased button text and emoji/icon size for better visibility.
-//          - Adjusted button background colors for stronger contrast with text.
-//          - Ensured higher legibility across login, mode picker, and post-game buttons.
-//
-// v9.4   : Login UX overhaul — type immediately, inline “Saving…” (no extra prompt), sleek pill OK button with 
-//          spinner, animated helper text (fade + shake on errors), glassy login card + soft gradient backdrop, 
-//          autofocus + Enter-to-submit, auto-select on first focus, and smooth fade-out into Mode Picker.
-//
-// v9.5   : Login card micro pop-in (scale + fade) on open for a smoother, modern feel.
-//
-// v9.6   : Single-helper copy + consistent “username” — clear which username will be used if you typed while device data loads.
-//
-// v9.6.1 : Remove duplicate helper line in index.html
-//
-// v9.7   : Auto-suggest on empty submit — if no username is typed, we fill with prior profile or Player-XXXXXX, 
-//          update helper, and refocus the input so the user can confirm or edit quickly.
-//
-// v9.8   : Auto dark-mode theming for login and splash using `prefers-color-scheme`. Updates the glassy login card,
-//          backdrop, input, and helper text colors for dark backgrounds. Splash screen gets a darker gradient and
-//          matching card styling. Pure CSS — no changes to HTML or JS.
-//
-// v9.9   : Add procedural bubble-pop SFX (WebAudio) with top-bar toggle (default muted) and fix dark-mode splash CTA contrast.
-//
-// v9.9.1 : WebAudio SFX (muted by default) + first-tap confirmation pop; dark-mode splash CTA contrast; SFX toggle in header.
-//
-// v9.9.2 : Splash “Start” card acts as a single teal CTA (click/tap/Enter/Space); first tap plays a confirmation pop to 
-//          init WebAudio; Mode Picker tiles unchanged. (minor)
-//
-// v9.9.3 : Unmuted SFX by default with first-tap confirm pop; add bottom-left floating sound toggle; canvas ignores taps on it. (minor)
-//
-// ============================================================================
-
 
 
 /* =============================
  *        Game constants
  * ============================= */
+const GV = 'v10.0.8';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -238,18 +58,21 @@ const MISS_STREAK_TRIGGER        = 3;    // start easing after this many consecu
 const MISS_STREAK_SLOW_PER_MISS  = 0.08; // each miss beyond trigger slows ~8%
 const MISS_STREAK_SLOW_CAP       = 0.35; // never slow more than 35%
 
-// High-contrast, cheerful palette for bubble tints (RGB)
-const BUBBLE_COLORS = [
-  [ 66, 135, 245],  // lively blue
-  [ 52, 199,  89],  // green
-  [255, 159,  10],  // orange
-  [255,  99, 132],  // pink/red
-  [175,  82, 222],  // purple
-  [ 50, 212, 222],  // teal
-  [255, 204,  77],  // warm yellow
-];
+
+// v10.0.0 — Classic variants + static board (Step 2)
+const CLASSIC_DEFAULT = 'timed';     // 'timed' | 'relax'
+const CLASSIC_TIME_MS = 60000;       // 60s for Timed
+let classicVariant = CLASSIC_DEFAULT;
+let classicDeadline = 0;             // ms; 0 => relax (no timer)
+
+// v10.0.0 — Red penalty & flyout
+const RED_RATE    = 0.15;   // ~15% of bubbles are red in Classic
+const RED_PENALTY = 2;      // popping a red bubble subtracts 2
 
 const MOOD_SAMPLE_MS = 1500;           // face sampling cadence (ms)
+
+const COLOR_TEAL = [15, 118, 110, 200];
+const COLOR_RED  = [198, 40, 40, 200];
 
 // Mood end-game behavior: 'pause' (sampler only) or 'stop' (sampler + camera)
 const MOOD_STOP_STRATEGY = 'pause';
@@ -263,6 +86,8 @@ const CLASSIC_SPEED_CAP   = 3.0;
 
 let currentMode = 'classic'; // 'classic' | 'challenge' | 'mood'
 const CHALLENGE_TRICK_RATE = 0.22;
+const MOOD_TRICK_RATE = 0.18;
+const MAX_TRICK_RATIO = 0.5;   // at most 50% of on-screen bubbles can be red/trick
 
 let bubbles;               // p5play Group of bubbles
 let walls;                 // boundary walls
@@ -324,6 +149,10 @@ let lastEmotion = 'neutral', lastSwitchMs = 0;
 
 // Per-round emotion counts (incremented by the Mood sampler)
 let emoCounts = { happy: 0, sad: 0, angry: 0, stressed: 0, neutral: 0 };
+
+// v10.0.1 — Step 4A: challenge combo
+let comboHitStreak = 0;
+let comboMult  = 1.0;   // 1.0 → 1.5 after 5 hits → 2.0 after 10 hits
 
 
 /* =============================
@@ -550,12 +379,21 @@ function showMoodConsentModal(onAccept, onDecline){
 }
 
 function showModePicker(){
+  // Cancel any lingering Classic auto-start timers
+  try { if (window.__classicAutoTO) clearTimeout(window.__classicAutoTO); } catch(_) {}
+  window.__classicAutoTO = null;
+
+  // While the mode chooser is open, freeze gameplay and mark picking
+  window.__modePicking = true;
+  window.__playerReady = false;   // stops draw() early
+  try { noLoop(); } catch(_) {}
+
   const m  = document.getElementById('modeModal');
   const bC = document.getElementById('modeClassicBtn');
   const bH = document.getElementById('modeChallengeBtn');
   const bB = document.getElementById('modeMoodBtn');
 
-  // NEW: hide top bar while choosing a mode
+  // Hide top bar while choosing a mode
   const topBar = document.getElementById('topBar');
   if (topBar) topBar.classList.add('hidden');
 
@@ -563,29 +401,32 @@ function showModePicker(){
   document.body.classList.add('mode-pick');
   document.body.classList.remove('game-active');
 
-  if (!m || !bC || !bH || !bB){ 
-    currentMode = 'classic'; 
-    setBodyModeClass();
-    afterModeSelected(false); 
-    return; 
+  // Bail safely if any element is missing
+  if (!m || !bC || !bH || !bB){
+    console.warn('[mode] Mode picker elements missing; not auto-starting.');
+    return;
   }
 
-  const hide = () => m.classList.add('hidden');
+  const hide = () => {
+    m.classList.add('hidden');
+    window.__modePicking = false;    // release the guard when leaving picker
+  };
+
   closeAllModalsExcept('modeModal');
   m.classList.remove('hidden');
 
-  // Light prefetch on idle while the mode menu is visible
+  // Prefetch face-api on idle while menu is visible
   if (typeof requestIdleCallback === 'function') {
     requestIdleCallback(() => prefetchFaceApi(), { timeout: 1200 });
   } else {
     setTimeout(prefetchFaceApi, 800);
   }
 
-  bC.onclick = () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); };
+  bC.onclick = () => { currentMode = 'classic';   setBodyModeClass(); hide(); afterModeSelected(false); };
   bH.onclick = () => { currentMode = 'challenge'; setBodyModeClass(); hide(); afterModeSelected(false); };
   bB.onclick = () => {
-    bB.addEventListener('mouseenter', prefetchFaceApi, {once: true});
-    bB.addEventListener('touchstart', prefetchFaceApi, {once: true});
+    bB.addEventListener('mouseenter',  prefetchFaceApi, { once:true });
+    bB.addEventListener('touchstart',  prefetchFaceApi, { once:true });
     const proceedMood = () => { currentMode = 'mood'; setBodyModeClass(); hide(); afterModeSelected(true); };
     if (hasMoodConsent()) proceedMood();
     else showMoodConsentModal(proceedMood, () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); });
@@ -608,20 +449,31 @@ async function afterModeSelected(isMood){
   const ms = document.getElementById('modeSelect');
   if (ms) ms.disabled = true;
 
-  // Now actually start the game round
-  const centerEl = document.getElementById('center');
-  if (centerEl){ centerEl.textContent = ''; centerEl.style.display = 'none'; }
-
   window.__playerReady = true;
 
   if (isMood){
-    await ensureFaceApiLib();
-    await loadFaceApiModels();
-    startWebcam();
-    startSampler();
+    // NEW: show loading overlay while models load
+    const loading = document.getElementById('loadingOverlay');
+    if (loading) loading.classList.remove('hidden');
+
+    try {
+      await ensureFaceApiLib();
+      await loadFaceApiModels();
+      await startWebcam();  // startWebcam will startSampler when frames are ready
+    } finally {
+      if (loading) loading.classList.add('hidden');  // hide overlay when ready
+    }
   } else {
     stopSampler();
     stopWebcam();
+  }
+
+  // If Classic, show the options modal first (Timed/Relax), then start in startClassicRound()
+  if (!isMood && currentMode === 'classic') {
+    const loading = document.getElementById('loadingOverlay');
+    if (loading) loading.classList.add('hidden'); // just in case it was visible
+    openClassicOpts();
+    return; // IMPORTANT: do not call restart() yet
   }
 
   refreshCameraBtn();
@@ -822,6 +674,182 @@ function noteMiss(){
   }
 }
 
+// v10.0.0 — classic option modal
+function openClassicOpts(){
+  // If the mode picker is open, do not show Classic options or auto-start
+  if (window.__modePicking) return;
+
+  const m = document.getElementById('classicOpts');
+  if (m) m.classList.remove('hidden');
+
+  // default to Timed after short delay if no click (only if modal still open & not picking)
+  clearTimeout(window.__classicAutoTO);
+  window.__classicAutoTO = setTimeout(() => {
+    if (window.__modePicking) return;                   // guard: user is picking
+    if (!m || m.classList.contains('hidden')) return;   // user already chose
+    classicVariant = 'timed';
+    if (m) m.classList.add('hidden');
+    startClassicRound();
+  }, 1600);
+}
+
+function wireClassicOpts(){
+  const m = document.getElementById('classicOpts');
+  const bt = document.getElementById('classicTimedBtn');
+  const br = document.getElementById('classicRelaxBtn');
+  if (bt) bt.onclick = ()=>{ classicVariant='timed'; if (m) m.classList.add('hidden'); startClassicRound(); };
+  if (br) br.onclick = ()=>{ classicVariant='relax'; if (m) m.classList.add('hidden'); startClassicRound(); };
+}
+document.addEventListener('DOMContentLoaded', wireClassicOpts);
+
+function startClassicRound(){
+  // build static board (no movement, no respawn)
+  buildClassicBoard();
+
+  // set end condition
+  classicDeadline = (classicVariant === 'timed') ? (Date.now() + CLASSIC_TIME_MS) : 0;
+
+  // make sure we’re in classic visuals and start the round
+  currentMode = 'classic';
+  setBodyModeClass?.();          // if you have it
+  refreshCameraBtn?.();          // safe no-op outside Mood
+  restart(false);                // your existing game start/reset
+}
+
+function buildClassicBoard(){
+  // Grid sizing — adjust if you like
+  const cols = 6, rows = 8;
+  const pad = 16;
+  const w = width  - pad * 2;
+  const h = height - pad * 2;
+  const cx = w / cols;
+  const cy = h / rows;
+  const radius = Math.min(cx, cy) * 0.38;
+
+  // Replace existing bubbles with one static grid
+  // (use your array name if different)
+  bubbles = [];
+
+  for (let r = 0; r < rows; r++){
+    for (let c = 0; c < cols; c++){
+      const x = pad + c * cx + cx / 2;
+      const y = pad + r * cy + cy / 2;
+      const isTrick = Math.random() < RED_RATE;
+      bubbles.push({
+        x, y, 
+        r: radius,
+        diameter: radius * 2,
+        alive: true, 
+        kind: isTrick ? 'trick' : 'normal',
+        vx: 0, vy: 0
+      });
+    }
+  }
+
+  // Flag for “no movement” paths if your update loop checks it
+  window.__classicStatic = true;
+}
+
+function onHit(){
+  comboHitStreak++;
+  if (comboHitStreak >= 10) comboMult = 2.0;
+  else if (comboHitStreak >= 5) comboMult = 1.5;
+  else comboMult = 1.0;
+  showComboBadge();
+}
+
+function onMiss(){
+  comboHitStreak = 0;
+  comboMult = 1.0;
+  showComboBadge();
+}
+
+function getComboMultiplier(){
+  return (currentMode === 'challenge') ? comboMult : 1.0;
+}
+
+// Tiny UI badge (creates once and updates text)
+let __comboEl = null;
+function ensureComboEl(){
+  if (!__comboEl){
+    __comboEl = document.createElement('div');
+    __comboEl.className = 'comboBadge';
+    document.body.appendChild(__comboEl);
+  }
+  return __comboEl;
+}
+function showComboBadge(){
+  if (currentMode !== 'challenge') return;
+  const el = ensureComboEl();
+  el.textContent = (comboMult > 1) ? `Combo x${comboMult.toFixed(1)}` : 'Combo x1.0';
+  el.classList.toggle('active', comboMult > 1);
+}
+
+async function resumeAudioOnGesture(){
+  try { initAudioOnce?.(); } catch(_){}
+  if (window.__audioCtx && typeof window.__audioCtx.resume === 'function'){
+    try { await window.__audioCtx.resume(); } catch(_){}
+  }
+}
+
+// One-time global gesture hook to unlock WebAudio (Chrome autoplay policy)
+(function(){
+  if (window.__audioGestureHooked) return;
+  window.__audioGestureHooked = true;
+
+  let resumed = false;
+  const kick = async () => {
+    if (resumed) return;
+    resumed = true;
+    try { await resumeAudioOnGesture(); } catch(_) {}
+    window.removeEventListener('pointerdown', kick, true);
+    window.removeEventListener('keydown', kick, true);
+  };
+
+  window.addEventListener('pointerdown', kick, true);
+  window.addEventListener('keydown', kick, true);
+})();
+
+function shouldSpawnTrick(mode){
+  // Mode-specific base rates
+  const base =
+    (mode === 'challenge') ? CHALLENGE_TRICK_RATE :
+    (mode === 'mood')      ? MOOD_TRICK_RATE      :
+    0;
+
+  // Current on-screen composition
+  const n = (bubbles && typeof bubbles.length === 'number') ? bubbles.length : 0;
+  let trickCount = 0;
+  if (n > 0) {
+    for (let i = 0; i < bubbles.length; i++){
+      const bb = bubbles[i];
+      if (bb && bb.kind === 'trick') trickCount++;
+    }
+  }
+  const ratio = (n > 0) ? (trickCount / n) : 0;
+
+  // Cap: if already at or above the max ratio, force next spawns to be normal
+  if (ratio >= MAX_TRICK_RATIO) return false;
+
+  // Otherwise, use the mode’s base probability
+  return random() < base;
+}
+
+function showMoodLoading(text = 'Setting up camera…'){
+  const el = document.getElementById('loadingOverlay');
+  if (!el) return;
+  const title = el.querySelector('.modalTitle');
+  const msg   = el.querySelector('.loadingText');
+  if (title) title.textContent = 'Mood is starting…';
+  if (msg)   msg.textContent   = text;
+  el.classList.remove('hidden');
+}
+
+function hideMoodLoading(){
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.classList.add('hidden');
+}
+
 // End of UI Helper section
 
 /* =======================================
@@ -847,7 +875,7 @@ async function submitRun(){
         deviceType: (window.__deviceType || detectDeviceType()),
         username: playerUsername || '',
         mode: currentMode,
-        gameVersion: 'v9.9.3', // keep in sync with version comment
+        gameVersion: GV, // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
@@ -871,6 +899,133 @@ function submitRunOnce(){
   if (window.__runSubmitted) return;
   window.__runSubmitted = true;
   submitRun();
+}
+
+// v9.9.7 — leaderboard (no separate rank endpoint)
+// Simple fetch wrapper
+async function fetchJSON(url, opts){
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function computeAccuracyPct(){
+  const acc = (bubblesPoppedGood / Math.max(1, tapsTotal));
+  return Math.round(acc * 100);
+}
+
+// GET Top N leaderboard, ask backend to include my rank via ?username=
+async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
+  // Apps Script supports: action=leaderboard&limit=5&username=...
+  const qs = new URLSearchParams({
+    action: 'leaderboard',
+    limit: String(limit),
+    username: playerUsername || '',
+    mode: mode
+  });
+  return fetchJSON(`${GOOGLE_SCRIPT_URL}?${qs.toString()}`);
+}
+
+// Build the post-game inner HTML (stats + leaderboard)
+function renderPostGameContent({ username, score, accuracyPct, mode, rank, board }){
+  document.getElementById('postGameTitle').textContent = 'Round Summary';
+
+  // Build leaderboard rows
+  const rows = (board || []).map((r, i) => {
+    const rnk = (r.rank != null) ? r.rank : (i + 1);
+    const name = r.username ?? r.name ?? '';
+    const sc   = r.score ?? 0;
+    const md   = r.mode ?? mode;
+    const acc  = (typeof r.accuracyPct === 'number')
+      ? `${r.accuracyPct}%`
+      : (typeof r.accuracy === 'number'
+          ? `${Math.round(r.accuracy * 100)}%`
+          : '');
+    return `<tr>
+              <td>${rnk}</td>
+              <td>${name}</td>
+              <td>${sc}</td>
+              <td>${acc}</td>
+              <td>${md}</td>
+            </tr>`;
+  }).join('');
+
+  // Fill player stats
+  const statsEl = document.getElementById('playerStats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div>Name: <strong>${username || 'Guest'}</strong></div>
+      <div>Mode: ${mode}</div>
+      <div>Score: ${score}</div>
+      <div>Accuracy: ${accuracyPct}%</div>
+      <div>Your Rank: ${rank ?? '-'}</div>
+    `;
+  }
+
+  // Fill leaderboard
+  const lbEl = document.getElementById('leaderboard');
+  if (lbEl) {
+    lbEl.innerHTML = `
+      <h3>Top 5</h3>
+      <table class="lbTable">
+        <thead>
+          <tr><th>#</th><th>User</th><th>Score</th><th>Acc</th><th>Mode</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+}
+
+// Save the run (once), then fetch & render stats
+async function hydratePostGame(){
+  try {
+    submitRunOnce();                       // ensure row exists before reading
+    const username = (playerUsername || '').trim();
+    const mode = (currentMode || 'classic');
+    const accuracyPct = computeAccuracyPct();
+
+    // NEW: show placeholder immediately
+    const statsEl = document.getElementById('playerStats');
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div><strong>✅ Thank you for playing!</strong></div>
+        <div>Please wait while we prepare your game stats…</div>
+      `;
+    }
+    const lbEl = document.getElementById('leaderboard');
+    if (lbEl) {
+      lbEl.innerHTML = `<p style="opacity:.7;">Loading leaderboard…</p>`;
+    }
+
+    // Fetch leaderboard (includes top + rank if username provided)
+    const data = await getLeaderboard(5, mode);
+    const board = Array.isArray(data?.scores) ? data.scores : (data?.rows || []);
+
+    // TEMP: debug what the server is actually returning (remove later)
+    const sampleModes = [...new Set(board.slice(0, 5).map(r => r?.mode).filter(Boolean))];
+    console.log('[leaderboard]', {
+      requestedMode: mode,
+      sampleRowModes: sampleModes,         // e.g., ["mood"] or ["bio"]
+      meMode: data?.me?.mode ?? null       // if your script echoes this
+    });
+
+    const rankRaw = data?.me?.rank;
+    const rank = (rankRaw != null && !Number.isNaN(Number(rankRaw))) ? Number(rankRaw) : null;
+
+    renderPostGameContent({ username, score, accuracyPct, mode, rank, board });
+  } catch (e){
+    console.warn('[post-game] hydrate failed:', e);
+
+    renderPostGameContent({
+      username: playerUsername,
+      score,
+      accuracyPct: computeAccuracyPct(),
+      mode: (currentMode||'classic'),
+      rank: null,
+      board: []
+    });
+  }
 }
 
 /* =============================
@@ -918,8 +1073,7 @@ function setup(){
       if (!window.__playerReady) return; // ignore clicks until after login
 
       // ignore taps on the floating SFX button
-      const sfx = document.getElementById('sfxFloat');
-      const r2 = sfx?.getBoundingClientRect?.();
+      const r2 = __sfxBtn?.getBoundingClientRect?.();
       if (r2 && e.clientY >= r2.top && e.clientY <= r2.bottom && e.clientX >= r2.left && e.clientX <= r2.right) return;
 
       // ignore clicks on top bar
@@ -937,12 +1091,6 @@ function setup(){
   score = 0; startTime = millis(); gameOver = false;
   document.getElementById('center').style.display = 'none';
   
-  if (isMoodMode()){
-    loadFaceApiModels();
-    startWebcam();
-    startSampler();
-  }
-
   // Resize safety
   if (window.visualViewport){
     visualViewport.addEventListener('resize', fitCanvasToViewport);
@@ -1048,15 +1196,20 @@ function setup(){
     });
   }
 
-  // v9.9.3 — floating SFX toggle
-  const sfxBtn = document.getElementById('sfxFloat');
-  if (sfxBtn){
-    // reflect default ON state
-    setSfx(true);
-    sfxBtn.onclick = () => {
-      try { initAudioOnce(); } catch(_){}
-      setSfx(!__sfxOn);
-      if (__sfxOn) maybePop(); // preview when turning ON
+  // v10.0.5 — robust floating SFX toggle: init + resume + preview pop
+  __sfxBtn = document.getElementById('sfxFloat');
+  if (__sfxBtn){
+    // reflect persisted state on first paint
+    setSfx(__sfxOn);
+
+    __sfxBtn.onclick = () => {
+      try {
+        initAudioOnce();
+        if (__audioCtx && typeof __audioCtx.resume === 'function') __audioCtx.resume();
+      } catch(e) { /* ignore */ }
+
+      setSfx(!__sfxOn);    // toggles local + window + UI
+      if (__sfxOn) maybePop(true); // small preview click
     };
   }
 
@@ -1067,9 +1220,29 @@ function draw(){
   fitCanvasToViewport();
   background(200,230,255);
 
-  const timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
+  // Classic mode timer setting
+  let timeLeft;
+  if (currentMode === 'classic'){
+    if (classicDeadline){
+      timeLeft = Math.max(0, Math.ceil((classicDeadline - Date.now())/1000));
+    } else {
+      timeLeft = null; // relax
+    }
+  } else {
+    timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
+  }
+
+  const timeChip = document.getElementById('timeChip');
+  if (timeChip){
+    if (timeLeft == null){
+      timeChip.textContent = 'Time: ∞';   // Relax mode
+    } else {
+      timeChip.textContent = `Time: ${timeLeft}`;
+    }
+  }
+
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
-  document.getElementById('timeChip').textContent  = `Time: ${timeLeft}`;
+
 
   const modeChip = document.getElementById('modeChip');
   if (modeChip){
@@ -1117,39 +1290,75 @@ function draw(){
 
     for (let i = 0; i < bubbles.length; i++){
       const b = bubbles[i];
-      b.direction += random(-0.35, 0.35);
-      const r = currentRadius(b);
 
-      if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), CLASSIC_SPEED_CAP), MINF);
-      else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), MINF);
-      else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6) * rubberSpeedFactor(), MINF);
+      // --- v10.0.0 Step 3C: Classic draw & dead-skip ---
+      if (currentMode === 'classic') {
+        // If we already "popped" it in classic, don't draw or move it
+        if (b.alive === false) continue;
 
-      if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-      if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-      if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
-      if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+        // Force a single tint for normal bubbles, and red for penalties
+        // (we bypass the usual palette/trick tints)
+        b._tint = (b.kind === 'trick') ? color(...COLOR_RED) : color(...COLOR_TEAL);
+      }
 
-      const d = r * 2;
-      fill(b._type === 'trick' ? color(255,120,120,170) : b._tint);
-      circle(b.x, b.y, d);
-      fill(255,255,255,60);
-      circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+      // Skip movement in Classic static mode
+      if (currentMode !== 'classic' || !window.__classicStatic) {
+        b.direction += random(-0.35, 0.35);
+        const r = currentRadius(b);
 
-      if (b._stuck == null) b._stuck = 0;
-      if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
-      if (b._stuck > 18){
-        b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
-        if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
-        if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
-        b._stuck = 0;
+        if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), CLASSIC_SPEED_CAP), MINF);
+        else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), MINF);
+        else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6) * rubberSpeedFactor(), MINF);
+
+        if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+        if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
+        if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+        if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+
+        const d = r * 2;
+        fill(b._tint);
+        circle(b.x, b.y, d);
+        fill(255,255,255,60);
+        circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+
+        if (b._stuck == null) b._stuck = 0;
+        if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
+        if (b._stuck > 18){
+          b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
+          if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
+          if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
+          b._stuck = 0;
+        }
+      }
+
+      // NEW: Classic draw when movement is skipped
+      if (currentMode === 'classic') {
+        const r = currentRadius(b), d = r * 2;
+        fill(b._tint);           // you set this earlier based on (b.kind === 'trick')
+        circle(b.x, b.y, d);
+        fill(255,255,255,60);    // highlight
+        circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
       }
     }
   } catch (err) {
     console.warn('[draw] bubble loop error:', err);
   }
 
-  if (!gameOver && timeLeft <= 0) endGame();
-}
+  if (!gameOver && timeLeft != null && timeLeft <= 0) endGame();
+
+  // v10.0.0 — Classic end conditions (place near end of draw loop)
+  if (currentMode === 'classic'){
+    // v10.0.2 — finish Classic when all teal bubbles are popped (reds don’t block end)
+    const anyTealAlive = Array.isArray(bubbles) && bubbles.some(b => b.alive && b.kind !== 'trick');
+    if (!anyTealAlive){ endGame(); }
+
+    // or when timer expires (Timed variant)
+    if (classicDeadline && Date.now() >= classicDeadline){ endGame(); }
+  }
+
+  if (currentMode !== 'classic' || !window.__classicStatic){ /* move */ }
+
+} // end of draw()
 
 
 /* =============================
@@ -1157,27 +1366,44 @@ function draw(){
  * ============================= */
 function spawnBubble(){
   const d = random(MIN_DIAM, MAX_DIAM), r = d / 2, sTop = safeTopPx();
-  let angle = random(TWO_PI); if (abs(sin(angle)) < 0.2) angle += PI/4;
+  let angle = random(TWO_PI);
+  if (abs(sin(angle)) < 0.2) angle += PI/4;
   const speed = random(MIN_SPEED, MAX_SPEED);
   let sx = random(r, width - r), sy = random(max(sTop + r, sTop + 1), height - r);
 
   if (isMoodMode()){
-    const biasX = width * moodState.gaze.x, biasY = constrain(height * moodState.gaze.y, sTop + r, height - r);
+    const biasX = width * moodState.gaze.x,
+          biasY = constrain(height * moodState.gaze.y, sTop + r, height - r);
     sx = constrain(lerp(random(r, width - r), biasX, 0.6), r, width - r);
     sy = constrain(lerp(random(sTop + r, height - r), biasY, 0.6), sTop + r, height - r);
   }
 
   const b = new Sprite(sx, sy, d);
-  b.shape = 'circle'; b.color = color(255,255,255,0); b.diameter = d;
-  // new (choose a palette color with a stronger, visible alpha):
-  const cIdx = Math.floor(random(BUBBLE_COLORS.length));
-  const [cr,cg,cb] = BUBBLE_COLORS[cIdx];
-  b._tint = color(cr, cg, cb, 200);
+  b.shape = 'circle';
+  b.color = color(255,255,255,0);
+  b.diameter = d;
 
-  b.direction = degrees(angle); b.speed = speed; b._baseSpeed = speed; b.mass = PI * r * r;
-  b.rotationLock = true; b._hitScale = 1; b._stuck = 0;
-  b._type = (currentMode === 'challenge' && random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
-  bubbles.add(b); return b;
+  // v10.0.5 — Challenge & Mood: trick spawn with a hard cap on red ratio
+  if (currentMode === 'challenge' || currentMode === 'mood'){
+    b.kind = shouldSpawnTrick(currentMode) ? 'trick' : 'normal';
+  } else {
+    b.kind = 'normal';
+  }
+
+  const __teal = (typeof COLOR_TEAL !== 'undefined') ? color(...COLOR_TEAL) : color(15,118,110,200);
+  const __red  = (typeof COLOR_RED  !== 'undefined') ? color(...COLOR_RED)  : color(198,40,40,200);
+  b._tint = (b.kind === 'trick') ? __red : __teal;
+
+  b.direction = degrees(angle);
+  b.speed = speed;
+  b._baseSpeed = speed;
+  b.mass = PI * r * r;
+  b.rotationLock = true;
+  b._hitScale = 1;
+  b._stuck = 0;
+
+  bubbles.add(b);
+  return b;
 }
 
 function currentRadius(b){
@@ -1195,38 +1421,79 @@ function handlePop(px, py){
   let hit = false;
 
   for (let i = bubbles.length - 1; i >= 0; i--){
-    const b = bubbles[i], r = currentRadius(b), rHit = r + (IS_TOUCH ? TOUCH_HIT_PAD : 0);
+    const b = bubbles[i], r = currentRadius(b);
+
+    // Classic: skip already-popped bubbles
+    if (currentMode === 'classic' && b.alive === false) continue;
+
+    // Classic: exact circle; others get a tiny touch pad
+    const pad = (currentMode === 'classic') ? 0 : (IS_TOUCH ? TOUCH_HIT_PAD : 0);
+    const rHit = r + pad;
+
     const dx = px - b.x, dy = py - b.y;
     if (dx*dx + dy*dy <= rHit*rHit){
       hit = true;
 
-      // size-based scoring: smaller bubble => more points
-      const diameterNow = r * 2; // r from currentRadius(b), includes mood scaling
-      const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
-      const delta = (b._type === 'trick')
-        ? -SCORE_TRICK_PENALTY
-        : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
-      score += delta;
-      noteHit();
-      if (score < 0) score = 0;
+      if (currentMode === 'classic'){
+        // Classic: teal +1, red penalty; NO respawn
+        const delta = (b.kind === 'trick') ? -RED_PENALTY : 1;
+        score += delta;
+        if (score < 0) score = 0;
 
-      // NEW: stats
-      bubblesPopped++;
-      if (b._type === 'trick') bubblesPoppedTrick++;
-      else bubblesPoppedGood++;
+        // stats
+        bubblesPopped++;
+        if (b.kind === 'trick') bubblesPoppedTrick++;
+        else bubblesPoppedGood++;
 
-      b.remove();
-      spawnBubble();
-      break;
+        // flyout
+        if (typeof spawnFlyout === 'function') spawnFlyout(px, py, delta);
+
+        // play SFX ONLY (no combo/scoring side-effects)
+        try { maybePop(); } catch (_) {}
+
+        // mark dead; draw() will skip it, end condition will handle “all popped”
+        b.alive = false;
+        break;
+
+      } else {
+        // Challenge/Mood: size-based scoring + respawn
+        const diameterNow = r * 2;
+        const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
+        let delta = (b.kind === 'trick')
+          ? -SCORE_TRICK_PENALTY
+          : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
+
+        // Challenge: combo multiplier (no bonus for trick)
+        if (currentMode === 'challenge' && delta > 0){
+          delta = Math.round(delta * getComboMultiplier());
+        }
+
+        score += delta;
+        onHit();
+        noteHit(); // retains sound + combo in non-classic modes
+        if (score < 0) score = 0;
+
+        // stats
+        bubblesPopped++;
+        if (b.kind === 'trick') bubblesPoppedTrick++;
+        else bubblesPoppedGood++;
+
+        // remove + respawn
+        b.remove();
+        spawnBubble();
+        break;
+      }
     }
   }
 
   if (!hit) {
     tapsMissed++;
-    noteMiss();
+    if (currentMode !== 'classic'){
+      onMiss();
+      noteMiss();
+    }
   }
 }
-
 
 function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
 function touchStarted(){
@@ -1236,11 +1503,11 @@ function touchStarted(){
 }
 
 function endGame(){
-  gameOver = true; 
+  gameOver = true;
+  if (currentMode === 'classic' && Array.isArray(bubbles)) {
+    for (const b of bubbles) b.alive = false; // hide leftovers (e.g., reds)
+  }
   noLoop();
-
-  const centerEl = document.getElementById('center');
-  if (centerEl){ centerEl.textContent = `Game Over!\nScore: ${score}`; centerEl.style.display = 'block'; }
 
   if (isMoodMode()){
     if (MOOD_STOP_STRATEGY === 'pause') { stopSampler(); }
@@ -1250,11 +1517,50 @@ function endGame(){
   }
 
   openPostGameModal();
+  // NEW: fill stats + leaderboard (submits run once, then fetches data)
+  hydratePostGame();
 }
 
-
 function restart(fromModeButton){
-  // Lazy init groups/walls on first start
+  // Do not restart while the mode picker is visible
+  if (window.__modePicking) return;
+
+  // Clear any leftover timer
+  try {
+    if (window.__classicAutoTO){ clearTimeout(window.__classicAutoTO); }
+  } catch(_) {}
+  window.__classicAutoTO = null;
+
+  // === Classic: keep static grid ===
+  if (currentMode === 'classic' && window.__classicStatic){
+    // clear any p5play group without touching classic array objects
+    if (bubbles && bubbles.length && typeof bubbles[0]?.remove === 'function'){
+      for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+    }
+    // rebuild static board and walls as needed
+    buildClassicBoard();
+    if (!walls || walls.length < 4) buildWalls();
+
+    // reset timer for the chosen variant (Timed → 60s; Relax → ∞)
+    classicDeadline = (classicVariant === 'timed')
+      ? (Date.now() + CLASSIC_TIME_MS)
+      : 0; // relax
+
+    // reset per-round stats (same as your existing code)
+    tapsTotal = 0; tapsMissed = 0;
+    bubblesPopped = 0; bubblesPoppedGood = 0; bubblesPoppedTrick = 0;
+    window.__feedbackAfter = '';
+    const pgFeedback = document.getElementById('postFeedbackBtn');
+    if (pgFeedback) { pgFeedback.classList.remove('is-disabled'); pgFeedback.innerHTML = '📝<br>Feedback'; pgFeedback.onclick = () => openFeedbackModal('after'); }
+    window.__runSubmitted = false;
+    score = 0; startTime = millis(); gameOver = false;
+    closePostGameModal();
+    if (isMoodMode()){ clearTimeout(moodIdleStopTO); startSampler(); }
+    loop();
+    return; // <— IMPORTANT: stop here for Classic
+  }
+
+  // Non-Classic Restart logic
   if (!bubbles) {
     bubbles = new Group();
     bubbles.collider = 'dynamic';
@@ -1394,13 +1700,21 @@ async function startWebcam(isRestart = false){
   let played = false;
   try { await v.play(); played = true; } catch { console.warn('[mood] video.play blocked; will resume on gesture'); }
 
-  const onReady = () => { if (isMoodMode() && window.__playerReady) startSampler(); };
+  // When frames are ready, hide overlay and start the sampler
+  const onReady = () => {
+    if (isMoodMode() && window.__playerReady) {
+      hideMoodLoading?.();
+      startSampler();
+    }
+  };
   v.addEventListener('playing', onReady, { once: true });
   v.addEventListener('loadeddata', onReady, { once: true });
   if (v.readyState >= 2) onReady();
 
   if (!played){
-    const resume = () => { v.play().catch(()=>{}); vPrev?.play?.().catch(()=>{}); onReady();
+    const resume = () => {
+      v.play().catch(()=>{}); vPrev?.play?.().catch(()=>{});
+      onReady();
       document.removeEventListener('click', resume);
       document.removeEventListener('touchstart', resume);
     };
@@ -1700,16 +2014,6 @@ function wireFeedbackModal(){
 /* =============================
  *        Audio SFX (WebAudio)
  * ============================= */
-function initAudioOnce(){
-  if (window.__audioReady) return;
-  try{
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    window.__audioCtx = new Ctx();
-    window.__audioReady = true;
-  }catch(e){ console.warn('Audio init failed:', e); }
-}
-
 function playPop(vel=1){
   const ctx = window.__audioCtx; if (!ctx) return;
   const t = ctx.currentTime;
@@ -1746,27 +2050,44 @@ function playPop(vel=1){
 
 // ===== Audio SFX (procedural) =====
 let __audioCtx = null, __popBuf = null, __audioReady = false;
-let __sfxOn = true;  // default unmuted
+let __sfxBtn = null;   // single reference to #sfxFloat
+
+// Persisted SFX state (default ON)
+let __sfxOn = (function(){
+  try { return localStorage.getItem('sfxOn') !== '0'; }
+  catch { return true; }
+})();
+window.__sfxOn = __sfxOn; // keep window + local in sync
 
 function initAudioOnce(){
-  if (__audioReady) return;
-  __audioCtx = __audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  __popBuf = __popBuf || makePopBuffer(__audioCtx); // 60ms bubble pop
-  __audioReady = true;
-  // Initialize SFX state from storage (default off)
-  try { setSfx(localStorage.getItem('bbg_sfx_on') === '1'); } catch(_){}
-}
-
-function setSfx(on){
-  __sfxOn = !!on;
-  try { localStorage.setItem('bbg_sfx_on', __sfxOn ? '1':'0'); } catch(_){}
-  const btn = document.getElementById('sfxBtn');
-  if (btn) {
-    btn.setAttribute('aria-pressed', __sfxOn ? 'true' : 'false');
-    btn.textContent = __sfxOn ? '🔊' : '🔇';
-    btn.title = __sfxOn ? 'Sound: On' : 'Sound: Off';
+  if (__audioReady && __audioCtx) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  try {
+    __audioCtx = __audioCtx || new Ctx();
+    window.__audioCtx = __audioCtx;      // sync
+    __popBuf   = __popBuf   || makePopBuffer(__audioCtx);
+    __audioReady = true;
+    window.__audioReady = true;          // sync
+  } catch(e){
+    console.warn('[audio] init failed:', e);
+    __audioReady = false;
+    window.__audioReady = false;
   }
 }
+
+// v10.0.6 — unified SFX state sync (top-bar button removed; keep bottom-left floater)
+function setSfx(on){
+  __sfxOn = !!on;
+  window.__sfxOn = __sfxOn;
+  try { localStorage.setItem('sfxOn', __sfxOn ? '1' : '0'); } catch {}
+
+  if (__sfxBtn){
+    __sfxBtn.setAttribute('aria-pressed', __sfxOn ? 'true' : 'false');
+    __sfxBtn.textContent = __sfxOn ? '🔊' : '🔇';
+    __sfxBtn.title = __sfxOn ? 'Sound: on' : 'Sound: off';
+  }
+}
+
 
 function maybePop(force=false){
   if (!__audioReady) return;
