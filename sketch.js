@@ -915,7 +915,7 @@ async function submitRun(){
         sessionId: window.__sessionId,
         deviceId: playerDeviceId,
         deviceType: (window.__deviceType || detectDeviceType()),
-        username: playerUsername || '',
+        username: (playerUsername || '').trim(),
         mode: currentMode,
         gameVersion: GV, // keep in sync with version comment
         score,
