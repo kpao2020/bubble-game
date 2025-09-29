@@ -324,6 +324,7 @@ const CLASSIC_SPEED_CAP   = 3.0;
 let currentMode = 'classic'; // 'classic' | 'challenge' | 'mood'
 const CHALLENGE_TRICK_RATE = 0.22;
 const MOOD_TRICK_RATE = 0.18;
+const MAX_TRICK_RATIO = 0.5;   // at most 50% of on-screen bubbles can be red/trick
 
 let bubbles;               // p5play Group of bubbles
 let walls;                 // boundary walls
@@ -1025,6 +1026,31 @@ async function resumeAudioOnGesture(){
   window.addEventListener('keydown', kick, true);
 })();
 
+function shouldSpawnTrick(mode){
+  // Mode-specific base rates
+  const base =
+    (mode === 'challenge') ? CHALLENGE_TRICK_RATE :
+    (mode === 'mood')      ? MOOD_TRICK_RATE      :
+    0;
+
+  // Current on-screen composition
+  const n = (bubbles && typeof bubbles.length === 'number') ? bubbles.length : 0;
+  let trickCount = 0;
+  if (n > 0) {
+    for (let i = 0; i < bubbles.length; i++){
+      const bb = bubbles[i];
+      if (bb && bb.kind === 'trick') trickCount++;
+    }
+  }
+  const ratio = (n > 0) ? (trickCount / n) : 0;
+
+  // Cap: if already at or above the max ratio, force next spawns to be normal
+  if (ratio >= MAX_TRICK_RATIO) return false;
+
+  // Otherwise, use the mode’s base probability
+  return random() < base;
+}
+
 // End of UI Helper section
 
 /* =======================================
@@ -1532,28 +1558,26 @@ function draw(){
  * ============================= */
 function spawnBubble(){
   const d = random(MIN_DIAM, MAX_DIAM), r = d / 2, sTop = safeTopPx();
-  let angle = random(TWO_PI); 
+  let angle = random(TWO_PI);
   if (abs(sin(angle)) < 0.2) angle += PI/4;
   const speed = random(MIN_SPEED, MAX_SPEED);
   let sx = random(r, width - r), sy = random(max(sTop + r, sTop + 1), height - r);
 
   if (isMoodMode()){
-    const biasX = width * moodState.gaze.x, 
+    const biasX = width * moodState.gaze.x,
           biasY = constrain(height * moodState.gaze.y, sTop + r, height - r);
     sx = constrain(lerp(random(r, width - r), biasX, 0.6), r, width - r);
     sy = constrain(lerp(random(sTop + r, height - r), biasY, 0.6), sTop + r, height - r);
   }
 
   const b = new Sprite(sx, sy, d);
-  b.shape = 'circle'; 
-  b.color = color(255,255,255,0); 
+  b.shape = 'circle';
+  b.color = color(255,255,255,0);
   b.diameter = d;
 
-  // v10.0.5 — Challenge & Mood: spawn trick bubbles by per-mode rates
-  if (currentMode === 'challenge'){
-    b.kind = (random() < CHALLENGE_TRICK_RATE) ? 'trick' : 'normal';
-  } else if (currentMode === 'mood'){
-    b.kind = (random() < MOOD_TRICK_RATE) ? 'trick' : 'normal';
+  // v10.0.5 — Challenge & Mood: trick spawn with a hard cap on red ratio
+  if (currentMode === 'challenge' || currentMode === 'mood'){
+    b.kind = shouldSpawnTrick(currentMode) ? 'trick' : 'normal';
   } else {
     b.kind = 'normal';
   }
@@ -1562,15 +1586,15 @@ function spawnBubble(){
   const __red  = (typeof COLOR_RED  !== 'undefined') ? color(...COLOR_RED)  : color(198,40,40,200);
   b._tint = (b.kind === 'trick') ? __red : __teal;
 
-  b.direction = degrees(angle); 
-  b.speed = speed; 
-  b._baseSpeed = speed; 
+  b.direction = degrees(angle);
+  b.speed = speed;
+  b._baseSpeed = speed;
   b.mass = PI * r * r;
-  b.rotationLock = true; 
-  b._hitScale = 1; 
+  b.rotationLock = true;
+  b._hitScale = 1;
   b._stuck = 0;
 
-  bubbles.add(b); 
+  bubbles.add(b);
   return b;
 }
 
