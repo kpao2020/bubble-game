@@ -1569,6 +1569,9 @@ function restart(fromModeButton){
     return; // <— IMPORTANT: stop here for Classic
   }
 
+  // Reset classic flag when leaving Classic
+  window.__classicStatic = false;
+
   // Non-Classic Restart logic
   if (!bubbles) {
     bubbles = new Group();
