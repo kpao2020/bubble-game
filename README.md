@@ -370,10 +370,13 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 
 ### v10.0.8
 - Classic “Change Mode” guard
-
 - Prevent Classic from auto-restarting when “Change Mode” is pressed.
 - `showModePicker()` now freezes gameplay during selection and cancels Classic auto-start timers.
 - `openClassicOpts()` and `restart()` honor a picking guard to avoid unintended starts.
+
+### v10.0.9
+- Classic: always show Timed/Relax picker (no auto-start).
+- Login: saved name pre-fills; “Use previous name” button logs in directly.
 
 ---
 

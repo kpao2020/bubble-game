@@ -60,9 +60,8 @@ const MISS_STREAK_SLOW_CAP       = 0.35; // never slow more than 35%
 
 
 // v10.0.0 — Classic variants + static board (Step 2)
-const CLASSIC_DEFAULT = 'timed';     // 'timed' | 'relax'
 const CLASSIC_TIME_MS = 60000;       // 60s for Timed
-let classicVariant = CLASSIC_DEFAULT;
+let classicVariant = null;
 let classicDeadline = 0;             // ms; 0 => relax (no timer)
 
 // v10.0.0 — Red penalty & flyout
@@ -676,21 +675,14 @@ function noteMiss(){
 
 // v10.0.0 — classic option modal
 function openClassicOpts(){
-  // If the mode picker is open, do not show Classic options or auto-start
   if (window.__modePicking) return;
 
   const m = document.getElementById('classicOpts');
   if (m) m.classList.remove('hidden');
 
-  // default to Timed after short delay if no click (only if modal still open & not picking)
+  // prevent multiple auto-start timers
   clearTimeout(window.__classicAutoTO);
-  window.__classicAutoTO = setTimeout(() => {
-    if (window.__modePicking) return;                   // guard: user is picking
-    if (!m || m.classList.contains('hidden')) return;   // user already chose
-    classicVariant = 'timed';
-    if (m) m.classList.add('hidden');
-    startClassicRound();
-  }, 1600);
+  window.__classicAutoTO = null;
 }
 
 function wireClassicOpts(){
@@ -1179,6 +1171,16 @@ function setup(){
     if (typeof playerDeviceId === 'undefined') {
       playerDeviceId = getOrCreateDeviceId();
     }
+
+    const uname = (document.getElementById('usernameInput')?.value || '').trim();
+    if (!uname) {
+      setLoginStatus('Please enter a username', 'err');
+      return;
+    }
+
+    playerUsername = uname;
+    try { localStorage.setItem(STORAGE_KEYS.username, playerUsername); } catch(_) {}
+
     showLoginScreen(playerDeviceId);
   };
 
@@ -1211,6 +1213,13 @@ function setup(){
       setSfx(!__sfxOn);    // toggles local + window + UI
       if (__sfxOn) maybePop(true); // small preview click
     };
+  }
+
+  const savedName = localStorage.getItem(STORAGE_KEYS.username);
+  if (savedName) {
+    const u = document.getElementById('usernameInput');
+    if (u) u.value = savedName;
+    playerUsername = savedName;
   }
 
 } // end of setup()
@@ -2255,9 +2264,11 @@ function showLoginScreen(deviceId){
     }
   });
 
-  // reset and show device check status
-  input.value = '';
-  setLoginStatus('Enter your preferred name while we check for an existing name…', 'info');
+  // only clear if nothing was pre-filled (localStorage hydration)
+  if (!input.value) {
+    input.value = '';
+    setLoginStatus('Enter your preferred name while we check for an existing name…', 'info');
+  }
 
   let priorProfile = null;
 
@@ -2269,10 +2280,32 @@ function showLoginScreen(deviceId){
         ? String(data.profile.username || '').trim()
         : `Player-${deviceId.slice(0,6)}`;
 
-      if (!loginUserEdited && (!input.value || input.value.trim() === '')) {
-        input.value = suggested;
-      } else {
-        input.placeholder = suggested; // don't overwrite what the user typed
+      // Don’t override the current input — instead show as a suggestion button
+      const sugRow = document.getElementById('serverSuggestionRow');
+      const sugBtn = document.getElementById('serverSuggestionBtn');
+      if (sugRow && sugBtn) {
+        sugBtn.textContent = `Use previous name: ${suggested}`;
+        sugRow.classList.remove('hidden');
+        sugBtn.onclick = () => {
+          const username = suggested;
+          input.value = username;
+          playerUsername = username;
+          try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
+          setLoginStatus(`Welcome back, ${username}!`, 'ok');
+
+          // 🔑 bypass the OK button — go straight to saving
+          fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'setUsername', deviceId, username })
+          })
+          .then(() => {
+            startGame(); // open Mode Picker right away
+          })
+          .catch(() => {
+            setLoginStatus('Could not save username. Please try again.', 'err');
+          });
+        };
       }
 
       if (data && data.ok && data.profile) {
