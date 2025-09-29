@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.0.8';                 // game version number
+const GV = 'v10.1.3';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -842,6 +842,56 @@ function hideMoodLoading(){
   if (el) el.classList.add('hidden');
 }
 
+// === Score Flyout Animation ===
+function spawnFlyout(x, y, points, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'flyoutScore';
+  el.textContent = (points > 0 ? `+${points}` : `${points}`);
+
+  // Position relative to canvas
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+
+  // Normal colors
+  if (points > 0) {
+    el.style.color = '#0f766e';   // teal good pops
+  } else {
+    el.style.color = '#c62828';   // red penalty
+  }
+
+  // Scale with score size
+  const baseSize = 22;
+  const sizeBoost = Math.min(50, baseSize + Math.abs(points) * 4);
+  el.style.fontSize = `${sizeBoost}px`;
+
+  // If this was a combo pop, override with gold + faster animation
+  if (opts.combo && points > 0) {
+    el.classList.add('flyoutCombo');
+  }
+
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+// === Bubble Burst Animation ===
+function spawnBurst(x, y, color = '#ffffff') {
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 40 + Math.random() * 20;
+
+    const p = document.createElement('div');
+    p.className = 'burstParticle';
+    p.style.left = `${x}px`;
+    p.style.top = `${y}px`;
+    p.style.background = color;
+    p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+    p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 600);
+  }
+}
+
 // End of UI Helper section
 
 /* =======================================
@@ -865,13 +915,13 @@ async function submitRun(){
         sessionId: window.__sessionId,
         deviceId: playerDeviceId,
         deviceType: (window.__deviceType || detectDeviceType()),
-        username: playerUsername || '',
+        username: (playerUsername || '').trim(),
         mode: currentMode,
         gameVersion: GV, // keep in sync with version comment
         score,
         durationMs,
         bubblesPopped,
-        accuracy: +( (bubblesPoppedGood / Math.max(1, tapsTotal)).toFixed(3) ),
+        accuracy: +( (bubblesPopped / Math.max(1, tapsTotal)).toFixed(3) ),
         emoHappy:    emoCounts.happy,
         emoSad:      emoCounts.sad,
         emoAngry:    emoCounts.angry,
@@ -902,7 +952,7 @@ async function fetchJSON(url, opts){
 }
 
 function computeAccuracyPct(){
-  const acc = (bubblesPoppedGood / Math.max(1, tapsTotal));
+  const acc = (bubblesPopped / Math.max(1, tapsTotal));
   return Math.round(acc * 100);
 }
 
@@ -969,8 +1019,17 @@ function renderPostGameContent({ username, score, accuracyPct, mode, rank, board
   }
 }
 
+let __lastLbFetch = 0;   // <-- put this at top level (file scope)
+
+
 // Save the run (once), then fetch & render stats
 async function hydratePostGame(){
+  const now = Date.now();
+  if (now - __lastLbFetch < 5000) {
+    console.warn('[leaderboard] Skipping fetch (debounced)');
+    return;
+  }
+  __lastLbFetch = now;
   try {
     submitRunOnce();                       // ensure row exists before reading
     const username = (playerUsername || '').trim();
@@ -995,12 +1054,12 @@ async function hydratePostGame(){
     const board = Array.isArray(data?.scores) ? data.scores : (data?.rows || []);
 
     // TEMP: debug what the server is actually returning (remove later)
-    const sampleModes = [...new Set(board.slice(0, 5).map(r => r?.mode).filter(Boolean))];
-    console.log('[leaderboard]', {
-      requestedMode: mode,
-      sampleRowModes: sampleModes,         // e.g., ["mood"] or ["bio"]
-      meMode: data?.me?.mode ?? null       // if your script echoes this
-    });
+    // const sampleModes = [...new Set(board.slice(0, 5).map(r => r?.mode).filter(Boolean))];
+    // console.log('[leaderboard]', {
+    //   requestedMode: mode,
+    //   sampleRowModes: sampleModes,         // e.g., ["mood"] or ["bio"]
+    //   meMode: data?.me?.mode ?? null       // if your script echoes this
+    // });
 
     const rankRaw = data?.me?.rank;
     const rank = (rankRaw != null && !Number.isNaN(Number(rankRaw))) ? Number(rankRaw) : null;
@@ -1017,6 +1076,11 @@ async function hydratePostGame(){
       rank: null,
       board: []
     });
+
+    const lbEl = document.getElementById('leaderboard');
+    if (lbEl) {
+      lbEl.innerHTML = `<p style="opacity:.7;">Leaderboard unavailable (please try again later).</p>`;
+    }
   }
 }
 
@@ -1222,6 +1286,7 @@ function setup(){
     playerUsername = savedName;
   }
 
+  initSplash();
 } // end of setup()
 
 function draw(){
@@ -1299,6 +1364,32 @@ function draw(){
 
     for (let i = 0; i < bubbles.length; i++){
       const b = bubbles[i];
+
+      // === Pop animation check ===
+      if (b._popping) {
+        const elapsed = (millis ? millis() : Date.now()) - (b._popStart || 0);
+        const t = Math.min(1, elapsed / 200); // 200ms animation
+
+        const r = currentRadius(b) * (1 - t);
+        const d = r * 2;
+        const alpha = 200 * (1 - t);
+
+        fill(red(b._tint), green(b._tint), blue(b._tint), alpha);
+        circle(b.x, b.y, d);
+
+        if (t >= 1) {
+          if (b._respawnAfterPop) {
+            if (typeof b.remove === 'function') b.remove();
+            spawnBubble();
+            b._respawnAfterPop = false;
+          } else {
+            if (typeof b.remove === 'function') b.remove();
+          }
+          b._popping = false;
+        }
+
+        continue; // 🔑 skip normal drawing for this bubble
+      }
 
       // --- v10.0.0 Step 3C: Classic draw & dead-skip ---
       if (currentMode === 'classic') {
@@ -1455,7 +1546,12 @@ function handlePop(px, py){
         else bubblesPoppedGood++;
 
         // flyout
-        if (typeof spawnFlyout === 'function') spawnFlyout(px, py, delta);
+        if (typeof spawnFlyout === 'function') spawnFlyout(b.x, b.y - b.diameter * 0.6, delta);
+
+        // burst effect
+        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e');
+        b._popping = true;
+        b._popStart = millis ? millis() : Date.now();
 
         // play SFX ONLY (no combo/scoring side-effects)
         try { maybePop(); } catch (_) {}
@@ -1487,9 +1583,15 @@ function handlePop(px, py){
         if (b.kind === 'trick') bubblesPoppedTrick++;
         else bubblesPoppedGood++;
 
-        // remove + respawn
-        b.remove();
-        spawnBubble();
+        // animation for pop bubbles
+        const mult = (currentMode === 'challenge') ? getComboMultiplier() : 1.0;
+        spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: (currentMode === 'challenge' && getComboMultiplier() > 1.0) });
+
+        // burst effect
+        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e');
+        b._popping = true;
+        b._popStart = millis ? millis() : Date.now();
+        b._respawnAfterPop = true; // mark to respawn after animation
         break;
       }
     }
@@ -1502,13 +1604,6 @@ function handlePop(px, py){
       noteMiss();
     }
   }
-}
-
-function mousePressed(){ if (!window.__playerReady) return; handlePop(mouseX, mouseY); }
-function touchStarted(){
-  if (!window.__playerReady) return;
-  if (touches && touches.length) for (const t of touches) handlePop(t.x, t.y);
-  else handlePop(mouseX, mouseY);
 }
 
 function endGame(){
@@ -1580,7 +1675,18 @@ function restart(fromModeButton){
     bubbles.friction = 0;
     bubbles.drag = 0;
   } else {
-    for (let i = bubbles.length - 1; i >= 0; i--) bubbles[i].remove();
+    // If bubbles was a Classic array, rebuild as Group first
+    if (!bubbles || typeof bubbles[0]?.remove !== 'function') {
+      bubbles = new Group();
+      bubbles.collider = 'dynamic';
+      bubbles.bounciness = 1;
+      bubbles.friction = 0;
+      bubbles.drag = 0;
+    } else {
+      for (let i = bubbles.length - 1; i >= 0; i--) {
+        bubbles[i].remove();
+      }
+    }
   }
   const N0 = startBubblesForMode();
   for (let i = 0; i < N0; i++) spawnBubble();
@@ -2129,40 +2235,36 @@ function makePopBuffer(ctx){
 }
 
 // ===== Splash Controller =====
-(function initSplash() {
+// ===== Splash Controller =====
+function initSplash() {
   const splash = document.getElementById('splash');
   const splashCard = document.getElementById('splashCard') || splash.querySelector('.splash-inner');
-
   if (!splash) return;
 
-  // Helper to end the splash with fade-out
   function dismissSplash() {
     if (!splash.classList.contains('is-visible')) return;
-    try { initAudioOnce(); maybePop(); } catch (_) {}
 
-    // v9.9 — Initialize audio on first gesture + subtle confirmation pop
-    if (!window.__audioReady){ initAudioOnce(); try{ playPop(1); }catch(_){} }
+    // 🔑 only init audio AFTER user taps/clicks splash
+    if (!window.__audioReady) {
+      try { 
+        initAudioOnce(); 
+        __audioCtx?.resume();
+        maybePop(true); 
+      } catch (_) {}
+    }
 
     splash.classList.add('is-fading-out');
 
-    // ensure audio is unlocked on first user gesture + play confirmation
-    try { initAudioOnce(); maybePop(true); } catch(_) {}
-
-    // Give the CSS transition time to finish
     setTimeout(() => {
       splash.classList.remove('is-visible', 'is-fading-out');
-
-      // Hook for your game: start music later, restart level, etc.
       if (typeof window.onSplashDismiss === 'function') {
         try { window.onSplashDismiss(); } catch (e) { console.warn(e); }
       }
     }, 420);
   }
 
-  // Make it visible on load (CSS handles fade-in)
   requestAnimationFrame(() => splash.classList.add('is-visible'));
 
-  // Interactions: click/tap or keys (Enter/Space)
   const startEvents = ['click', 'touchend'];
   startEvents.forEach(evt =>
     splashCard?.addEventListener(evt, dismissSplash, { passive: true })
@@ -2171,8 +2273,7 @@ function makePopBuffer(ctx){
     const k = e.key?.toLowerCase();
     if (k === 'enter' || k === ' ') dismissSplash();
   });
-
-})();
+}
 
 window.__splashActive = true;
 window.onSplashDismiss = function () {
@@ -2296,6 +2397,10 @@ function showLoginScreen(deviceId){
           try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
           setLoginStatus(`Welcome back, ${username}!`, 'ok');
 
+          // Add a spinner to indicate busy icon
+          submit.classList.add('is-busy');
+          submit.disabled = true;
+
           // 🔑 bypass the OK button — go straight to saving
           fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
             method: 'POST',
@@ -2303,10 +2408,17 @@ function showLoginScreen(deviceId){
             body: JSON.stringify({ action: 'setUsername', deviceId, username })
           })
           .then(() => {
+            playerUsername = username;
+            try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
+            setLoginStatus(`Welcome, ${username}!`, 'ok');
             startGame(); // open Mode Picker right away
           })
           .catch(() => {
             setLoginStatus('Could not save username. Please try again.', 'err');
+          })
+          .finally(() => {
+            submit.classList.remove('is-busy');
+            submit.disabled = false;
           });
         };
       }
