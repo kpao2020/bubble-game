@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.2';                 // game version number
+const GV = 'v10.1.3';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -842,6 +842,56 @@ function hideMoodLoading(){
   if (el) el.classList.add('hidden');
 }
 
+// === Score Flyout Animation ===
+function spawnFlyout(x, y, points, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'flyoutScore';
+  el.textContent = (points > 0 ? `+${points}` : `${points}`);
+
+  // Position relative to canvas
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+
+  // Normal colors
+  if (points > 0) {
+    el.style.color = '#0f766e';   // teal good pops
+  } else {
+    el.style.color = '#c62828';   // red penalty
+  }
+
+  // Scale with score size
+  const baseSize = 22;
+  const sizeBoost = Math.min(50, baseSize + Math.abs(points) * 4);
+  el.style.fontSize = `${sizeBoost}px`;
+
+  // If this was a combo pop, override with gold + faster animation
+  if (opts.combo && points > 0) {
+    el.classList.add('flyoutCombo');
+  }
+
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+// === Bubble Burst Animation ===
+function spawnBurst(x, y, color = '#ffffff') {
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 40 + Math.random() * 20;
+
+    const p = document.createElement('div');
+    p.className = 'burstParticle';
+    p.style.left = `${x}px`;
+    p.style.top = `${y}px`;
+    p.style.background = color;
+    p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+    p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 600);
+  }
+}
+
 // End of UI Helper section
 
 /* =======================================
@@ -1315,6 +1365,32 @@ function draw(){
     for (let i = 0; i < bubbles.length; i++){
       const b = bubbles[i];
 
+      // === Pop animation check ===
+      if (b._popping) {
+        const elapsed = (millis ? millis() : Date.now()) - (b._popStart || 0);
+        const t = Math.min(1, elapsed / 200); // 200ms animation
+
+        const r = currentRadius(b) * (1 - t);
+        const d = r * 2;
+        const alpha = 200 * (1 - t);
+
+        fill(red(b._tint), green(b._tint), blue(b._tint), alpha);
+        circle(b.x, b.y, d);
+
+        if (t >= 1) {
+          if (b._respawnAfterPop) {
+            if (typeof b.remove === 'function') b.remove();
+            spawnBubble();
+            b._respawnAfterPop = false;
+          } else {
+            if (typeof b.remove === 'function') b.remove();
+          }
+          b._popping = false;
+        }
+
+        continue; // 🔑 skip normal drawing for this bubble
+      }
+
       // --- v10.0.0 Step 3C: Classic draw & dead-skip ---
       if (currentMode === 'classic') {
         // If we already "popped" it in classic, don't draw or move it
@@ -1470,7 +1546,12 @@ function handlePop(px, py){
         else bubblesPoppedGood++;
 
         // flyout
-        if (typeof spawnFlyout === 'function') spawnFlyout(px, py, delta);
+        if (typeof spawnFlyout === 'function') spawnFlyout(b.x, b.y - b.diameter * 0.6, delta);
+
+        // burst effect
+        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e');
+        b._popping = true;
+        b._popStart = millis ? millis() : Date.now();
 
         // play SFX ONLY (no combo/scoring side-effects)
         try { maybePop(); } catch (_) {}
@@ -1502,9 +1583,15 @@ function handlePop(px, py){
         if (b.kind === 'trick') bubblesPoppedTrick++;
         else bubblesPoppedGood++;
 
-        // remove + respawn
-        b.remove();
-        spawnBubble();
+        // animation for pop bubbles
+        const mult = (currentMode === 'challenge') ? getComboMultiplier() : 1.0;
+        spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: (currentMode === 'challenge' && getComboMultiplier() > 1.0) });
+
+        // burst effect
+        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e');
+        b._popping = true;
+        b._popStart = millis ? millis() : Date.now();
+        b._respawnAfterPop = true; // mark to respawn after animation
         break;
       }
     }
@@ -2310,6 +2397,10 @@ function showLoginScreen(deviceId){
           try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
           setLoginStatus(`Welcome back, ${username}!`, 'ok');
 
+          // Add a spinner to indicate busy icon
+          submit.classList.add('is-busy');
+          submit.disabled = true;
+
           // 🔑 bypass the OK button — go straight to saving
           fetch(`${GOOGLE_SCRIPT_URL}${GOOGLE_SCRIPT_POST_SUFFIX}`, {
             method: 'POST',
@@ -2317,10 +2408,17 @@ function showLoginScreen(deviceId){
             body: JSON.stringify({ action: 'setUsername', deviceId, username })
           })
           .then(() => {
+            playerUsername = username;
+            try { localStorage.setItem(STORAGE_KEYS.username, username); } catch {}
+            setLoginStatus(`Welcome, ${username}!`, 'ok');
             startGame(); // open Mode Picker right away
           })
           .catch(() => {
             setLoginStatus('Could not save username. Please try again.', 'err');
+          })
+          .finally(() => {
+            submit.classList.remove('is-busy');
+            submit.disabled = false;
           });
         };
       }

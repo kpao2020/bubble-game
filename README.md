@@ -389,6 +389,9 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 ### v10.1.2
 - Leaderboard guard — debounce leaderboard fetches (5s) and show a fallback message if the proxy returns 429/failed, preventing blank summaries. (minor)
 
+### v10.1.3
+- Added bubble pop animations (shrink, fade, burst) with score flyout above bubble.
+
 ---
 
 ## ▶️ How to Play
