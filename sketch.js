@@ -33,249 +33,12 @@
 // b. Coding with ChatGPT assistance
 //
 // ============================================================================
-// Version history
-// v1.0   : Initial game built with basic popping bubbles and mousePressed input
-//
-// v2.2   : Fix bubbles spawn issues. Adjust walls. Minor bug fix.
-//
-// v3.2   : Add score system, Add timer. Update CSS and JS. Minor bug fix.
-//
-// v4.5   : Add splash screen. Minor fix HTML layout. Add Challenge Mode and Bio Mode. Add face-api.js
-//
-// v5.6   : Add topBar display. Add camera for facial expression troubleshooting. Adjust 3 Bio 
-//          states - happy, sad, angry attributes and fix neutral values for improving detection.
-//          Add google sheet to capture data. Add cloudflare worker for secret management.
-//          Major update and bug fix.
-//
-// v6.2   : Add splash screen. Redesign topBar layout - remove "New Game" button. Adjust walls for proper playarea.
-//
-// v7.6   : Change facial expression detection from 5s to 1s. Add login screen. Add end game screen.
-//
-// v8.0   : Baseline release — Classic / Challenge / Mood (Bio) modes; Sheets logging via Worker;
-//          face-api sampling; splash → login → mode picker → gameplay → post-game flow.
-//
-// v8.1   : Minor adjust sampling to improve facial expression detection.
-//
-// v8.2   : Update payload to send updated game statistic in correct order to google sheet.
-//
-// v8.3   : Update Google app script to fix the ordering. Update Google sheet headers manually.
-//
-// v8.4   : Optimize CSS, JS into logical groups to improve SDLC maintenance.
-//
-// v8.5   : Gameplay polish — switched normal bubble tint to a curated, high-contrast palette
-//          (more visible colors; consistent alpha).
-//
-// v8.6   : UI pass — global button restyle (rounded, taller, tighter width) with clear hover/active/focus.
-//
-// v8.6.1 : Button shape tweaks — squarish icon feel (not pills), darker top-bar camera button.
-//
-// v8.6.2 : Mode picker buttons → square icon tiles with emoji + text (no overflow).
-//
-// v8.6.3 : Mode picker layout — centered “Choose a Mode” header and centered button column;
-//          ensured labels don’t overflow on narrow screens.
-//
-// v8.6.4 : Color coding — distinct backgrounds for Classic/Challenge/Mood tiles;
-//          post-game actions (Play/Mode) converted to square, color-coded tiles with emoji.
-//
-// v8.6.5 : Feedback states — added per-button hover (slightly darker) and active (deeper + press scale).
-//
-// v8.6.6 : Post-game UI — centered the two action tiles; kept them as square tiles with press feedback.
-//
-// v8.6.7 : Mode chip visibility & theming — mode chip always visible (Classic/Challenge/Mood);
-//          CSS prepared for per-mode chip backgrounds (blue/orange/green); consolidated CSS structure.
-//
-// v8.6.7.1: Minor CSS fix — corrected the Challenge selector spacing so its chip color updates correctly.
-//
-// v8.6.8 : JS/CSS sync — added body mode-class toggling (mode-classic / mode-challenge / mode-mood) so
-//          CSS can theme #modeChip automatically; no gameplay changes.
-//
-// v8.6.8.1: Simplified UX — removed legacy top-bar mode dropdown; the Mode Picker dialog is now the only way
-//           to choose Classic / Challenge / Mood.
-//
-// v8.7   : Dialog system — responsive, four-corner rounded modals; camera modal centered;
-//          post-game behaves like a bottom sheet on phones and “floats” slightly above bottom on larger screens.
-//
-// v8.7.1 : Dialog option (B) — even on small phones, keep four corners with a small bottom gap (no flush edge).
-//
-// v8.8   : Telemetry & login UX — detectDeviceType() added and included in Sheets payload;
-//          login field is disabled during profile lookup, then enabled so returning users can keep or edit
-//          their username; version string sent with each run.
-//
-// v8.8.2 : Fix google sheet variable order via app script
-//
-// v9.0   : Update google sheet 2 new headers "feedbackBefore", "feedbackAfter". Update google app script
-//
-// v9.0.1 : Feedback system (research note + before/after capture)
-//          - Added study note + "Feedback" button on Login (before-game feedback).
-//          - Added reusable Feedback modal (textarea) for both before/after feedback.
-//          - Added "Feedback" button to Post-game modal (after-game feedback).
-//          - Feedback (before) is stored locally and attached to the next run payload.
-//          - Feedback (after) is captured via modal and included in the run payload.
-//          - Changed submission flow: endGame no longer posts immediately.
-//          - A run is posted exactly once per round when the player chooses Play Again,
-//            Change Mode, or saves post-game feedback.
-//          - Introduced submitRunOnce() guard and runSubmitted flag.
-//
-// v9.0.2 : Feedback safeguards + always-log option
-//          - Adopted "Option 2": Close (✖) on the Post-game modal now also triggers
-//            submitRunOnce(), so every finished round is logged.
-//          - Added safeguard: if the Feedback modal is open with unsaved text when
-//            the player taps Play Again / Change Mode / Close, that text is auto-
-//            captured into feedbackAfter before posting. Prevents accidental loss
-//            of feedback if the player skips Save.
-//          - Guard logic still ensures only one POST per round (no duplicates).
-//
-// v9.1   : “bio” → “mood” refactor (no behavior change)
-//          - Replaced all remaining bio* ids/selectors/keys with mood* across HTML/CSS/JS.
-//          - Fixed isMoodMode() to check 'mood' (was 'bio') so Mood features always run.
-//          - Renamed consent helpers and modal ids to moodConsent*; added one-time localStorage migration.
-//          - Renamed top-bar chip id to #moodChip and updated JS to use it.
-//          - (Optional) Renamed sampleBio() → sampleMood() and console tags “[bio]” → “[mood]”.
-//
-// v9.1.1 : fix comment bio -> mood on certain spots
-//
-// v9.2   : Pre- and Post-game surveys, JSON in single cell
-//          - Added 2 baseline (pre-game) questions: stress level + mood.
-//          - Added 4 multiple choice + 1 short answer survey after each round.
-//          - Both stored as JSON strings in feedbackBefore / feedbackAfter.
-//          - Replaces old free-text feedback field.
-//          - Single-POST flow preserved via submitRunOnce(); no duplicate rows.
-//
-// v9.2.1 : Post-game feedback polish (mobile + UX)
-//          - After saving post-game feedback: show “Thank you” state, disable the Feedback button,
-//            and prevent reopening for the same round.
-//          - Clear answers for the next round automatically.
-//          - Compact mobile layout for post-game survey (2-column choices, larger tap targets).
-//
-// v9.2.2 : Login tidy + post-game layout + scrollable survey
-//          - Login: shorter username field; OK + Feedback side-by-side; clearer note + separate disclaimer.
-//          - Pre-game Feedback: when saved, lock button (no “thank you” modal).
-//          - Post-game: Feedback moved to its own row; distinct colors on all three buttons.
-//          - Feedback modal: header/footer fixed; questions area scrolls on mobile; hover/active states kept.
-//
-// v9.2.3 : Fix duplicate usernameInput reference in setup(); reuse single const (no functional change).
-//          - Login OK wiring — replaced legacy #submitUsername with #loginOkBtn to match HTML; click handler now attaches correctly.
-//
-// v9.2.4 : Fix mismatch submitRun and submitRunOnce
-//
-// v9.2.5 : Feedback textarea id aligned to #postQ5 (was #feedbackText) so post-game comments are captured.
-//
-// v9.2.6 : Troubleshooting begins...
-//
-// v9.2.7 : Stabilize draw() — guard bubble loop (null-safe + try/catch) so a bad frame doesn’t black-screen.
-//
-// v9.2.8 : Remove undefined onLoginSave; bind loginOkBtn directly to showLoginScreen(playerDeviceId).
-//
-// v9.2.9 : Telemetry — gameVersion in submitRun() now matches header; start of cleanup pass.
-//
-// v9.2.10 : draw() cleanup — remove duplicate refreshCameraBtn() in Mood branch.
-//
-// v9.2.11 : Remove dead DOM refs — delete #modeSelect disables in endGame() and restart().
-//
-// v9.2.12 : Optimize code in sketch.js style.css and index.html
-//
-// v9.3    : Optimized Mood mode (lazy-load face-api, lighter models)
-//           - Balanced gameplay: fewer bubbles per mode, size-based scoring, miss-streak easing
-//
-// v9.3.1  : Minor UI cleanup
-//          - Removed legacy restartBtn (HTML, CSS, JS) since Post-game modal fully replaces it.
-//          - Login screen: moved OK + Feedback buttons into their own row (right-aligned) for clearer layout.
-//
-// v9.3.2 : UI readability improvements
-//          - Increased button text and emoji/icon size for better visibility.
-//          - Adjusted button background colors for stronger contrast with text.
-//          - Ensured higher legibility across login, mode picker, and post-game buttons.
-//
-// v9.4   : Login UX overhaul — type immediately, inline “Saving…” (no extra prompt), sleek pill OK button with 
-//          spinner, animated helper text (fade + shake on errors), glassy login card + soft gradient backdrop, 
-//          autofocus + Enter-to-submit, auto-select on first focus, and smooth fade-out into Mode Picker.
-//
-// v9.5   : Login card micro pop-in (scale + fade) on open for a smoother, modern feel.
-//
-// v9.6   : Single-helper copy + consistent “username” — clear which username will be used if you typed while device data loads.
-//
-// v9.6.1 : Remove duplicate helper line in index.html
-//
-// v9.7   : Auto-suggest on empty submit — if no username is typed, we fill with prior profile or Player-XXXXXX, 
-//          update helper, and refocus the input so the user can confirm or edit quickly.
-//
-// v9.8   : Auto dark-mode theming for login and splash using `prefers-color-scheme`. Updates the glassy login card,
-//          backdrop, input, and helper text colors for dark backgrounds. Splash screen gets a darker gradient and
-//          matching card styling. Pure CSS — no changes to HTML or JS.
-//
-// v9.9   : Add procedural bubble-pop SFX (WebAudio) with top-bar toggle (default muted) and fix dark-mode splash CTA contrast.
-//
-// v9.9.1 : WebAudio SFX (muted by default) + first-tap confirmation pop; dark-mode splash CTA contrast; SFX toggle in header.
-//
-// v9.9.2 : Splash “Start” card acts as a single teal CTA (click/tap/Enter/Space); first tap plays a confirmation pop to 
-//          init WebAudio; Mode Picker tiles unchanged. (minor)
-//
-// v9.9.3 : Unmuted SFX by default with first-tap confirm pop; add bottom-left floating sound toggle; canvas ignores taps on it. (minor)
-//
-// v9.9.4 — Remove duplicate top-bar sound button (#sfxBtn) next to Mode chip; keep bottom-left floating SFX toggle
-//          (#sfxFloat). Update setSfx() to reflect state on #sfxFloat so the visible control always mirrors the current audio
-//          setting. No functional changes elsewhere.
-//
-// v9.9.5 — Replace Mode Picker small icon buttons with full-width teal bar buttons. Reorder as Mood, Challenge, Classic.
-//          Buttons are responsive, stretch to container width, adjust height for icon+text, and keep consistent teal styling.
-//
-// v9.9.6 — GAS: add GET ?action=leaderboard (limit|n, username) over Runs; sort by score desc, accuracy desc, newest.
-//          Return {ok,scores[],me:{rank}}. In doPost, accept "submitRun" as alias for "run". Reuse existing Runs tab; no new sheet.
-//        - Worker: normalize ?limit to ?n for backward-compat with GAS top handler. Keep CORS allowlist and POST secret
-//          append unchanged. No other behavioral changes; leaderboard and submitRun calls are forwarded verbatim.
-//
-// v9.9.7 — Post-game polish
-//          - Removed legacy "Game Over / Score" overlay (#center); post-game modal is now the single source of round
-//            summary.
-//          - Updated renderPostGameContent() to only update #playerStats and #leaderboard, keeping Play Again /
-//            Change Mode / Feedback buttons intact.
-//          - Personalized stats: show "Your name" instead of generic "User"; rank shown when GAS matches username.
-//          - Normalized username handling (trim) before submit/fetch so rank displays correctly; default to Guest if
-//            blank.
-//          - CSS cleanup: removed duplicate survey/login blocks; removed unused leaderboardBlock ul/li rules. Table
-//            (.lbTable) styles finalized.
-//
-// v9.9.8 — Leaderboard by mode + UI polish
-//          - Google Apps Script leaderboard now filters by mode; only top 5 scores from the same mode are shown
-//            (Classic / Challenge / Mood).
-//          - Frontend getLeaderboard() passes current mode to GAS so results are mode-specific.
-//          - Post-game stats block updated: align left for easier reading.
-//          - Changed label from "Your name" to "Name" for cleaner presentation.
-//          - Added placeholder text inside Post-game modal while stats + leaderboard are loading, so players see
-//            immediate feedback instead of a blank modal.
-//
-// v10.0.0 — Classic variants Step 2:
-//          startClassicRound(), buildClassicBoard() (static grid), timed/relax end checks in draw()
-//
-// v10.0.1 — Challenge tuning
-//          - Combo multiplier: after 5 hits → x1.5, after 10 hits → x2.0; reset on miss.
-//          - On-screen badge shows current combo state.
-//          - Updated scoring in handlePop() to apply multiplier (no bonus on trick bubbles).
-//
-// v10.0.2 — Classic polish
-//          - Reduce red penalty (−2 default; tweakable).
-//          - End when all teal bubbles are popped; reds no longer block game end.
-//
-// v10.0.3 — Timer + Audio polish
-//          - Classic Timed: reset timer to 60s on Play Again (re-sets classicDeadline in restart()).
-//          - AudioContext: resume on first user gesture (global pointer/key listener) to satisfy Chrome autoplay policy.
-//
-// v10.0.4 — Color unification + cleanup
-//          - Removed random palette; all modes now teal=score, red=penalty.
-//          - Replaced b.red / b._type with b.kind ('normal' | 'trick').
-//          - Simplified tint logic (_tint set once at spawn, reused in draw).
-//
-// v10.0.5 — Mood trick bubbles
-//          - Mood mode now spawns occasional red 'trick' bubbles (MOOD_TRICK_RATE), same teal/red scheme.
-//          - spawnBubble() sets b.kind for Challenge and Mood; draw/score already use b.kind.
-//
-// ============================================================================
 
 
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.0.5';                 // game version number
+const GV = 'v10.0.8';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -616,12 +379,21 @@ function showMoodConsentModal(onAccept, onDecline){
 }
 
 function showModePicker(){
+  // Cancel any lingering Classic auto-start timers
+  try { if (window.__classicAutoTO) clearTimeout(window.__classicAutoTO); } catch(_) {}
+  window.__classicAutoTO = null;
+
+  // While the mode chooser is open, freeze gameplay and mark picking
+  window.__modePicking = true;
+  window.__playerReady = false;   // stops draw() early
+  try { noLoop(); } catch(_) {}
+
   const m  = document.getElementById('modeModal');
   const bC = document.getElementById('modeClassicBtn');
   const bH = document.getElementById('modeChallengeBtn');
   const bB = document.getElementById('modeMoodBtn');
 
-  // NEW: hide top bar while choosing a mode
+  // Hide top bar while choosing a mode
   const topBar = document.getElementById('topBar');
   if (topBar) topBar.classList.add('hidden');
 
@@ -629,29 +401,32 @@ function showModePicker(){
   document.body.classList.add('mode-pick');
   document.body.classList.remove('game-active');
 
-  if (!m || !bC || !bH || !bB){ 
-    currentMode = 'classic'; 
-    setBodyModeClass();
-    afterModeSelected(false); 
-    return; 
+  // Bail safely if any element is missing
+  if (!m || !bC || !bH || !bB){
+    console.warn('[mode] Mode picker elements missing; not auto-starting.');
+    return;
   }
 
-  const hide = () => m.classList.add('hidden');
+  const hide = () => {
+    m.classList.add('hidden');
+    window.__modePicking = false;    // release the guard when leaving picker
+  };
+
   closeAllModalsExcept('modeModal');
   m.classList.remove('hidden');
 
-  // Light prefetch on idle while the mode menu is visible
+  // Prefetch face-api on idle while menu is visible
   if (typeof requestIdleCallback === 'function') {
     requestIdleCallback(() => prefetchFaceApi(), { timeout: 1200 });
   } else {
     setTimeout(prefetchFaceApi, 800);
   }
 
-  bC.onclick = () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); };
+  bC.onclick = () => { currentMode = 'classic';   setBodyModeClass(); hide(); afterModeSelected(false); };
   bH.onclick = () => { currentMode = 'challenge'; setBodyModeClass(); hide(); afterModeSelected(false); };
   bB.onclick = () => {
-    bB.addEventListener('mouseenter', prefetchFaceApi, {once: true});
-    bB.addEventListener('touchstart', prefetchFaceApi, {once: true});
+    bB.addEventListener('mouseenter',  prefetchFaceApi, { once:true });
+    bB.addEventListener('touchstart',  prefetchFaceApi, { once:true });
     const proceedMood = () => { currentMode = 'mood'; setBodyModeClass(); hide(); afterModeSelected(true); };
     if (hasMoodConsent()) proceedMood();
     else showMoodConsentModal(proceedMood, () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); });
@@ -684,8 +459,7 @@ async function afterModeSelected(isMood){
     try {
       await ensureFaceApiLib();
       await loadFaceApiModels();
-      startWebcam();
-      startSampler();
+      await startWebcam();  // startWebcam will startSampler when frames are ready
     } finally {
       if (loading) loading.classList.add('hidden');  // hide overlay when ready
     }
@@ -902,13 +676,23 @@ function noteMiss(){
 
 // v10.0.0 — classic option modal
 function openClassicOpts(){
+  // If the mode picker is open, do not show Classic options or auto-start
+  if (window.__modePicking) return;
+
   const m = document.getElementById('classicOpts');
   if (m) m.classList.remove('hidden');
-  // default to Timed after short delay if no click
+
+  // default to Timed after short delay if no click (only if modal still open & not picking)
   clearTimeout(window.__classicAutoTO);
-  window.__classicAutoTO = setTimeout(()=>{ if (!m || m.classList.contains('hidden')) return;
-    classicVariant='timed'; if (m) m.classList.add('hidden'); startClassicRound(); }, 1600);
+  window.__classicAutoTO = setTimeout(() => {
+    if (window.__modePicking) return;                   // guard: user is picking
+    if (!m || m.classList.contains('hidden')) return;   // user already chose
+    classicVariant = 'timed';
+    if (m) m.classList.add('hidden');
+    startClassicRound();
+  }, 1600);
 }
+
 function wireClassicOpts(){
   const m = document.getElementById('classicOpts');
   const bt = document.getElementById('classicTimedBtn');
@@ -1051,6 +835,21 @@ function shouldSpawnTrick(mode){
   return random() < base;
 }
 
+function showMoodLoading(text = 'Setting up camera…'){
+  const el = document.getElementById('loadingOverlay');
+  if (!el) return;
+  const title = el.querySelector('.modalTitle');
+  const msg   = el.querySelector('.loadingText');
+  if (title) title.textContent = 'Mood is starting…';
+  if (msg)   msg.textContent   = text;
+  el.classList.remove('hidden');
+}
+
+function hideMoodLoading(){
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.classList.add('hidden');
+}
+
 // End of UI Helper section
 
 /* =======================================
@@ -1155,7 +954,7 @@ function renderPostGameContent({ username, score, accuracyPct, mode, rank, board
   const statsEl = document.getElementById('playerStats');
   if (statsEl) {
     statsEl.innerHTML = `
-      <div>Your name: <strong>${username || 'Guest'}</strong></div>
+      <div>Name: <strong>${username || 'Guest'}</strong></div>
       <div>Mode: ${mode}</div>
       <div>Score: ${score}</div>
       <div>Accuracy: ${accuracyPct}%</div>
@@ -1202,7 +1001,17 @@ async function hydratePostGame(){
     // Fetch leaderboard (includes top + rank if username provided)
     const data = await getLeaderboard(5, mode);
     const board = Array.isArray(data?.scores) ? data.scores : (data?.rows || []);
-    const rank  = (data?.me && typeof data.me.rank === 'number') ? data.me.rank : null;
+
+    // TEMP: debug what the server is actually returning (remove later)
+    const sampleModes = [...new Set(board.slice(0, 5).map(r => r?.mode).filter(Boolean))];
+    console.log('[leaderboard]', {
+      requestedMode: mode,
+      sampleRowModes: sampleModes,         // e.g., ["mood"] or ["bio"]
+      meMode: data?.me?.mode ?? null       // if your script echoes this
+    });
+
+    const rankRaw = data?.me?.rank;
+    const rank = (rankRaw != null && !Number.isNaN(Number(rankRaw))) ? Number(rankRaw) : null;
 
     renderPostGameContent({ username, score, accuracyPct, mode, rank, board });
   } catch (e){
@@ -1264,8 +1073,7 @@ function setup(){
       if (!window.__playerReady) return; // ignore clicks until after login
 
       // ignore taps on the floating SFX button
-      const sfx = document.getElementById('sfxFloat');
-      const r2 = sfx?.getBoundingClientRect?.();
+      const r2 = __sfxBtn?.getBoundingClientRect?.();
       if (r2 && e.clientY >= r2.top && e.clientY <= r2.bottom && e.clientX >= r2.left && e.clientX <= r2.right) return;
 
       // ignore clicks on top bar
@@ -1283,12 +1091,6 @@ function setup(){
   score = 0; startTime = millis(); gameOver = false;
   document.getElementById('center').style.display = 'none';
   
-  if (isMoodMode()){
-    loadFaceApiModels();
-    startWebcam();
-    startSampler();
-  }
-
   // Resize safety
   if (window.visualViewport){
     visualViewport.addEventListener('resize', fitCanvasToViewport);
@@ -1394,14 +1196,20 @@ function setup(){
     });
   }
 
-  // v9.9.6 — floating SFX toggle (respect saved state)
-  const sfxBtn = document.getElementById('sfxFloat');
-  if (sfxBtn){
-    try { initAudioOnce(); } catch(_){}
-    sfxBtn.onclick = async () => {
-      try { await __audioCtx.resume(); } catch(_){}
-      setSfx(!__sfxOn);
-      if (__sfxOn) maybePop(); // preview when turning ON
+  // v10.0.5 — robust floating SFX toggle: init + resume + preview pop
+  __sfxBtn = document.getElementById('sfxFloat');
+  if (__sfxBtn){
+    // reflect persisted state on first paint
+    setSfx(__sfxOn);
+
+    __sfxBtn.onclick = () => {
+      try {
+        initAudioOnce();
+        if (__audioCtx && typeof __audioCtx.resume === 'function') __audioCtx.resume();
+      } catch(e) { /* ignore */ }
+
+      setSfx(!__sfxOn);    // toggles local + window + UI
+      if (__sfxOn) maybePop(true); // small preview click
     };
   }
 
@@ -1615,10 +1423,10 @@ function handlePop(px, py){
   for (let i = bubbles.length - 1; i >= 0; i--){
     const b = bubbles[i], r = currentRadius(b);
 
-    // v10.0.3 — Classic: skip already-popped bubbles
+    // Classic: skip already-popped bubbles
     if (currentMode === 'classic' && b.alive === false) continue;
 
-    // v10.0.3 — Classic: no hit padding, exact circle only
+    // Classic: exact circle; others get a tiny touch pad
     const pad = (currentMode === 'classic') ? 0 : (IS_TOUCH ? TOUCH_HIT_PAD : 0);
     const rHit = r + pad;
 
@@ -1627,7 +1435,7 @@ function handlePop(px, py){
       hit = true;
 
       if (currentMode === 'classic'){
-        // v10.0.0 — Classic: same-color vs red, no respawn
+        // Classic: teal +1, red penalty; NO respawn
         const delta = (b.kind === 'trick') ? -RED_PENALTY : 1;
         score += delta;
         if (score < 0) score = 0;
@@ -1637,30 +1445,32 @@ function handlePop(px, py){
         if (b.kind === 'trick') bubblesPoppedTrick++;
         else bubblesPoppedGood++;
 
-        // small +/- flyout at tap position
+        // flyout
         if (typeof spawnFlyout === 'function') spawnFlyout(px, py, delta);
+
+        // play SFX ONLY (no combo/scoring side-effects)
+        try { maybePop(); } catch (_) {}
 
         // mark dead; draw() will skip it, end condition will handle “all popped”
         b.alive = false;
         break;
+
       } else {
-        // Existing behavior (Challenge/Mood): size-based score + respawn
-        // size-based scoring: smaller bubble => more points
-        const diameterNow = r * 2; // r from currentRadius(b), includes mood scaling
+        // Challenge/Mood: size-based scoring + respawn
+        const diameterNow = r * 2;
         const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
         let delta = (b.kind === 'trick')
           ? -SCORE_TRICK_PENALTY
           : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
 
-        // v10.0.1 — apply combo multiplier only to positive (non-trick) hits
+        // Challenge: combo multiplier (no bonus for trick)
         if (currentMode === 'challenge' && delta > 0){
           delta = Math.round(delta * getComboMultiplier());
         }
 
         score += delta;
-        // Do not increase combo on trick/penalty pops
-        if (delta > 0) onHit();
-        noteHit();
+        onHit();
+        noteHit(); // retains sound + combo in non-classic modes
         if (score < 0) score = 0;
 
         // stats
@@ -1668,7 +1478,7 @@ function handlePop(px, py){
         if (b.kind === 'trick') bubblesPoppedTrick++;
         else bubblesPoppedGood++;
 
-        // normal modes: remove + respawn
+        // remove + respawn
         b.remove();
         spawnBubble();
         break;
@@ -1712,6 +1522,14 @@ function endGame(){
 }
 
 function restart(fromModeButton){
+  // Do not restart while the mode picker is visible
+  if (window.__modePicking) return;
+
+  // Clear any leftover timer
+  try {
+    if (window.__classicAutoTO){ clearTimeout(window.__classicAutoTO); }
+  } catch(_) {}
+  window.__classicAutoTO = null;
 
   // === Classic: keep static grid ===
   if (currentMode === 'classic' && window.__classicStatic){
@@ -1882,13 +1700,21 @@ async function startWebcam(isRestart = false){
   let played = false;
   try { await v.play(); played = true; } catch { console.warn('[mood] video.play blocked; will resume on gesture'); }
 
-  const onReady = () => { if (isMoodMode() && window.__playerReady) startSampler(); };
+  // When frames are ready, hide overlay and start the sampler
+  const onReady = () => {
+    if (isMoodMode() && window.__playerReady) {
+      hideMoodLoading?.();
+      startSampler();
+    }
+  };
   v.addEventListener('playing', onReady, { once: true });
   v.addEventListener('loadeddata', onReady, { once: true });
   if (v.readyState >= 2) onReady();
 
   if (!played){
-    const resume = () => { v.play().catch(()=>{}); vPrev?.play?.().catch(()=>{}); onReady();
+    const resume = () => {
+      v.play().catch(()=>{}); vPrev?.play?.().catch(()=>{});
+      onReady();
       document.removeEventListener('click', resume);
       document.removeEventListener('touchstart', resume);
     };
@@ -2224,38 +2050,41 @@ function playPop(vel=1){
 
 // ===== Audio SFX (procedural) =====
 let __audioCtx = null, __popBuf = null, __audioReady = false;
-let __sfxOn = true;  // default unmuted
+let __sfxBtn = null;   // single reference to #sfxFloat
+
+// Persisted SFX state (default ON)
+let __sfxOn = (function(){
+  try { return localStorage.getItem('sfxOn') !== '0'; }
+  catch { return true; }
+})();
+window.__sfxOn = __sfxOn; // keep window + local in sync
 
 function initAudioOnce(){
-  if (__audioReady) return;
-  __audioCtx = __audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  __popBuf = __popBuf || makePopBuffer(__audioCtx);
-  __audioReady = true;
-
-  // Initialize SFX state from storage (default = ON if nothing stored)
+  if (__audioReady && __audioCtx) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
   try {
-    const saved = localStorage.getItem('bbg_sfx_on');
-    if (saved === null) {
-      setSfx(true);  // first time → default ON
-    } else {
-      setSfx(saved === '1');
-    }
-  } catch(_) {
-    setSfx(true);
+    __audioCtx = __audioCtx || new Ctx();
+    window.__audioCtx = __audioCtx;      // sync
+    __popBuf   = __popBuf   || makePopBuffer(__audioCtx);
+    __audioReady = true;
+    window.__audioReady = true;          // sync
+  } catch(e){
+    console.warn('[audio] init failed:', e);
+    __audioReady = false;
+    window.__audioReady = false;
   }
 }
 
-// v9.9.4 — unified SFX state sync (top-bar button removed; keep bottom-left floater)
+// v10.0.6 — unified SFX state sync (top-bar button removed; keep bottom-left floater)
 function setSfx(on){
-  window.__sfxOn = !!on;
-  try { localStorage.setItem('bbg_sfx_on', window.__sfxOn ? '1' : '0'); } catch(_) {}
+  __sfxOn = !!on;
+  window.__sfxOn = __sfxOn;
+  try { localStorage.setItem('sfxOn', __sfxOn ? '1' : '0'); } catch {}
 
-  // Support both legacy #sfxBtn (now removed) and the floating #sfxFloat
-  const btn = document.getElementById('sfxFloat');   // floating bottom-left (current)
-  if (btn){
-    btn.setAttribute('aria-pressed', window.__sfxOn ? 'true' : 'false');
-    btn.textContent = window.__sfxOn ? '🔊' : '🔇';
-    btn.title = window.__sfxOn ? 'Sound: On' : 'Sound: Off';
+  if (__sfxBtn){
+    __sfxBtn.setAttribute('aria-pressed', __sfxOn ? 'true' : 'false');
+    __sfxBtn.textContent = __sfxOn ? '🔊' : '🔇';
+    __sfxBtn.title = __sfxOn ? 'Sound: on' : 'Sound: off';
   }
 }
 
