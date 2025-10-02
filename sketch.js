@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.9';                 // game version number
+const GV = 'v10.2.0';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -1230,10 +1230,6 @@ function setup(){
     cnv.addEventListener('pointerdown', (e) => {
       if (!window.__playerReady) return; // ignore clicks until after login
 
-      // ignore taps on the floating SFX button
-      const r2 = __sfxBtn?.getBoundingClientRect?.();
-      if (r2 && e.clientY >= r2.top && e.clientY <= r2.bottom && e.clientX >= r2.left && e.clientX <= r2.right) return;
-
       // ignore clicks on top bar
       const ui = document.getElementById('topBar');
       const r = ui?.getBoundingClientRect?.();
@@ -1321,6 +1317,20 @@ function setup(){
   // Make sure the reusable Feedback modal is wired once
   wireFeedbackModal();
 
+  // Wire Sound toggles (Mode Picker + Post-game)
+  (function wireSoundToggles(){
+    const pre = document.getElementById('soundTogglePre');
+    const post = document.getElementById('soundTogglePost');
+    if (pre){
+      pre.checked = __sfxOn;
+      pre.onchange = () => setSfx(pre.checked);
+    }
+    if (post){
+      post.checked = __sfxOn;
+      post.onchange = () => setSfx(post.checked);
+    }
+  })();
+
   // v9.1.2 — mobile typing glue
   const u = document.getElementById('usernameInput') || document.querySelector('input[name="username"]');
   if (u) {
@@ -1365,23 +1375,6 @@ function setup(){
         // window.__feedbackBefore = '';
       }
     });
-  }
-
-  // v10.0.5 — robust floating SFX toggle: init + resume + preview pop
-  __sfxBtn = document.getElementById('sfxFloat');
-  if (__sfxBtn){
-    // reflect persisted state on first paint
-    setSfx(__sfxOn);
-
-    __sfxBtn.onclick = () => {
-      try {
-        initAudioOnce();
-        if (__audioCtx && typeof __audioCtx.resume === 'function') __audioCtx.resume();
-      } catch(e) { /* ignore */ }
-
-      setSfx(!__sfxOn);    // toggles local + window + UI
-      if (__sfxOn) maybePop(true); // small preview click
-    };
   }
 
   const savedName = localStorage.getItem(STORAGE_KEYS.username);
@@ -2272,7 +2265,6 @@ function playPop(vel=1){
 
 // ===== Audio SFX (procedural) =====
 let __audioCtx = null, __popBuf = null, __audioReady = false;
-let __sfxBtn = null;   // single reference to #sfxFloat
 
 // Persisted SFX state (default ON)
 let __sfxOn = (function(){
@@ -2302,12 +2294,6 @@ function setSfx(on){
   __sfxOn = !!on;
   window.__sfxOn = __sfxOn;
   try { localStorage.setItem('sfxOn', __sfxOn ? '1' : '0'); } catch {}
-
-  if (__sfxBtn){
-    __sfxBtn.setAttribute('aria-pressed', __sfxOn ? 'true' : 'false');
-    __sfxBtn.textContent = __sfxOn ? '🔊' : '🔇';
-    __sfxBtn.title = __sfxOn ? 'Sound: on' : 'Sound: off';
-  }
 }
 
 
