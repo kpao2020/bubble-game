@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.5';                 // game version number
+const GV = 'v10.1.6';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -450,9 +450,12 @@ async function afterModeSelected(isMood){
 
   window.__playerReady = true;
 
+  const loading = document.getElementById('loadingOverlay'); // define DOM "loading" to be used
+
+  // Mood branch
   if (isMood){
     // show loading overlay while models load
-    const loading = document.getElementById('loadingOverlay');
+    
     if (loading) loading.classList.remove('hidden');
 
     try {
@@ -472,13 +475,18 @@ async function afterModeSelected(isMood){
       const loadingMsg = document.getElementById('loadingMsg');
       if (loadingMsg) loadingMsg.textContent = 'Analyzing first frame…';
 
-      // wait for first sample
+      // wait for first sample (with 3s fail-safe so mobiles don't get stuck)
       await new Promise((resolve) => {
+        const fallback = setTimeout(() => {
+          if (loadingBar) loadingBar.style.width = '100%';
+          resolve();
+        }, 3000);
+
         const check = () => {
           if (modelsReady && Object.values(emoCounts).some(v => v > 0)) {
             if (loadingBar) loadingBar.style.width = '100%';
-            resolve();
-            setTimeout(resolve, 300); 
+            clearTimeout(fallback);
+            setTimeout(resolve, 300); // keep bar full briefly so users can see it
           } else {
             setTimeout(check, 300);
           }
@@ -495,7 +503,7 @@ async function afterModeSelected(isMood){
 
   // If Classic, show the options modal first (Timed/Relax), then start in startClassicRound()
   if (!isMood && currentMode === 'classic') {
-    const loading = document.getElementById('loadingOverlay');
+    
     if (loading) loading.classList.add('hidden'); // just in case it was visible
     openClassicOpts();
     return; // IMPORTANT: do not call restart() yet
