@@ -409,6 +409,9 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 ### v10.1.8
 - Mood mode polish — fixed premature overlay hide at ~60%, now shows 100% until first sample, overlay disappears exactly with “3” so no blank gap before countdown. (minor)
 
+### v10.1.9
+- Fix Mode Picker — Mood button on iOS no longer triggers Challenge; handler updated to allow Mood selection multiple times per session. (minor)
+
 ---
 
 ## ▶️ How to Play
