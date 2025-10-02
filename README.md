@@ -400,6 +400,9 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 - Loading overlay polish: progress bar now fills step-by-step and reaches 100% before hiding.  
 - Ensures smoother transition into countdown and gameplay.  
 
+### v10.1.6
+- Fix loading overlay (lingers 300 ms at 100%), hoist `loading` var (no ReferenceError), ensure Mood/Challenge spawn bubbles, and add 3 s fail-safe for iOS incognito dark-screen bug. (minor)
+
 ---
 
 ## ▶️ How to Play
