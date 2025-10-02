@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.8';                 // game version number
+const GV = 'v10.1.9';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -421,14 +421,46 @@ function showModePicker(){
     setTimeout(prefetchFaceApi, 800);
   }
 
-  bC.onclick = () => { currentMode = 'classic';   setBodyModeClass(); hide(); afterModeSelected(false); };
-  bH.onclick = () => { currentMode = 'challenge'; setBodyModeClass(); hide(); afterModeSelected(false); };
+  // sketch.js — around line 738
+
+  // Classic mode
+  bC.onclick = () => {
+    currentMode = 'classic';
+    setBodyModeClass();
+    hide();
+    afterModeSelected(false);
+  };
+
+  // Challenge mode
+  bH.onclick = () => {
+    currentMode = 'challenge';
+    setBodyModeClass();
+    hide();
+    afterModeSelected(false);
+  };
+
+  // Mood mode (use unified pointer event to avoid iOS double-fire)
   bB.onclick = () => {
-    bB.addEventListener('mouseenter',  prefetchFaceApi, { once:true });
-    bB.addEventListener('touchstart',  prefetchFaceApi, { once:true });
-    const proceedMood = () => { currentMode = 'mood'; setBodyModeClass(); hide(); afterModeSelected(true); };
-    if (hasMoodConsent()) proceedMood();
-    else showMoodConsentModal(proceedMood, () => { currentMode = 'classic'; setBodyModeClass(); hide(); afterModeSelected(false); });
+    prefetchFaceApi();
+    const proceedMood = () => {
+      currentMode = 'mood';
+      setBodyModeClass();
+      hide();
+      afterModeSelected(true);
+    };
+    if (hasMoodConsent()) {
+      proceedMood();
+    } else {
+      showMoodConsentModal(
+        proceedMood,
+        () => {
+          currentMode = 'classic';
+          setBodyModeClass();
+          hide();
+          afterModeSelected(false);
+        }
+      );
+    }
   };
 }
 
