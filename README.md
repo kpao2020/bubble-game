@@ -403,6 +403,12 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 ### v10.1.6
 - Fix loading overlay (lingers 300 ms at 100%), hoist `loading` var (no ReferenceError), ensure Mood/Challenge spawn bubbles, and add 3 s fail-safe for iOS incognito dark-screen bug. (minor)
 
+### v10.1.7
+- Countdown polish — removed blank gap after loading (overlay hides after “3” shows), and added 3-2-1-GO before Play Again restarts. (minor)
+
+### v10.1.8
+- Mood mode polish — fixed premature overlay hide at ~60%, now shows 100% until first sample, overlay disappears exactly with “3” so no blank gap before countdown. (minor)
+
 ---
 
 ## ▶️ How to Play

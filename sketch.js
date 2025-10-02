@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.6';                 // game version number
+const GV = 'v10.1.8';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -479,14 +479,16 @@ async function afterModeSelected(isMood){
       await new Promise((resolve) => {
         const fallback = setTimeout(() => {
           if (loadingBar) loadingBar.style.width = '100%';
+          if (loadingMsg) loadingMsg.textContent = 'Starting…';
           resolve();
         }, 3000);
 
         const check = () => {
           if (modelsReady && Object.values(emoCounts).some(v => v > 0)) {
             if (loadingBar) loadingBar.style.width = '100%';
+            if (loadingMsg) loadingMsg.textContent = 'Ready!';
             clearTimeout(fallback);
-            setTimeout(resolve, 300); // keep bar full briefly so users can see it
+            resolve();
           } else {
             setTimeout(check, 300);
           }
@@ -512,12 +514,8 @@ async function afterModeSelected(isMood){
   refreshCameraBtn();
   setBodyModeClass(); // keep CSS theming in sync
 
-  // pause gameplay updates during countdown
   noLoop();
-  showCountdown(() => {
-    if (loading) loading.classList.add('hidden'); // hide overlay
-    restart(false);  // start bubbles after countdown
-  });
+  showCountdown(() => { restart(false); });
 }
 
 
@@ -934,6 +932,7 @@ function spawnBurst(x, y, color = '#ffffff') {
 
 function showCountdown(onFinish) {
   const centerEl = document.getElementById('center');
+  const loading = document.getElementById('loadingOverlay');
   if (!centerEl) { onFinish?.(); return; }
 
   const steps = ["3", "2", "1", "GO!"];
@@ -948,8 +947,12 @@ function showCountdown(onFinish) {
   function next() {
     if (i < steps.length) {
       centerEl.textContent = steps[i];
+      
+      // 🔑 hide overlay the moment “3” is shown
+      if (i === 0 && loading) loading.classList.add('hidden');
+
       i++;
-      setTimeout(next, 800); // 0.8s per step
+      setTimeout(next, 800);
     } else {
       centerEl.style.display = 'none';
       centerEl.textContent = '';
@@ -1261,7 +1264,10 @@ function setup(){
     sealFeedbackIfOpen();
     submitRunOnce();         // first trigger wins; no double-posts
     closePostGameModal();
-    if (window.__playerReady) restart(false);
+    if (window.__playerReady) {
+      noLoop();
+      showCountdown(() => restart(false));
+    }
   };
 
   // Change Mode handler
@@ -1888,7 +1894,6 @@ async function startWebcam(isRestart = false){
   // When frames are ready, hide overlay and start the sampler
   const onReady = () => {
     if (isMoodMode() && window.__playerReady) {
-      hideMoodLoading?.();
       startSampler();
     }
   };
