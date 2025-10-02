@@ -392,6 +392,14 @@ The game integrates **face-api.js** for emotion detection, **Google Apps Script*
 ### v10.1.3
 - Added bubble pop animations (shrink, fade, burst) with score flyout above bubble.
 
+### v10.1.4
+- Added pre-game **3-2-1-GO!** countdown before each round.  
+- Countdown pauses gameplay until finished, preventing early pops.  
+
+### v10.1.5
+- Loading overlay polish: progress bar now fills step-by-step and reaches 100% before hiding.  
+- Ensures smoother transition into countdown and gameplay.  
+
 ---
 
 ## ▶️ How to Play

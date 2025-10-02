@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.1.3';                 // game version number
+const GV = 'v10.1.5';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -451,16 +451,42 @@ async function afterModeSelected(isMood){
   window.__playerReady = true;
 
   if (isMood){
-    // NEW: show loading overlay while models load
+    // show loading overlay while models load
     const loading = document.getElementById('loadingOverlay');
     if (loading) loading.classList.remove('hidden');
 
     try {
+      const loadingBar = document.querySelector('#loadingOverlay .loadingBar');
+      if (loadingBar) loadingBar.style.width = '30%';
+
       await ensureFaceApiLib();
       await loadFaceApiModels();
+      
+      if (loadingBar) loadingBar.style.width = '60%';
+
       await startWebcam();  // startWebcam will startSampler when frames are ready
+      
+      if (loadingBar) loadingBar.style.width = '80%';
+
+      // show progress while waiting for first sample
+      const loadingMsg = document.getElementById('loadingMsg');
+      if (loadingMsg) loadingMsg.textContent = 'Analyzing first frame…';
+
+      // wait for first sample
+      await new Promise((resolve) => {
+        const check = () => {
+          if (modelsReady && Object.values(emoCounts).some(v => v > 0)) {
+            if (loadingBar) loadingBar.style.width = '100%';
+            resolve();
+            setTimeout(resolve, 300); 
+          } else {
+            setTimeout(check, 300);
+          }
+        };
+        check();
+      });
     } finally {
-      if (loading) loading.classList.add('hidden');  // hide overlay when ready
+      // do nothing
     }
   } else {
     stopSampler();
@@ -477,7 +503,13 @@ async function afterModeSelected(isMood){
 
   refreshCameraBtn();
   setBodyModeClass(); // keep CSS theming in sync
-  restart(false);
+
+  // pause gameplay updates during countdown
+  noLoop();
+  showCountdown(() => {
+    if (loading) loading.classList.add('hidden'); // hide overlay
+    restart(false);  // start bubbles after countdown
+  });
 }
 
 
@@ -890,6 +922,33 @@ function spawnBurst(x, y, color = '#ffffff') {
     document.body.appendChild(p);
     setTimeout(() => p.remove(), 600);
   }
+}
+
+function showCountdown(onFinish) {
+  const centerEl = document.getElementById('center');
+  if (!centerEl) { onFinish?.(); return; }
+
+  const steps = ["3", "2", "1", "GO!"];
+  let i = 0;
+
+  centerEl.style.display = 'block';
+  centerEl.style.fontSize = '64px';
+  centerEl.style.fontWeight = '800';
+  centerEl.style.color = '#0f766e';
+  centerEl.style.textShadow = '0 2px 6px rgba(0,0,0,.3)';
+
+  function next() {
+    if (i < steps.length) {
+      centerEl.textContent = steps[i];
+      i++;
+      setTimeout(next, 800); // 0.8s per step
+    } else {
+      centerEl.style.display = 'none';
+      centerEl.textContent = '';
+      onFinish?.();
+    }
+  }
+  next();
 }
 
 // End of UI Helper section
