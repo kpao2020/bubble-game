@@ -486,7 +486,7 @@ async function afterModeSelected(isMood){
         check();
       });
     } finally {
-      if (loading) loading.classList.add('hidden');  // hide overlay when ready
+      // do nothing
     }
   } else {
     stopSampler();
@@ -507,6 +507,7 @@ async function afterModeSelected(isMood){
   // pause gameplay updates during countdown
   noLoop();
   showCountdown(() => {
+    if (loading) loading.classList.add('hidden'); // hide overlay
     restart(false);  // start bubbles after countdown
   });
 }
