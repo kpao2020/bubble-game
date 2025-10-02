@@ -103,9 +103,6 @@ Deployment notes
   <!-- Centered end-game UI -->
   <div id="center" class="centerMsg" style="display:none;"></div>
 
-  <!-- Floating SFX toggle (bottom-left) -->
-  <button id="sfxFloat" class="fab" aria-pressed="true" aria-label="Sound: On" title="Sound: On">🔊</button>
-
   <!-- Offscreen detector video (always rendering) -->
   <video id="webcam" autoplay muted playsinline class="hiddenVideo"></video>
 
@@ -127,6 +124,15 @@ Deployment notes
         <button id="modeChallengeBtn" class="modeBarBtn">⚡ Challenge</button>
         <button id="modeClassicBtn" class="modeBarBtn">😀 Classic</button>
       </div>
+
+      <!-- Sound check box -->
+      <div class="modalRow" style="justify-content:center; margin-top:8px;">
+        <label style="display:flex;align-items:center;gap:6px; font-size:15px; cursor:pointer;">
+          <input type="checkbox" id="soundTogglePre" checked>
+          🔊 Sound on
+        </label>
+      </div>
+
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
         <strong>Mood</strong> mode uses your camera locally to estimate facial expressions.
       </p>
@@ -149,6 +155,15 @@ Deployment notes
           <!-- Top 5 scores inserted here -->
         </div>
       </div>
+
+      <!-- Sound check box -->
+      <div class="modalRow" style="justify-content:center; margin-top:8px;">
+        <label style="display:flex;align-items:center;gap:6px; font-size:15px; cursor:pointer;">
+          <input type="checkbox" id="soundTogglePost" checked>
+          🔊 Sound on
+        </label>
+      </div>
+
 
       <!-- Row 1: Play Again + Change Mode -->
       <div class="modalRow postActions">
