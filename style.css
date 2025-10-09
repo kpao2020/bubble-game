@@ -40,6 +40,16 @@ html, body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
 }
 html { -webkit-text-size-adjust: 100%; }
+body {
+  /* Add these CSS variables for JS to control */
+  --mood-background-color: #cceeff; /* Default light blue */
+  --mood-emoji-url: ''; /* Default no emoji */
+
+  background-color: var(--mood-background-color);
+  transition: background-color 0.8s ease;
+  position: relative; /* Needed for the emoji */
+  z-index: 1;
+}
 
 /* ========== 2) Top Bar (layout & chips) ========== */
 #topBar{

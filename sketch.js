@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.2.0';                 // game version number
+const GV = 'v10.3.0';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -827,7 +827,7 @@ function onMiss(){
 }
 
 function getComboMultiplier(){
-  return (currentMode === 'challenge') ? comboMult : 1.0;
+  return (currentMode === 'challenge' || currentMode === 'mood') ? comboMult : 1.0;
 }
 
 // Tiny UI badge (creates once and updates text)
@@ -944,7 +944,51 @@ function spawnFlyout(x, y, points, opts = {}) {
 }
 
 // === Bubble Burst Animation ===
-function spawnBurst(x, y, color = '#ffffff') {
+function spawnBurst(x, y, color = '#ffffff', mood = 'neutral') {
+  // Happy mood gets a vibrant, multi-color confetti burst
+  if (mood === 'happy') {
+    const happyColors = ['#f43f5e', '#ec4899', '#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b'];
+    for (let i = 0; i < 15; i++) { // More particles!
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 50 + Math.random() * 40; // Travel farther
+
+      const p = document.createElement('div');
+      p.className = 'burstParticle';
+      p.style.left = `${x}px`;
+      p.style.top = `${y}px`;
+      p.style.background = happyColors[Math.floor(Math.random() * happyColors.length)];
+      p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+      p.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out'; // Slightly longer life
+
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 500);
+    }
+    return; // Stop here for the happy burst
+  }
+
+  // Stressed mood gets a soft, calming ripple effect
+  if (mood === 'stressed') {
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 20 + Math.random() * 20; // Shorter, gentler distance
+
+      const p = document.createElement('div');
+      p.className = 'burstParticle';
+      p.style.left = `${x}px`;
+      p.style.top = `${y}px`;
+      p.style.background = '#60a5fa'; // A soft, calming blue
+      p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+      p.style.animationDuration = '0.8s'; // Slower, more graceful animation
+
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 800);
+    }
+    return; // Stop here for the stressed burst
+  }
+  
+  // Default burst for Neutral, Angry, Sad, etc.
   for (let i = 0; i < 8; i++) {
     const angle = Math.random() * Math.PI * 2;
     const dist = 40 + Math.random() * 20;
@@ -1390,7 +1434,28 @@ function setup(){
 function draw(){
   if (window.__splashActive || !window.__playerReady) return; // do nothing until after login
   fitCanvasToViewport();
-  background(200,230,255);
+  // Read the dynamic background color from our CSS variable
+  const bgColor = getComputedStyle(document.body).getPropertyValue('--mood-background-color');
+  
+  // Use p5.js to paint the background with that color
+  background(color(bgColor));
+
+  // Draw the emoji directly on the canvas ---
+  if (isMoodMode()) {
+    const emo = dominantEmotion();
+    let emojiChar = '';
+    if (emo === 'happy') emojiChar = '😊';
+    if (emo === 'sad') emojiChar = '😢';
+    if (emo === 'angry') emojiChar = '😠';
+    if (emo === 'stressed') emojiChar = '😟';
+    
+    if (emojiChar) {
+      textAlign(CENTER, CENTER);
+      textSize(Math.min(width, height) * 0.5); // Make it huge
+      fill(0, 0, 0, 8); // Black, but very faint (8 out of 255 opacity)
+      text(emojiChar, width / 2, height / 2);
+    }
+  }
 
   // Classic mode timer setting
   let timeLeft;
@@ -1430,26 +1495,48 @@ function draw(){
   const camBtnEl = document.getElementById('cameraBtn');
   let modeSpeedMult = 1.0;
 
-  if (currentMode === 'classic'){
+  if (currentMode === 'classic'){   // Classic mode
     modeSpeedMult = CLASSIC_SPEED_SCALE;
     moodChip?.classList.add('hiddenChip');
     if (camBtnEl) camBtnEl.style.display = 'none';
-  }else if (currentMode === 'challenge'){
+  } else if (currentMode === 'challenge'){ // Challenge mode
     modeSpeedMult = 1.3;
     moodChip?.classList.add('hiddenChip');
     if (camBtnEl) camBtnEl.style.display = 'none';
-  }else{
-    // Mood mode
-    refreshCameraBtn(); // decides visibility based on laptop + toggle
+  } else { // Mood mode
+    refreshCameraBtn();
     moodChip?.classList.remove('hiddenChip');
 
     const emo = dominantEmotion();
     moodChip.textContent = emo.toUpperCase();
-    if (emo === 'happy'){ moodChip.style.background = 'rgba(120,255,160,.85)'; modeSpeedMult = 1.5; }
-    else if (emo === 'sad'){ moodChip.style.background = 'rgba(120,160,255,.85)'; modeSpeedMult = 0.8; }
-    else if (emo === 'angry'){ moodChip.style.background = 'rgba(255,140,140,.85)'; modeSpeedMult = 1; }
-    else if (emo === 'stressed'){ moodChip.style.background = 'rgba(255,200,120,.85)'; modeSpeedMult = 0.5; }
-    else { moodChip.style.background = 'rgba(255,255,255,.85)'; modeSpeedMult = 1.0; }
+
+    // Define mood properties for background, emoji, speed, and scoring
+    let moodConfig = {
+      bgColor: '#f3f4f6', // NEW: Light gray for Neutral
+      chipColor: '#e5e7eb',
+      emoji: '', // No emoji for neutral
+      speedMult: 1.0,
+    };
+
+    if (emo === 'happy') {
+      moodConfig = { bgColor: '#dcfce7', chipColor: '#a7f3d0', emoji: '😊', speedMult: 1.3 };
+    } else if (emo === 'sad') {
+      moodConfig = { bgColor: '#bfdbfe', chipColor: '#93c5fd', emoji: '😢', speedMult: 0.8 }; // NEW: More distinct blue
+    } else if (emo === 'angry') {
+      moodConfig = { bgColor: '#fee2e2', chipColor: '#fca5a5', emoji: '😠', speedMult: 1.0 };
+    } else if (emo === 'stressed') {
+      moodConfig = { bgColor: '#fef3c7', chipColor: '#fde047', emoji: '😟', speedMult: 0.6 };
+    }
+
+    // Apply the color to the moodChip
+    moodChip.style.background = moodConfig.chipColor;
+
+    // Apply the changes to the CSS variables
+    document.body.style.setProperty('--mood-background-color', moodConfig.bgColor);
+    document.body.style.setProperty('--mood-emoji-url', moodConfig.emoji);
+
+    // Set the speed multiplier for the bubbles
+    modeSpeedMult = moodConfig.speedMult;
   }
 
   const sTop = safeTopPx();
@@ -1647,7 +1734,8 @@ function handlePop(px, py){
         if (typeof spawnFlyout === 'function') spawnFlyout(b.x, b.y - b.diameter * 0.6, delta);
 
         // burst effect
-        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e');
+        const mood = isMoodMode() ? dominantEmotion() : 'neutral';
+        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e', mood);
         b._popping = true;
         b._popStart = millis ? millis() : Date.now();
 
@@ -1666,12 +1754,21 @@ function handlePop(px, py){
           ? -SCORE_TRICK_PENALTY
           : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
 
-        // Challenge: combo multiplier (no bonus for trick)
-        if (currentMode === 'challenge' && delta > 0){
-          delta = Math.round(delta * getComboMultiplier());
+        // Get current mood score multiplier (defaults to 1.0)
+        let moodScoreMult = 1.0;
+        if (currentMode === 'mood') {
+          const emo = dominantEmotion();
+          if (emo === 'happy') moodScoreMult = 2.0; // 2x score for happy
+          if (emo === 'stressed') moodScoreMult = 1.5; // 1.5x score as a bonus for playing while stressed
+        }
+        
+        // Apply multipliers (combo first, then mood) only to positive scores
+        if (delta > 0) {
+          delta = Math.round(delta * getComboMultiplier() * moodScoreMult);
         }
 
         score += delta;
+
         onHit();
         noteHit(); // retains sound + combo in non-classic modes
         if (score < 0) score = 0;
@@ -1683,10 +1780,11 @@ function handlePop(px, py){
 
         // animation for pop bubbles
         const mult = (currentMode === 'challenge') ? getComboMultiplier() : 1.0;
-        spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: (currentMode === 'challenge' && getComboMultiplier() > 1.0) });
+        spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: ((currentMode === 'challenge' || currentMode === 'mood') && getComboMultiplier() > 1.0) });
 
         // burst effect
-        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e');
+        const mood = isMoodMode() ? dominantEmotion() : 'neutral';
+        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e', mood);
         b._popping = true;
         b._popStart = millis ? millis() : Date.now();
         b._respawnAfterPop = true; // mark to respawn after animation
