@@ -263,5 +263,8 @@ This project is for **educational and research purposes**. Not intended for comm
 - Removed floating sound button (FAB).  
 - Added “🔊 Sound on” checkbox in Mode Picker and Post-game modal.  
 - Sound preference is stored in localStorage and applied each round via setSfx(). (minor)
-
+### v10.3.0
+- Adjust Mood Mode scoring system with higher multiplier.
+- Adjust Mood Mode detection and indication system.
+- Adjust Mood Mode popping animation.
 ---
