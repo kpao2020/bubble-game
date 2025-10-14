@@ -271,5 +271,11 @@ This project is for **educational and research purposes**. Not intended for comm
 - Pre-round polish — added short teal “Get Ready…” fade-in before 3-2-1 countdown on Play Again / Change Mode; clears previous game screen for a cleaner transition.
 ### v10.3.2
 - UI polish — narrowed top-bar Quit button on mobile; adjusted bubble spawn Y-range to stay clear of top bar.
+### v10.3.3
+- Mobile tweak — compact top-bar “Quit” button on iPhone-width screens (≤430px) to prevent overflow.
+### v10.3.4
+- Top-bar layout — moved “Quit” into the center cluster (next to Mood chip) to keep Mode chip + Camera stable on the right; added phone-specific compact styling.
+### v10.3.5
+- Top-bar & post-game polish — Classic Relax grid respects safe top (no bubbles under header); Quit moved to center and compact on phones; Mode chip no longer overflows; post-game actions wrap to 2×2 on small screens.
 
 ---

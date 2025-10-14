@@ -57,11 +57,12 @@ Deployment notes
       </div>
     </div>
 
-    <!-- Left-Center: Quit (shown for non-timed rounds) -->
-    <button id="quitBtn" class="iconBtn" aria-label="Quit round" title="Quit round" style="display:none;">🏁 Quit</button>
+    <!-- Center: Mood indicator + Quit -->
+    <div id="centerWrap">
+      <span class="chip" id="moodChip">NEUTRAL</span>
+      <button id="quitBtn" class="iconBtn" aria-label="Quit round">Quit</button>
+    </div>
 
-    <!-- Center: Mood indicator -->
-    <span class="chip" id="moodChip">NEUTRAL</span>
 
     <!-- Right: Mode chip + Camera (wrapped so both sit on the same row) -->
     <div id="rightWrap">
