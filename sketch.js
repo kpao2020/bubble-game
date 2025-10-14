@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.3.0';                 // game version number
+const GV = 'v10.3.1';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -1014,30 +1014,47 @@ function showCountdown(onFinish) {
   const steps = ["3", "2", "1", "GO!"];
   let i = 0;
 
+  // 🔹 Clear old gameplay before countdown
+  try {
+    background(255); // plain white; or use background(color('#e0f2f1')) for teal fade
+  } catch (_) {}
+  if (bubbles && typeof bubbles.removeAll === 'function') {
+    bubbles.removeAll();
+  } else {
+    bubbles = [];
+  }
+
   centerEl.style.display = 'block';
   centerEl.style.fontSize = '64px';
   centerEl.style.fontWeight = '800';
   centerEl.style.color = '#0f766e';
   centerEl.style.textShadow = '0 2px 6px rgba(0,0,0,.3)';
+  centerEl.style.opacity = '0';
+  centerEl.textContent = 'Get Ready…';
 
-  function next() {
-    if (i < steps.length) {
-      centerEl.textContent = steps[i];
-      
-      // 🔑 hide overlay the moment “3” is shown
-      if (i === 0 && loading) loading.classList.add('hidden');
+  // fade-in
+  centerEl.style.transition = 'opacity 300ms ease';
+  requestAnimationFrame(() => centerEl.style.opacity = '1');
 
-      i++;
-      setTimeout(next, 800);
-    } else {
-      centerEl.style.display = 'none';
-      centerEl.textContent = '';
-      onFinish?.();
+  // 🔹 Step 2: After ~0.8 s, proceed to the normal 3-2-1 countdown
+  setTimeout(() => {
+    const steps = ['3', '2', '1', 'GO!'];
+    let i = 0;
+    function next() {
+      if (i < steps.length) {
+        centerEl.textContent = steps[i];
+        if (i === 0 && loading) loading.classList.add('hidden');
+        i++;
+        setTimeout(next, 800);
+      } else {
+        centerEl.style.display = 'none';
+        centerEl.textContent = '';
+        onFinish?.();
+      }
     }
-  }
-  next();
+    next();
+  }, 800);
 }
-
 // End of UI Helper section
 
 /* =======================================
