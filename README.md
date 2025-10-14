@@ -269,5 +269,7 @@ This project is for **educational and research purposes**. Not intended for comm
 - Adjust Mood Mode popping animation.
 ### v10.3.1
 - Pre-round polish — added short teal “Get Ready…” fade-in before 3-2-1 countdown on Play Again / Change Mode; clears previous game screen for a cleaner transition.
+### v10.3.2
+- UI polish — narrowed top-bar Quit button on mobile; adjusted bubble spawn Y-range to stay clear of top bar.
 
 ---
