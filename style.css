@@ -885,10 +885,44 @@ button,
   transform: scale(1.2);
 }
 
-/* v10.3.3 — Compact top-bar Quit on iPhone widths (≤430px) */
+/* v10.3.4 — Top bar middle cluster & compact Quit */
+#centerWrap {
+  grid-column: 2;                 /* put this in the middle grid column */
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;           /* keep on one line */
+}
+
+/* v10.3.5 — Top bar: collapse hidden mood chip and cap center width */
+
+/* Collapse hidden chips so they don't reserve space */
+.hiddenChip {
+  display: none !important;            /* was: visibility/opacity only */
+}
+
+/* Center cluster (mood + Quit) stays on one line but can't grow too wide */
+#centerWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  max-width: 52vw;                     /* keeps room for the right cluster */
+  overflow: hidden;                    /* safety */
+}
+
+/* Right cluster: allow the Mode chip to truncate gracefully on phones */
+#rightWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+}
+
 @media (max-width: 430px) {
-  /* Beat the unified button styles with selector specificity + !important */
-  #topBar > #quitBtn {
+  /* Make the Quit button small only on phone widths */
+  #centerWrap #quitBtn {
     font-size: 14px !important;
     line-height: 1.1 !important;
     padding: 4px 8px !important;
@@ -896,25 +930,29 @@ button,
     min-height: 32px !important;
     border-radius: 10px !important;
   }
+
+  /* Let Mode chip shrink instead of pushing off-screen */
+  #modeChip {
+    max-width: 44vw;                   /* leave room for camera/spacing */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Optional: if space is still tight on very narrow phones, hide camera */
+  /* #cameraBtn { display: none !important; } */
 }
 
-/* Optional: emoji-only on the narrowest screens for a micro footprint */
-@media (max-width: 380px) {
-  #topBar > #quitBtn {
-    width: 40px !important;
-    padding: 4px 0 !important;
-    text-indent: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    position: relative;
-  }
-  #topBar > #quitBtn::after {
-    content: "🏁";
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    font-size: 18px;
-    text-indent: 0;
+/* v10.3.5 — Post-game actions wrap neatly on phones */
+#postGameModal .postActions {
+  display: flex;
+  flex-wrap: wrap;                 /* allow wrapping */
+  gap: 12px;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  #postGameModal .postActions .iconTile {
+    flex: 1 1 calc(50% - 12px);    /* 2 columns */
+    max-width: calc(50% - 12px);
   }
 }

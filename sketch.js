@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.3.2';                 // game version number
+const GV = 'v10.3.5';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -785,20 +785,20 @@ function buildClassicBoard(){
   // Grid sizing — adjust if you like
   const cols = 6, rows = 8;
   const pad = 16;
+  const sTop = safeTopPx();                // top of safe play area
   const w = width  - pad * 2;
-  const h = height - pad * 2;
+  const h = (height - sTop) - pad * 2;     // only the space below the top bar
   const cx = w / cols;
   const cy = h / rows;
   const radius = Math.min(cx, cy) * 0.38;
 
   // Replace existing bubbles with one static grid
-  // (use your array name if different)
   bubbles = [];
 
   for (let r = 0; r < rows; r++){
     for (let c = 0; c < cols; c++){
       const x = pad + c * cx + cx / 2;
-      const y = pad + r * cy + cy / 2;
+      const y = sTop + pad + r * cy + cy / 2;  // offset grid below top bar
       const isTrick = Math.random() < RED_RATE;
       bubbles.push({
         x, y, 
