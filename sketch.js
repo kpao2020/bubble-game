@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.3.0';                 // game version number
+const GV = 'v10.3.2';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -546,6 +546,7 @@ async function afterModeSelected(isMood){
   refreshCameraBtn();
   setBodyModeClass(); // keep CSS theming in sync
 
+  refreshQuitBtn(); // keep to-bar Quit in sync
   noLoop();
   showCountdown(() => { restart(false); });
 }
@@ -770,6 +771,8 @@ function startClassicRound(){
 
   // set end condition
   classicDeadline = (classicVariant === 'timed') ? (Date.now() + CLASSIC_TIME_MS) : 0;
+
+  refreshQuitBtn(); // keep to-bar Quit in sync
 
   // make sure we’re in classic visuals and start the round
   currentMode = 'classic';
@@ -1014,28 +1017,75 @@ function showCountdown(onFinish) {
   const steps = ["3", "2", "1", "GO!"];
   let i = 0;
 
+  // 🔹 Clear old gameplay before countdown
+  try {
+    background(255); // plain white; or use background(color('#e0f2f1')) for teal fade
+  } catch (_) {}
+  if (bubbles && typeof bubbles.removeAll === 'function') {
+    bubbles.removeAll();
+  } else {
+    bubbles = [];
+  }
+
   centerEl.style.display = 'block';
   centerEl.style.fontSize = '64px';
   centerEl.style.fontWeight = '800';
   centerEl.style.color = '#0f766e';
   centerEl.style.textShadow = '0 2px 6px rgba(0,0,0,.3)';
+  centerEl.style.opacity = '0';
+  centerEl.textContent = 'Get Ready…';
 
-  function next() {
-    if (i < steps.length) {
-      centerEl.textContent = steps[i];
-      
-      // 🔑 hide overlay the moment “3” is shown
-      if (i === 0 && loading) loading.classList.add('hidden');
+  // fade-in
+  centerEl.style.transition = 'opacity 300ms ease';
+  requestAnimationFrame(() => centerEl.style.opacity = '1');
 
-      i++;
-      setTimeout(next, 800);
-    } else {
-      centerEl.style.display = 'none';
-      centerEl.textContent = '';
-      onFinish?.();
+  // 🔹 Step 2: After ~0.8 s, proceed to the normal 3-2-1 countdown
+  setTimeout(() => {
+    const steps = ['3', '2', '1', 'GO!'];
+    let i = 0;
+    function next() {
+      if (i < steps.length) {
+        centerEl.textContent = steps[i];
+        if (i === 0 && loading) loading.classList.add('hidden');
+        i++;
+        setTimeout(next, 800);
+      } else {
+        centerEl.style.display = 'none';
+        centerEl.textContent = '';
+        onFinish?.();
+      }
     }
+    next();
+  }, 800);
+}
+
+function refreshQuitBtn(){
+  const btn = document.getElementById('quitBtn');
+  if (!btn) return;
+  const isRelax = (currentMode === 'classic' && !classicDeadline); // 0 → relax
+  const visible = window.__playerReady && !gameOver && isRelax;
+  btn.style.display = visible ? 'inline-flex' : 'none';
+}
+
+function exitToSplash(){
+  try { noLoop(); } catch (_){}
+  stopSampler?.();
+  stopWebcam?.();
+  window.__playerReady = false;
+  gameOver = true;
+
+  document.body.classList.remove('game-active');
+  document.body.classList.remove('mode-pick');
+  document.body.classList.add('login-active'); // splash/login phase UI rules
+
+  document.getElementById('topBar')?.classList.add('hidden');
+
+  const splash = document.getElementById('splash');
+  if (splash){
+    splash.classList.add('is-visible');
+    splash.classList.remove('is-fading-out');
+    window.__splashActive = true;
   }
-  next();
 }
 
 // End of UI Helper section
@@ -1429,6 +1479,22 @@ function setup(){
   }
 
   initSplash();
+
+  // Top-bar Quit (non-timed rounds)
+  const quitBtn = document.getElementById('quitBtn');
+  if (quitBtn) quitBtn.onclick = () => {
+    if (!window.__playerReady || gameOver) return;
+    endGame();     // finishes the round; post-game modal + submitRunOnce() are handled later
+  };
+
+  // Post-game "Close" → back to Splash
+  const pgClose = document.getElementById('postCloseGame');
+  if (pgClose) pgClose.onclick = () => {
+    submitRunOnce();
+    closePostGameModal();
+    exitToSplash();
+  };
+
 } // end of setup()
 
 function draw(){
@@ -1654,7 +1720,10 @@ function spawnBubble(){
   let angle = random(TWO_PI);
   if (abs(sin(angle)) < 0.2) angle += PI/4;
   const speed = random(MIN_SPEED, MAX_SPEED);
-  let sx = random(r, width - r), sy = random(max(sTop + r, sTop + 1), height - r);
+  const topSafe = safeTopPx() + r + 8;     // 8px buffer below top bar
+  let sx = random(r, width - r);
+  let sy = random(topSafe, height - r);
+
 
   if (isMoodMode()){
     const biasX = width * moodState.gaze.x,
@@ -1804,6 +1873,8 @@ function handlePop(px, py){
 
 function endGame(){
   gameOver = true;
+  refreshQuitBtn(); // hide Quit when round ends
+
   if (currentMode === 'classic' && Array.isArray(bubbles)) {
     for (const b of bubbles) b.alive = false; // hide leftovers (e.g., reds)
   }
