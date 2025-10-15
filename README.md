@@ -277,5 +277,13 @@ This project is for **educational and research purposes**. Not intended for comm
 - Top-bar layout — moved “Quit” into the center cluster (next to Mood chip) to keep Mode chip + Camera stable on the right; added phone-specific compact styling.
 ### v10.3.5
 - Top-bar & post-game polish — Classic Relax grid respects safe top (no bubbles under header); Quit moved to center and compact on phones; Mode chip no longer overflows; post-game actions wrap to 2×2 on small screens.
+### v10.3.6
+- Classic options rename — “Relax” → “🌿 Endless Zen Mode”; “Timed” → “⏱️ 60-Second Sprint” (labels only; logic unchanged).
+### v10.3.7
+- Endless Classic — Relax is now truly non-stop: when all teal bubbles are cleared, a fresh board spawns automatically and the round continues until you tap Quit (Timed unchanged).
+### v10.3.8
+- UX & UI overhaul — added top-bar Quit button (visible in Relax/Endless), compact on phones; fixed bubbles spawning under top bar; centered Quit beside Mood chip without pushing Mode chip off-screen; ensured post-game buttons wrap neatly on small screens. 
+- Classic updates — Relax renamed **🌿 Endless Zen Mode**, Timed renamed **⏱️ 60-Second Sprint** and reordered so Endless appears first. Relax is now truly endless, automatically refilling boards until the player quits. 
+- Mode naming — UI-only rename: **Classic → Zen**, **Challenge → Focus**, **Mood → Emotion** (IDs unchanged; internal logic intact).
 
 ---

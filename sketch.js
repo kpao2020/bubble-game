@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.3.5';                 // game version number
+const GV = 'v10.3.8';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -772,6 +772,7 @@ function startClassicRound(){
   // set end condition
   classicDeadline = (classicVariant === 'timed') ? (Date.now() + CLASSIC_TIME_MS) : 0;
 
+  window.__classicRelax = (classicVariant === 'relax');
   refreshQuitBtn(); // keep to-bar Quit in sync
 
   // make sure we’re in classic visuals and start the round
@@ -799,7 +800,7 @@ function buildClassicBoard(){
     for (let c = 0; c < cols; c++){
       const x = pad + c * cx + cx / 2;
       const y = sTop + pad + r * cy + cy / 2;  // offset grid below top bar
-      const isTrick = Math.random() < RED_RATE;
+      const isTrick = Math.random() < (window.__classicRelax ? (window.__dynamicRedRate || RED_RATE) : RED_RATE);
       bubbles.push({
         x, y, 
         r: radius,
@@ -1549,9 +1550,9 @@ function draw(){
 
   const modeChip = document.getElementById('modeChip');
   if (modeChip){
-    const label = (currentMode === 'classic') ? 'Classic'
-                : (currentMode === 'challenge') ? 'Challenge'
-                : 'Mood';
+    const label = (currentMode === 'classic') ? 'Zen'
+                : (currentMode === 'challenge') ? 'Focus'
+                : 'Emotion';
     // Always keep the text current
     modeChip.textContent = `Mode: ${label}`;
     modeChip.style.display = 'inline-flex';   // always visible
@@ -1697,15 +1698,31 @@ function draw(){
 
   if (!gameOver && timeLeft != null && timeLeft <= 0) endGame();
 
-  // v10.0.0 — Classic end conditions (place near end of draw loop)
-  if (currentMode === 'classic'){
-    // v10.0.2 — finish Classic when all teal bubbles are popped (reds don’t block end)
-    const anyTealAlive = Array.isArray(bubbles) && bubbles.some(b => b.alive && b.kind !== 'trick');
-    if (!anyTealAlive){ endGame(); }
+  // Classic end logic:
+  // - RELAX (endless): when all teal are popped, rebuild a fresh board and keep playing.
+  // - TIMED: when the clock expires, end the round.
+  const anyTealAlive = Array.isArray(bubbles) && bubbles.some(b => b.alive && b.kind !== 'trick');
 
-    // or when timer expires (Timed variant)
-    if (classicDeadline && Date.now() >= classicDeadline){ endGame(); }
-  }
+  if (currentMode === 'classic') {
+    if (window.__classicRelax) {
+      if (!anyTealAlive) {
+        // e.g., tiny difficulty bump each refill (cap to keep fair)
+        window.__relaxRefills = (window.__relaxRefills || 0) + 1;
+        // example: nudge trick rate a hair every 2 refills (bounded)
+        const bump = Math.min(0.04, (Math.floor(window.__relaxRefills/2) * 0.01));
+        window.__dynamicRedRate = Math.min(0.25, (RED_RATE || 0.15) + bump);
+
+        // Refill the static grid and continue (no Game Over)
+        buildClassicBoard();          // reuse your existing builder
+        // ensure UI stays consistent
+        refreshQuitBtn?.();
+      }
+    } else {
+      // Timed variant: still end when all teal are gone OR time expires
+      if (!anyTealAlive) endGame();
+      if (classicDeadline && Date.now() >= classicDeadline) endGame();
+    }
+  }  
 
   if (currentMode !== 'classic' || !window.__classicStatic){ /* move */ }
 
