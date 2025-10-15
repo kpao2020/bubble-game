@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.3.7';                 // game version number
+const GV = 'v10.3.8';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -1550,9 +1550,9 @@ function draw(){
 
   const modeChip = document.getElementById('modeChip');
   if (modeChip){
-    const label = (currentMode === 'classic') ? 'Classic'
-                : (currentMode === 'challenge') ? 'Challenge'
-                : 'Mood';
+    const label = (currentMode === 'classic') ? 'Zen'
+                : (currentMode === 'challenge') ? 'Focus'
+                : 'Emotion';
     // Always keep the text current
     modeChip.textContent = `Mode: ${label}`;
     modeChip.style.display = 'inline-flex';   // always visible
