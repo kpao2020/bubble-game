@@ -6,6 +6,7 @@
 <p align="center">
   <a href="https://kpao2020.github.io/bubble-game/">▶️ Play Now</a>
 </p>
+
 ---
 
 # Popping Bubbles 🎮

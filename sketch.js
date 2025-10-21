@@ -733,7 +733,6 @@ function noteHit(){
   // reset streak and recover one step of slowdown per successful pop
   missStreak = 0;
   rubberSlow = Math.max(0, rubberSlow - MISS_STREAK_SLOW_PER_MISS);
-  maybePop();
 }
 
 function noteMiss(){
@@ -1805,6 +1804,7 @@ function handlePop(px, py){
     if (dx*dx + dy*dy <= rHit*rHit){
       hit = true;
 
+      // Classic branch
       if (currentMode === 'classic'){
         // Classic: teal +1, red penalty; NO respawn
         const delta = (b.kind === 'trick') ? -RED_PENALTY : 1;
@@ -1826,12 +1826,13 @@ function handlePop(px, py){
         b._popStart = millis ? millis() : Date.now();
 
         // play SFX ONLY (no combo/scoring side-effects)
-        try { maybePop(); } catch (_) {}
+        try { b.kind==='trick' ? maybeBuzz() : maybePop() } catch (_) {}
 
         // mark dead; draw() will skip it, end condition will handle “all popped”
         b.alive = false;
         break;
 
+      // Challenge - Mood mode
       } else {
         // Challenge/Mood: size-based scoring + respawn
         const diameterNow = r * 2;
@@ -1858,6 +1859,13 @@ function handlePop(px, py){
         onHit();
         noteHit(); // retains sound + combo in non-classic modes
         if (score < 0) score = 0;
+
+        // --- choose SFX based on bubble kind (non-Classic) ---
+        if (b.kind === 'trick') { 
+          maybeBuzz(); 
+        } else { 
+          maybePop(); 
+        }
 
         // stats
         bubblesPopped++;
@@ -2450,7 +2458,7 @@ function playPop(vel=1){
 }
 
 // ===== Audio SFX (procedural) =====
-let __audioCtx = null, __popBuf = null, __audioReady = false;
+let __audioCtx = null, __popBuf = null, __buzzBuf = null, __audioReady = false;
 
 // Persisted SFX state (default ON)
 let __sfxOn = (function(){
@@ -2466,6 +2474,7 @@ function initAudioOnce(){
     __audioCtx = __audioCtx || new Ctx();
     window.__audioCtx = __audioCtx;      // sync
     __popBuf   = __popBuf   || makePopBuffer(__audioCtx);
+    __buzzBuf  = __buzzBuf  || makeBuzzBuffer(__audioCtx);
     __audioReady = true;
     window.__audioReady = true;          // sync
   } catch(e){
@@ -2482,7 +2491,7 @@ function setSfx(on){
   try { localStorage.setItem('sfxOn', __sfxOn ? '1' : '0'); } catch {}
 }
 
-
+// Good hit sound
 function maybePop(force=false){
   if (!__audioReady) return;
   if (!force && !__sfxOn) return;
@@ -2508,6 +2517,32 @@ function makePopBuffer(ctx){
   // add a tiny click/pitch bend at start to feel “snappy”
   d[0] *= 0.6; d[1] *= 0.8;
   return buf;
+}
+
+// Bad hit sound
+function makeBuzzBuffer(ctx){
+  const dur = 0.09, sr = ctx.sampleRate, n = Math.floor(sr * dur);
+  const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  for (let i=0;i<n;i++){
+    const t = i/sr;
+    // nasal buzz ~220→120 Hz with light distortion
+    const f = 120 + (220-120) * Math.pow(1 - t/dur, 1.8);
+    const wave = Math.sign(Math.sin(2*Math.PI*f*t)); // squarey
+    const env = Math.pow(1 - t/dur, 2.2);
+    d[i] = wave * env * 0.6;
+  }
+  return buf;
+}
+
+function maybeBuzz(force=false){
+  if (!__audioReady) return;
+  if (!force && !__sfxOn) return;
+  const ctx = __audioCtx, src = ctx.createBufferSource();
+  src.buffer = __buzzBuf;
+  const g = ctx.createGain();
+  g.gain.value = 0.24;
+  src.connect(g).connect(ctx.destination);
+  src.start();
 }
 
 // ===== Splash Controller =====
