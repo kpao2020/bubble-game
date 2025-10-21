@@ -1,3 +1,13 @@
+<h2 align="center">📱 Play the Game</h2>
+<p align="center">Scan this QR code to open the game instantly:</p>
+<p align="center">
+  <img src="./bubbleQR.png" alt="Play the Game QR Code" width="250">
+</p>
+<p align="center">
+  <a href="https://kpao2020.github.io/bubble-game/">▶️ Play Now</a>
+</p>
+---
+
 # Popping Bubbles 🎮
 
 A browser-based game built with **p5.js** and **p5play v3**, featuring three gameplay modes:
