@@ -88,6 +88,12 @@ const CHALLENGE_TRICK_RATE = 0.22;
 const MOOD_TRICK_RATE = 0.18;
 const MAX_TRICK_RATIO = 0.5;   // at most 50% of on-screen bubbles can be red/trick
 
+// Extra scoring juice for tougher modes
+const MODE_SCORE_MULT = {
+  challenge: 1.5,
+  mood: 1.8
+};
+
 let bubbles;               // p5play Group of bubbles
 let walls;                 // boundary walls
 let prevSafeTop = -1;      // last safe top for wall rebuild
@@ -733,7 +739,6 @@ function noteHit(){
   // reset streak and recover one step of slowdown per successful pop
   missStreak = 0;
   rubberSlow = Math.max(0, rubberSlow - MISS_STREAK_SLOW_PER_MISS);
-  maybePop();
 }
 
 function noteMiss(){
@@ -1159,7 +1164,7 @@ async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
   const qs = new URLSearchParams({
     action: 'leaderboard',
     limit: String(limit),
-    username: playerUsername || '',
+    username: (playerUsername || '').trim(),
     mode: mode
   });
   return fetchJSON(`${GOOGLE_SCRIPT_URL}?${qs.toString()}`);
@@ -1805,6 +1810,7 @@ function handlePop(px, py){
     if (dx*dx + dy*dy <= rHit*rHit){
       hit = true;
 
+      // Classic branch
       if (currentMode === 'classic'){
         // Classic: teal +1, red penalty; NO respawn
         const delta = (b.kind === 'trick') ? -RED_PENALTY : 1;
@@ -1826,18 +1832,23 @@ function handlePop(px, py){
         b._popStart = millis ? millis() : Date.now();
 
         // play SFX ONLY (no combo/scoring side-effects)
-        try { maybePop(); } catch (_) {}
+        try { b.kind==='trick' ? maybeBuzz() : maybePop() } catch (_) {}
 
         // mark dead; draw() will skip it, end condition will handle “all popped”
         b.alive = false;
         break;
 
+      // Challenge - Mood mode
       } else {
         // Challenge/Mood: size-based scoring + respawn
         const diameterNow = r * 2;
         const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
+
+        // Tougher red penalty outside Classic (min 2)
+        const trickPenalty = Math.max(2, SCORE_TRICK_PENALTY);
+
         let delta = (b.kind === 'trick')
-          ? -SCORE_TRICK_PENALTY
+          ? -trickPenalty
           : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
 
         // Get current mood score multiplier (defaults to 1.0)
@@ -1848,16 +1859,23 @@ function handlePop(px, py){
           if (emo === 'stressed') moodScoreMult = 1.5; // 1.5x score as a bonus for playing while stressed
         }
         
-        // Apply multipliers (combo first, then mood) only to positive scores
+        // Apply multipliers (combo → mood → mode) only to positive scores
         if (delta > 0) {
-          delta = Math.round(delta * getComboMultiplier() * moodScoreMult);
+          const modeMult = MODE_SCORE_MULT[currentMode] || 1.0;
+          delta = Math.round(delta * getComboMultiplier() * moodScoreMult * modeMult);
         }
-
         score += delta;
 
         onHit();
-        noteHit(); // retains sound + combo in non-classic modes
+        noteHit(); 
         if (score < 0) score = 0;
+
+        // --- choose SFX based on bubble kind (non-Classic) ---
+        if (b.kind === 'trick') { 
+          maybeBuzz(); 
+        } else { 
+          maybePop(); 
+        }
 
         // stats
         bubblesPopped++;
@@ -1865,7 +1883,6 @@ function handlePop(px, py){
         else bubblesPoppedGood++;
 
         // animation for pop bubbles
-        const mult = (currentMode === 'challenge') ? getComboMultiplier() : 1.0;
         spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: ((currentMode === 'challenge' || currentMode === 'mood') && getComboMultiplier() > 1.0) });
 
         // burst effect
@@ -2450,7 +2467,7 @@ function playPop(vel=1){
 }
 
 // ===== Audio SFX (procedural) =====
-let __audioCtx = null, __popBuf = null, __audioReady = false;
+let __audioCtx = null, __popBuf = null, __buzzBuf = null, __audioReady = false;
 
 // Persisted SFX state (default ON)
 let __sfxOn = (function(){
@@ -2466,6 +2483,7 @@ function initAudioOnce(){
     __audioCtx = __audioCtx || new Ctx();
     window.__audioCtx = __audioCtx;      // sync
     __popBuf   = __popBuf   || makePopBuffer(__audioCtx);
+    __buzzBuf  = __buzzBuf  || makeBuzzBuffer(__audioCtx);
     __audioReady = true;
     window.__audioReady = true;          // sync
   } catch(e){
@@ -2482,7 +2500,7 @@ function setSfx(on){
   try { localStorage.setItem('sfxOn', __sfxOn ? '1' : '0'); } catch {}
 }
 
-
+// Good hit sound
 function maybePop(force=false){
   if (!__audioReady) return;
   if (!force && !__sfxOn) return;
@@ -2508,6 +2526,32 @@ function makePopBuffer(ctx){
   // add a tiny click/pitch bend at start to feel “snappy”
   d[0] *= 0.6; d[1] *= 0.8;
   return buf;
+}
+
+// Bad hit sound
+function makeBuzzBuffer(ctx){
+  const dur = 0.09, sr = ctx.sampleRate, n = Math.floor(sr * dur);
+  const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  for (let i=0;i<n;i++){
+    const t = i/sr;
+    // nasal buzz ~220→120 Hz with light distortion
+    const f = 120 + (220-120) * Math.pow(1 - t/dur, 1.8);
+    const wave = Math.sign(Math.sin(2*Math.PI*f*t)); // squarey
+    const env = Math.pow(1 - t/dur, 2.2);
+    d[i] = wave * env * 0.6;
+  }
+  return buf;
+}
+
+function maybeBuzz(force=false){
+  if (!__audioReady) return;
+  if (!force && !__sfxOn) return;
+  const ctx = __audioCtx, src = ctx.createBufferSource();
+  src.buffer = __buzzBuf;
+  const g = ctx.createGain();
+  g.gain.value = 0.24;
+  src.connect(g).connect(ctx.destination);
+  src.start();
 }
 
 // ===== Splash Controller =====
