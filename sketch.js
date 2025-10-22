@@ -88,6 +88,12 @@ const CHALLENGE_TRICK_RATE = 0.22;
 const MOOD_TRICK_RATE = 0.18;
 const MAX_TRICK_RATIO = 0.5;   // at most 50% of on-screen bubbles can be red/trick
 
+// Extra scoring juice for tougher modes
+const MODE_SCORE_MULT = {
+  challenge: 1.5,
+  mood: 1.8
+};
+
 let bubbles;               // p5play Group of bubbles
 let walls;                 // boundary walls
 let prevSafeTop = -1;      // last safe top for wall rebuild
@@ -1158,7 +1164,7 @@ async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
   const qs = new URLSearchParams({
     action: 'leaderboard',
     limit: String(limit),
-    username: playerUsername || '',
+    username: (playerUsername || '').trim(),
     mode: mode
   });
   return fetchJSON(`${GOOGLE_SCRIPT_URL}?${qs.toString()}`);
@@ -1837,8 +1843,12 @@ function handlePop(px, py){
         // Challenge/Mood: size-based scoring + respawn
         const diameterNow = r * 2;
         const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
+
+        // Tougher red penalty outside Classic (min 2)
+        const trickPenalty = Math.max(2, SCORE_TRICK_PENALTY);
+
         let delta = (b.kind === 'trick')
-          ? -SCORE_TRICK_PENALTY
+          ? -trickPenalty
           : Math.max(1, Math.round(SCORE_BASE * sizeBoost));
 
         // Get current mood score multiplier (defaults to 1.0)
@@ -1849,15 +1859,15 @@ function handlePop(px, py){
           if (emo === 'stressed') moodScoreMult = 1.5; // 1.5x score as a bonus for playing while stressed
         }
         
-        // Apply multipliers (combo first, then mood) only to positive scores
+        // Apply multipliers (combo → mood → mode) only to positive scores
         if (delta > 0) {
-          delta = Math.round(delta * getComboMultiplier() * moodScoreMult);
+          const modeMult = MODE_SCORE_MULT[currentMode] || 1.0;
+          delta = Math.round(delta * getComboMultiplier() * moodScoreMult * modeMult);
         }
-
         score += delta;
 
         onHit();
-        noteHit(); // retains sound + combo in non-classic modes
+        noteHit(); 
         if (score < 0) score = 0;
 
         // --- choose SFX based on bubble kind (non-Classic) ---
@@ -1873,7 +1883,6 @@ function handlePop(px, py){
         else bubblesPoppedGood++;
 
         // animation for pop bubbles
-        const mult = (currentMode === 'challenge') ? getComboMultiplier() : 1.0;
         spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: ((currentMode === 'challenge' || currentMode === 'mood') && getComboMultiplier() > 1.0) });
 
         // burst effect
