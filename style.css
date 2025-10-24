@@ -449,6 +449,18 @@ body.login-active #topBar { display: none; }
 @media (min-height: 700px) { #postGameModal .modalContent { margin-bottom: 20px; } }
 @media (max-width: 480px) { #postGameModal .modalContent { width: 100vw; max-width: 100vw; border-radius: 16px; margin-bottom: 12px; } }
 
+/* Highlight / flash the player's row (Top 5 or the extra 6th row) */
+.lbTable tr.meRow {
+  background: rgba(15, 118, 110, 0.12);
+  font-weight: 700;
+  animation: mePulse 1.2s ease-in-out infinite;
+}
+@keyframes mePulse {
+  0%   { box-shadow: inset 0 0 0 rgba(0,0,0,0); }
+  50%  { box-shadow: inset 0 0 9999px rgba(15,118,110,0.08); }
+  100% { box-shadow: inset 0 0 0 rgba(0,0,0,0); }
+}
+
 /* ========== 11) Responsive Tweaks ========== */
 @media (max-width: 420px) {
   .modalPreview { width: 180px; }
@@ -783,6 +795,10 @@ button,
 }
 .lbTable th { font-weight: 600; }
 .lbTable tr:nth-child(even) { background: rgba(0,0,0,.03); }
+/* Optional: tidy up table alignment */
+.lbTable th:nth-child(1), .lbTable td:nth-child(1) { width: 44px; text-align: right; }
+.lbTable th:nth-child(3), .lbTable td:nth-child(3) { text-align: right; } /* Score */
+.lbTable th:nth-child(4), .lbTable td:nth-child(4) { text-align: right; } /* Acc */
 
 /* v9.9.8 — Pre-game Loading Overlay */
 #loadingOverlay { place-items: center; z-index: 2000; }
@@ -807,10 +823,6 @@ button,
   transition: width 0.6s ease;
 }
 
-/* v9.9.8 — Post-game stats align left */
-#playerStats {
-  text-align: left;
-}
 /* v10.0.0 */
 .comboBadge{position:fixed;top:8px;right:8px;background:#0f766e;color:#fff;padding:6px 10px;border-radius:12px;
   font-weight:700;transform:scale(0.9);transition:transform .15s ease;z-index:1200}
@@ -942,17 +954,76 @@ button,
   /* #cameraBtn { display: none !important; } */
 }
 
-/* v10.3.5 — Post-game actions wrap neatly on phones */
+/* Post-game actions: force 3–2 on wide, 2–3 on small */
 #postGameModal .postActions {
-  display: flex;
-  flex-wrap: wrap;                 /* allow wrapping */
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
   gap: 12px;
-  justify-content: center;
+  justify-items: stretch;
+  align-items: stretch;
 }
 
+#postGameModal .postActions .iconTile {
+  width: auto;              /* grid controls width */
+  height: 92px;
+  padding: 8px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  line-height: 1.1;
+  text-align: center;
+}
+
+/* On small screens → 2 columns */
 @media (max-width: 480px) {
-  #postGameModal .postActions .iconTile {
-    flex: 1 1 calc(50% - 12px);    /* 2 columns */
-    max-width: calc(50% - 12px);
+  #postGameModal .postActions {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 }
+
+
+/* Stats tile color (distinct but friendly) */
+.tileStats { background: #0ea5e9; }            /* sky-500 */
+.tileStats:hover { background: #0284c7; }
+.tileStats:active { background: #0369a1; transform: translateY(1px) scale(0.96); }
+
+/* Leaderboard: highlight your own row (you already added this; keep if present) */
+.lbTable tr.meRow {
+  background: rgba(15, 118, 110, 0.12);
+  font-weight: 700;
+  animation: mePulse 1.2s ease-in-out infinite;
+}
+@keyframes mePulse {
+  0%   { box-shadow: inset 0 0 0 rgba(0,0,0,0); }
+  50%  { box-shadow: inset 0 0 9999px rgba(15,118,110,0.08); }
+  100% { box-shadow: inset 0 0 0 rgba(0,0,0,0); }
+}
+
+/* Stats table smaller font on mobile */
+.statsTable { width: 100%; }
+.statsTable th, .statsTable td { padding: 6px 8px; }
+@media (max-width: 420px){
+  .postActions .iconTile { width: 46%; min-width: 146px; }
+}
+/* === Fix: Post-game actions layout (3–2 on wide, 2 cols on small) === */
+#postGameModal .postActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  gap: 12px;
+  justify-items: stretch;
+  align-items: stretch;
+}
+#postGameModal .postActions .iconTile {
+  width: auto; /* let the grid control width; keeps your existing colors */
+}
+@media (max-width: 480px) {
+  #postGameModal .postActions {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}
+
+/* Optional: Stats tile color only (does NOT touch .tileAccent / Feedback) */
+.iconTile.tileStats { background: #0ea5e9; }
+.iconTile.tileStats:hover { background: #0284c7; }
+.iconTile.tileStats:active { background: #0369a1; transform: translateY(1px) scale(0.96); }
+
+

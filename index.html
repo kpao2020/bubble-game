@@ -138,7 +138,7 @@ Deployment notes
       </div>
 
       <p class="modalNote" style="margin-top:10px; text-align:center; opacity:.75;">
-        <strong>Mood</strong> mode uses your camera locally to estimate facial expressions.
+        <strong>Emotion</strong> mode uses your camera locally to estimate facial expressions.
       </p>
     </div>
   </div>
@@ -150,12 +150,9 @@ Deployment notes
         <h3 id="postGameTitle">Round complete</h3>
       </div>
 
-      <!-- v9.9.6 — Player stats + Leaderboard -->
-      <div id="postStats" class="modalRow stacked" style="margin:12px 0; text-align:center;">
-        <div id="playerStats" class="statsBlock">
-          <!-- Filled dynamically: username, score, accuracy, mode, rank -->
-        </div>
-        <div id="leaderboard" class="leaderboardBlock" style="margin-top:10px;">
+      <!-- Post-game Leaderboard -->
+      <div class="modalRow stacked" style="margin:12px 0; text-align:center;">
+        <div id="leaderboard" class="leaderboardBlock" style="margin-top:10px;" role="status" aria-live="polite" aria-atomic="true">
           <!-- Top 5 scores inserted here -->
         </div>
       </div>
@@ -168,32 +165,59 @@ Deployment notes
         </label>
       </div>
 
-
       <!-- Row 1: Play Again + Change Mode -->
       <div class="modalRow postActions">
         <button id="postPlayAgain" class="iconTile tilePlay">▶️<br>Play Again</button>
         <button id="postChangeMode" class="iconTile tileMode">🎛️<br>Change Mode</button>
+        <!-- Player Stats -->
+        <button id="postPlayerStatsBtn" class="iconTile tileStats" aria-label="Show player stats">📊<br>Stats</button>
         <button id="postFeedbackBtn" class="iconTile tileAccent" aria-label="Post-game feedback survey">📝<br>Feedback</button>
-        <!-- Close button -->
-        <button id="postCloseGame" class="iconTile tileAccent" aria-label="Close the game">⏹️<br>Close</button>
+        <!-- Quit button -->
+        <button id="postCloseGame" class="iconTile tileAccent" aria-label="Quit the game">⏹️<br>Quit</button>
       </div>
 
     </div>
   </div>
 
-  <!-- Mood Consent Modal (centered) -->
+  <!-- Emotion Consent Modal (centered) -->
   <div id="moodConsentModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="moodConsentTitle">
     <div class="modalContent">
-      <div class="modalHeader"><h3 id="moodConsentTitle">Mood Mode Consent</h3></div>
+      <div class="modalHeader"><h3 id="moodConsentTitle">Emotion Mode Consent</h3></div>
       <div class="modalRow">
         <p style="margin:0;">
-          Mood mode uses your device’s camera <b>locally</b> to estimate facial expressions.
+          Emotion mode uses your device’s camera <b>locally</b> to estimate facial expressions.
           We do <b>not</b> upload video. We store anonymized scores & gameplay stats in Google Sheets.
         </p>
       </div>
       <div class="modalRow stacked">
         <button id="moodConsentAgreeBtn" class="iconBtn">I agree</button>
         <button id="moodConsentDeclineBtn" class="iconBtn">No thanks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player Stats Modal -->
+  <div id="statsModal" class="modal centered hidden" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="modalContent">
+      <div class="modalHeader"><h3 id="statsTitle">Your Recent Rounds</h3></div>
+      <div class="modalRow">
+        <p class="statsHint" style="margin:0;opacity:.75;">
+          Last 5 rounds from this session (any mode). Accuracy is kept. 
+        </p>
+      </div>
+      <div class="modalRow">
+        <table class="lbTable statsTable">
+          <thead>
+            <tr><th>#</th><th>When</th><th>Score</th><th>Acc</th><th>Mode</th></tr>
+          </thead>
+          <tbody id="statsTableBody">
+            <!-- filled by JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="modalRow statsSummary" id="statsSummaryRow"><!-- filled by JS --></div>
+      <div class="modalRow stacked">
+        <button id="statsCloseBtn" class="iconBtn">Close</button>
       </div>
     </div>
   </div>
