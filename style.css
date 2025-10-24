@@ -954,32 +954,17 @@ button,
   /* #cameraBtn { display: none !important; } */
 }
 
-/* v10.3.5 — Post-game actions wrap neatly on phones */
+/* Post-game actions: force 3–2 on wide, 2–3 on small */
 #postGameModal .postActions {
-  display: flex;
-  flex-wrap: wrap;                 /* allow wrapping */
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
   gap: 12px;
-  justify-content: center;
+  justify-items: stretch;
+  align-items: stretch;
 }
 
-@media (max-width: 480px) {
-  #postGameModal .postActions .iconTile {
-    flex: 1 1 calc(50% - 12px);    /* 2 columns */
-    max-width: calc(50% - 12px);
-  }
-}
-/* Post-game actions: wrap nicely (3–2 on wide screens) */
-.postActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Size for the tile buttons in post-game */
-.postActions .iconTile {
-  width: 120px;
+#postGameModal .postActions .iconTile {
+  width: auto;              /* grid controls width */
   height: 92px;
   padding: 8px;
   border-radius: 14px;
@@ -987,6 +972,14 @@ button,
   line-height: 1.1;
   text-align: center;
 }
+
+/* On small screens → 2 columns */
+@media (max-width: 480px) {
+  #postGameModal .postActions {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}
+
 
 /* Stats tile color (distinct but friendly) */
 .tileStats { background: #0ea5e9; }            /* sky-500 */
@@ -1011,5 +1004,26 @@ button,
 @media (max-width: 420px){
   .postActions .iconTile { width: 46%; min-width: 146px; }
 }
+/* === Fix: Post-game actions layout (3–2 on wide, 2 cols on small) === */
+#postGameModal .postActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  gap: 12px;
+  justify-items: stretch;
+  align-items: stretch;
+}
+#postGameModal .postActions .iconTile {
+  width: auto; /* let the grid control width; keeps your existing colors */
+}
+@media (max-width: 480px) {
+  #postGameModal .postActions {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}
+
+/* Optional: Stats tile color only (does NOT touch .tileAccent / Feedback) */
+.iconTile.tileStats { background: #0ea5e9; }
+.iconTile.tileStats:hover { background: #0284c7; }
+.iconTile.tileStats:active { background: #0369a1; transform: translateY(1px) scale(0.96); }
 
 

@@ -306,5 +306,11 @@ This project is for **educational and research purposes**. Not intended for comm
 - Modal polish — replaced “Close” button with **Quit** for clearer exit intent.  
 - Helper & consent copy refresh — renamed all remaining *Mood* references to **Emotion** to match UI display names (Zen / Focus / Emotion).  
 - Added groundwork for “Player Stats” screen (session summary of last 5 games with average / high score).  
+### v10.5.0
+- Post-game UX fixes — guaranteed 3–2 action layout on wide screens (2 columns on small); no player stats shown on the leaderboard.
+- Quit button reliability — automatically restored after **Play Again** and **Change Mode** across Zen/Endless and other modes.
+- Stats modal flow — pressing **Close** returns to the post-game screen instead of leaving the UI blank.
+- Leaderboard polish — shows only **Rank / Name / Score / Acc**; your row flashes teal when in Top 5, or appears as a 6th highlighted row if outside Top 5.
+- Copy cleanup — helper text uses the new mode display names (Zen / Focus / Emotion); “Round complete” title remains static.
 
 ---

@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.4.1';                 // game version number
+const GV = 'v10.5.0';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -1402,7 +1402,12 @@ function setup(){
 
   // Stats modal close
   const statsClose = document.getElementById('statsCloseBtn');
-  if (statsClose) statsClose.onclick = () => closeStatsModal();
+  if (statsClose) statsClose.onclick = () => {
+    const sm = document.getElementById('statsModal');
+    if (sm) sm.classList.add('hidden');
+    // If a round just ended, reopen the post-game modal
+    if (typeof openPostGameModal === 'function') openPostGameModal();
+  };
 
   // prevent the game close if not clicking the play again button or change mode button
   // if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
@@ -1971,6 +1976,10 @@ function restart(fromModeButton){
     classicDeadline = (classicVariant === 'timed')
       ? (Date.now() + CLASSIC_TIME_MS)
       : 0; // relax
+
+    // Make sure top-bar Quit reflects the new round state (esp. Relax/Zen)
+    gameOver = false;
+    refreshQuitBtn();
 
     // reset per-round stats (same as your existing code)
     tapsTotal = 0; tapsMissed = 0;
