@@ -1174,36 +1174,36 @@ async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
 function renderPostGameContent({ username, score, accuracyPct, mode, rank, board }){
   document.getElementById('postGameTitle').textContent = 'Round Summary';
 
-  // Build leaderboard rows
+  // Build leaderboard rows (Rank, User, Score, Acc) + highlight my row
+  const myName = (username || '').trim();
   const rows = (board || []).map((r, i) => {
     const rnk = (r.rank != null) ? r.rank : (i + 1);
-    const name = r.username ?? r.name ?? '';
+    const name = (r.username ?? r.name ?? '').trim();
     const sc   = r.score ?? 0;
-    const md   = r.mode ?? mode;
     const acc  = (typeof r.accuracyPct === 'number')
       ? `${r.accuracyPct}%`
-      : (typeof r.accuracy === 'number'
-          ? `${Math.round(r.accuracy * 100)}%`
-          : '');
-    return `<tr>
+      : (typeof r.accuracy === 'number' ? `${Math.round(r.accuracy * 100)}%` : '');
+    const me   = (!!name && !!myName && name.toLowerCase() === myName.toLowerCase());
+    return `<tr class="${me ? 'meRow' : ''}">
               <td>${rnk}</td>
-              <td>${name}</td>
+              <td>${name || '—'}</td>
               <td>${sc}</td>
               <td>${acc}</td>
-              <td>${md}</td>
             </tr>`;
   }).join('');
 
-  // Fill player stats
-  const statsEl = document.getElementById('playerStats');
-  if (statsEl) {
-    statsEl.innerHTML = `
-      <div>Name: <strong>${username || 'Guest'}</strong></div>
-      <div>Mode: ${mode}</div>
-      <div>Score: ${score}</div>
-      <div>Accuracy: ${accuracyPct}%</div>
-      <div>Your Rank: ${rank ?? '-'}</div>
-    `;
+  // If I'm not in Top 5 but we have my rank, append a 6th highlighted row
+  let extraRow = '';
+  const myRankNum = (rank != null && !Number.isNaN(Number(rank))) ? Number(rank) : null;
+  const isInTop = (myRankNum != null && myRankNum >= 1 && myRankNum <= 5);
+  if (!isInTop && myRankNum != null) {
+    const myAcc = (typeof accuracyPct === 'number') ? `${accuracyPct}%` : '';
+    extraRow = `<tr class="meRow">
+                  <td>${myRankNum}</td>
+                  <td>${myName || 'You'}</td>
+                  <td>${score}</td>
+                  <td>${myAcc}</td>
+                </tr>`;
   }
 
   // Fill leaderboard
@@ -1213,9 +1213,9 @@ function renderPostGameContent({ username, score, accuracyPct, mode, rank, board
       <h3>Top 5</h3>
       <table class="lbTable">
         <thead>
-          <tr><th>#</th><th>User</th><th>Score</th><th>Acc</th><th>Mode</th></tr>
+          <tr><th>#</th><th>User</th><th>Score</th><th>Acc</th></tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows}${extraRow}</tbody>
       </table>
     `;
   }
@@ -1238,14 +1238,7 @@ async function hydratePostGame(){
     const mode = (currentMode || 'classic');
     const accuracyPct = computeAccuracyPct();
 
-    // NEW: show placeholder immediately
-    const statsEl = document.getElementById('playerStats');
-    if (statsEl) {
-      statsEl.innerHTML = `
-        <div><strong>✅ Thank you for playing!</strong></div>
-        <div>Please wait while we prepare your game stats…</div>
-      `;
-    }
+    // Leaderboard
     const lbEl = document.getElementById('leaderboard');
     if (lbEl) {
       lbEl.innerHTML = `<p style="opacity:.7;">Loading leaderboard…</p>`;

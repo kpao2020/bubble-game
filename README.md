@@ -296,5 +296,15 @@ This project is for **educational and research purposes**. Not intended for comm
 - UX & UI overhaul — added top-bar Quit button (visible in Relax/Endless), compact on phones; fixed bubbles spawning under top bar; centered Quit beside Mood chip without pushing Mode chip off-screen; ensured post-game buttons wrap neatly on small screens. 
 - Classic updates — Relax renamed **🌿 Endless Zen Mode**, Timed renamed **⏱️ 60-Second Sprint** and reordered so Endless appears first. Relax is now truly endless, automatically refilling boards until the player quits. 
 - Mode naming — UI-only rename: **Classic → Zen**, **Challenge → Focus**, **Mood → Emotion** (IDs unchanged; internal logic intact).
+### v10.4.0
+- Stabilizes Zen (Classic) mode flow: Options modal always shows, countdown gates gameplay, and the top bar only appears when a round actually starts. Also prevents “dark screen” by adding a safe background fallback.
+### v10.4.1
+- Leaderboard redesign — removed Mode column, retained Accuracy.  
+  - Shows only Rank, Name, Score, and Accuracy.  
+  - Player’s own row flashes teal if within Top 5.  
+  - If player ranks outside Top 5, a 6th highlighted “You” row appears beneath the leaderboard.  
+- Modal polish — replaced “Close” button with **Quit** for clearer exit intent.  
+- Helper & consent copy refresh — renamed all remaining *Mood* references to **Emotion** to match UI display names (Zen / Focus / Emotion).  
+- Added groundwork for “Player Stats” screen (session summary of last 5 games with average / high score).  
 
 ---
