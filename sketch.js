@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.3.8';                 // game version number
+const GV = 'v10.4.1';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -1170,43 +1170,51 @@ async function getLeaderboard(limit = 5, mode = (currentMode || 'classic')){
   return fetchJSON(`${GOOGLE_SCRIPT_URL}?${qs.toString()}`);
 }
 
-// Build the post-game inner HTML (stats + leaderboard)
-function renderPostGameContent({ username, score, accuracyPct, mode, rank, board }){
-  document.getElementById('postGameTitle').textContent = 'Round Summary';
-
-  // Build leaderboard rows (Rank, User, Score, Acc) + highlight my row
+// Build the post-game inner HTML for the leaderboard screen (no Mode column; keep Accuracy)
+// Inputs: { username, score, accuracyPct, rank, board }
+function renderPostGameContent({ username, score, accuracyPct, rank, board }) {
   const myName = (username || '').trim();
-  const rows = (board || []).map((r, i) => {
-    const rnk = (r.rank != null) ? r.rank : (i + 1);
-    const name = (r.username ?? r.name ?? '').trim();
-    const sc   = r.score ?? 0;
-    const acc  = (typeof r.accuracyPct === 'number')
-      ? `${r.accuracyPct}%`
-      : (typeof r.accuracy === 'number' ? `${Math.round(r.accuracy * 100)}%` : '');
-    const me   = (!!name && !!myName && name.toLowerCase() === myName.toLowerCase());
-    return `<tr class="${me ? 'meRow' : ''}">
+
+  // Build Top 5 rows: rank, user, score, accuracy
+  const rowsHtml = (board || []).slice(0, 5).map((r, i) => {
+    const rnk = (r && r.rank != null) ? Number(r.rank) : (i + 1);
+    const name = ((r && (r.username ?? r.name)) || '').toString().trim();
+    const sc   = (r && r.score != null) ? Number(r.score) : 0;
+
+    // Accept either accuracyPct (integer %) or accuracy (0..1)
+    const accPct = (r && typeof r.accuracyPct === 'number')
+      ? Math.round(r.accuracyPct)
+      : (r && typeof r.accuracy === 'number')
+        ? Math.round(r.accuracy * 100)
+        : null;
+
+    const isMe = !!name && !!myName && name.toLowerCase() === myName.toLowerCase();
+    const accStr = (accPct != null) ? `${accPct}%` : '';
+
+    return `<tr class="${isMe ? 'meRow' : ''}">
               <td>${rnk}</td>
               <td>${name || '—'}</td>
               <td>${sc}</td>
-              <td>${acc}</td>
+              <td>${accStr}</td>
             </tr>`;
   }).join('');
 
   // If I'm not in Top 5 but we have my rank, append a 6th highlighted row
   let extraRow = '';
   const myRankNum = (rank != null && !Number.isNaN(Number(rank))) ? Number(rank) : null;
-  const isInTop = (myRankNum != null && myRankNum >= 1 && myRankNum <= 5);
-  if (!isInTop && myRankNum != null) {
-    const myAcc = (typeof accuracyPct === 'number') ? `${accuracyPct}%` : '';
+  const isInTop5 = (myRankNum != null && myRankNum >= 1 && myRankNum <= 5);
+
+  if (!isInTop5 && myRankNum != null) {
+    const myAccStr = (typeof accuracyPct === 'number') ? `${accuracyPct}%` : '';
     extraRow = `<tr class="meRow">
                   <td>${myRankNum}</td>
                   <td>${myName || 'You'}</td>
-                  <td>${score}</td>
-                  <td>${myAcc}</td>
+                  <td>${Number(score) || 0}</td>
+                  <td>${myAccStr}</td>
                 </tr>`;
   }
 
-  // Fill leaderboard
+  // Render table into #leaderboard
   const lbEl = document.getElementById('leaderboard');
   if (lbEl) {
     lbEl.innerHTML = `
@@ -1215,14 +1223,13 @@ function renderPostGameContent({ username, score, accuracyPct, mode, rank, board
         <thead>
           <tr><th>#</th><th>User</th><th>Score</th><th>Acc</th></tr>
         </thead>
-        <tbody>${rows}${extraRow}</tbody>
+        <tbody>${rowsHtml}${extraRow}</tbody>
       </table>
     `;
   }
 }
 
 let __lastLbFetch = 0;   // <-- put this at top level (file scope)
-
 
 // Save the run (once), then fetch & render stats
 async function hydratePostGame(){
@@ -1259,7 +1266,21 @@ async function hydratePostGame(){
     const rankRaw = data?.me?.rank;
     const rank = (rankRaw != null && !Number.isNaN(Number(rankRaw))) ? Number(rankRaw) : null;
 
-    renderPostGameContent({ username, score, accuracyPct, mode, rank, board });
+    // capture session game data
+    window.__sessionRuns = window.__sessionRuns || [];
+    window.__sessionRuns.push({
+      ts: Date.now(),
+      username,
+      mode,
+      score,
+      accuracyPct
+    });
+    // keep only the last ~20 so it doesn't grow unbounded (we'll show 5)
+    if (window.__sessionRuns.length > 20) {
+      window.__sessionRuns.splice(0, window.__sessionRuns.length - 20);
+    }
+
+    renderPostGameContent({ username, score, accuracyPct, rank, board });
   } catch (e){
     console.warn('[post-game] hydrate failed:', e);
 
@@ -1267,7 +1288,6 @@ async function hydratePostGame(){
       username: playerUsername,
       score,
       accuracyPct: computeAccuracyPct(),
-      mode: (currentMode||'classic'),
       rank: null,
       board: []
     });
@@ -1375,6 +1395,14 @@ function setup(){
   const pg = document.getElementById('postGameModal');
   const pgPlay  = document.getElementById('postPlayAgain');
   const pgMode  = document.getElementById('postChangeMode');
+
+  // Post-game "Stats" button
+  const pgStats = document.getElementById('postPlayerStatsBtn');
+  if (pgStats) pgStats.onclick = () => openStatsModal();
+
+  // Stats modal close
+  const statsClose = document.getElementById('statsCloseBtn');
+  if (statsClose) statsClose.onclick = () => closeStatsModal();
 
   // prevent the game close if not clicking the play again button or change mode button
   // if (pg) pg.addEventListener('click', (e) => { if (e.target.id === 'postGameModal') closePostGameModal(); });
@@ -2421,6 +2449,50 @@ function wireFeedbackModal(){
   // clicking outside card closes modal
   m.addEventListener('click', (e) => { if (e.target.id === 'feedbackModal') closeFeedbackModal(); });
 }
+
+function openStatsModal(){
+  const m = document.getElementById('statsModal');
+  if (!m) return;
+  closeAllModalsExcept('statsModal');
+  m.classList.remove('hidden');
+
+  // Build table from last 5 runs
+  const runs = (window.__sessionRuns || []).slice(-5).reverse(); // most recent first
+  const tbody = document.getElementById('statsTableBody');
+  if (tbody){
+    tbody.innerHTML = runs.map((r, i) => {
+      const when = new Date(r.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      const accStr = (typeof r.accuracyPct === 'number') ? `${r.accuracyPct}%` : '';
+      // show friendly label for mode
+      const label = (r.mode === 'classic') ? 'Zen' : (r.mode === 'challenge') ? 'Focus' : 'Emotion';
+      return `<tr>
+                <td>${i+1}</td>
+                <td>${when}</td>
+                <td>${r.score}</td>
+                <td>${accStr}</td>
+                <td>${label}</td>
+              </tr>`;
+    }).join('');
+  }
+
+  // Summary: average & best score across the session so far
+  const all = (window.__sessionRuns || []);
+  const avg = all.length ? Math.round(all.reduce((s,x)=>s+(Number(x.score)||0),0)/all.length) : 0;
+  const hi  = all.length ? Math.max(...all.map(x=>Number(x.score)||0)) : 0;
+
+  const sumEl = document.getElementById('statsSummaryRow');
+  if (sumEl){
+    sumEl.innerHTML = `
+      <div style="width:100%;text-align:center;opacity:.85;">
+        <strong>Summary</strong> — Avg Score: <b>${avg}</b> • Best: <b>${hi}</b> • Rounds: <b>${all.length}</b>
+      </div>`;
+  }
+}
+
+function closeStatsModal(){
+  document.getElementById('statsModal')?.classList.add('hidden');
+}
+// end of modal helper section
 
 /* =============================
  *        Audio SFX (WebAudio)
