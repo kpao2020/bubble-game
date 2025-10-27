@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.5.1';                 // game version number
+const GV = 'v10.5.2';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -57,12 +57,57 @@ const SCORE_TRICK_PENALTY = 1;         // points removed for trick bubbles
 const MISS_STREAK_TRIGGER        = 3;    // start easing after this many consecutive misses
 const MISS_STREAK_SLOW_PER_MISS  = 0.08; // each miss beyond trigger slows ~8%
 const MISS_STREAK_SLOW_CAP       = 0.35; // never slow more than 35%
+let currentMode = 'classic'; // 'classic' | 'challenge' | 'mood'
 
+const CLASSIC_SPEED_SCALE = 0.75;
+const CLASSIC_SPEED_CAP   = 3.0;
+// v10.5.2 — Mode labels, mood presets, unified speed helpers
+const MODE_LABEL = { classic: 'Zen', challenge: 'Focus', mood: 'Emotion' };
 
 // v10.0.0 — Classic variants + static board (Step 2)
 const CLASSIC_TIME_MS = 60000;       // 60s for Timed
 let classicVariant = null;
 let classicDeadline = 0;             // ms; 0 => relax (no timer)
+
+const EMO_PRESET = {
+  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
+  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.3, emoji: '😊' },
+  sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.8, emoji: '😢' },
+  angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.0, emoji: '😠' },
+  stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.6, emoji: '😟' },
+};
+
+const MODE_SPEED_BASE = { classic: (typeof CLASSIC_SPEED_SCALE!=='undefined'?CLASSIC_SPEED_SCALE:1.0), challenge: 1.3, mood: 1.0 };
+const MODE_SPEED_CAP  = { classic: (typeof CLASSIC_SPEED_CAP!=='undefined'?CLASSIC_SPEED_CAP:Infinity), challenge: Infinity, mood: Infinity };
+
+function getModeSpeedMult(mode, emo /* string or null */){
+  if (mode === 'mood') return EMO_PRESET[emo || 'neutral'].speed;
+  return MODE_SPEED_BASE[mode] || 1.0;
+}
+
+function applyModeUI(mode, emo /* string or null */){
+  const modeChip = document.getElementById('modeChip');
+  const moodChip = document.getElementById('moodChip');
+  const camBtnEl = document.getElementById('cameraBtn');
+
+  if (modeChip){
+    modeChip.textContent = `Mode: ${MODE_LABEL[mode] || '—'}`;
+    modeChip.style.display = 'inline-flex';
+  }
+
+  // Camera + mood chip visibility
+  if (mode === 'mood'){
+    moodChip?.classList.remove('hiddenChip');
+    if (camBtnEl) camBtnEl.style.display = 'inline-flex';
+    const p = EMO_PRESET[emo || 'neutral'];
+    if (moodChip) moodChip.style.background = p.chip;
+    document.body.style.setProperty('--mood-background-color', p.bg);
+    document.body.style.setProperty('--mood-emoji-url', p.emoji);
+  } else {
+    moodChip?.classList.add('hiddenChip');
+    if (camBtnEl) camBtnEl.style.display = 'none';
+  }
+}
 
 // v10.0.0 — Red penalty & flyout
 const RED_RATE    = 0.15;   // ~15% of bubbles are red in Classic
@@ -80,10 +125,9 @@ let moodIdleStopTO = null;
 
 const TOUCH_HIT_PAD = 12;
 const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-const CLASSIC_SPEED_SCALE = 0.75;
-const CLASSIC_SPEED_CAP   = 3.0;
 
-let currentMode = 'classic'; // 'classic' | 'challenge' | 'mood'
+
+
 const CHALLENGE_TRICK_RATE = 0.22;
 const MOOD_TRICK_RATE = 0.18;
 const MAX_TRICK_RATIO = 0.5;   // at most 50% of on-screen bubbles can be red/trick
@@ -1528,136 +1572,120 @@ function setup(){
 function draw(){
   if (window.__splashActive || !window.__playerReady) return; // do nothing until after login
   fitCanvasToViewport();
+
   // Read the dynamic background color from our CSS variable
   const bgColor = getComputedStyle(document.body).getPropertyValue('--mood-background-color');
-  
-  // Use p5.js to paint the background with that color
   background(color(bgColor));
 
-  // Draw the emoji directly on the canvas ---
+  // Draw a giant, faint emoji when in Mood mode (purely decorative)
   if (isMoodMode()) {
     const emo = dominantEmotion();
     let emojiChar = '';
-    if (emo === 'happy') emojiChar = '😊';
-    if (emo === 'sad') emojiChar = '😢';
-    if (emo === 'angry') emojiChar = '😠';
+    if (emo === 'happy')    emojiChar = '😊';
+    if (emo === 'sad')      emojiChar = '😢';
+    if (emo === 'angry')    emojiChar = '😠';
     if (emo === 'stressed') emojiChar = '😟';
-    
+
     if (emojiChar) {
       textAlign(CENTER, CENTER);
-      textSize(Math.min(width, height) * 0.5); // Make it huge
-      fill(0, 0, 0, 8); // Black, but very faint (8 out of 255 opacity)
+      textSize(Math.min(width, height) * 0.5);
+      fill(0, 0, 0, 8);
       text(emojiChar, width / 2, height / 2);
     }
   }
 
-  // Classic mode timer setting
+  // --- Timers ---
   let timeLeft;
   if (currentMode === 'classic'){
     if (classicDeadline){
       timeLeft = Math.max(0, Math.ceil((classicDeadline - Date.now())/1000));
     } else {
-      timeLeft = null; // relax
+      timeLeft = null; // relax (endless) variant
     }
   } else {
     timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
   }
 
-  const timeChip = document.getElementById('timeChip');
-  if (timeChip){
-    if (timeLeft == null){
-      timeChip.textContent = 'Time: ∞';   // Relax mode
-    } else {
-      timeChip.textContent = `Time: ${timeLeft}`;
-    }
-  }
-
+  // --- Top HUD chips ---
   document.getElementById('scoreChip').textContent = `Score: ${score}`;
 
-
+  // Consolidated Mode UI + speed presets
   const modeChip = document.getElementById('modeChip');
+  const moodChip = document.getElementById('moodChip');
+  const camBtnEl = document.getElementById('cameraBtn');
+
+  // Local lookups to avoid if/else spam
+  const MODE_LABEL = { classic: 'Zen', challenge: 'Focus', mood: 'Emotion' };
+  const EMO_PRESET = {
+    neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
+    happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.3, emoji: '😊' },
+    sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.8, emoji: '😢' },
+    angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.0, emoji: '😠' },
+    stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.6, emoji: '😟' },
+  };
+
   if (modeChip){
-    const label = (currentMode === 'classic') ? 'Zen'
-                : (currentMode === 'challenge') ? 'Focus'
-                : 'Emotion';
-    // Always keep the text current
-    modeChip.textContent = `Mode: ${label}`;
-    modeChip.style.display = 'inline-flex';   // always visible
+    modeChip.textContent = `Mode: ${MODE_LABEL[currentMode] || '—'}`;
+    modeChip.style.display = 'inline-flex';
   }
 
-  const moodChip  = document.getElementById('moodChip');
-  const camBtnEl = document.getElementById('cameraBtn');
   let modeSpeedMult = 1.0;
 
-  if (currentMode === 'classic'){   // Classic mode
-    modeSpeedMult = CLASSIC_SPEED_SCALE;
-    moodChip?.classList.add('hiddenChip');
-    if (camBtnEl) camBtnEl.style.display = 'none';
-  } else if (currentMode === 'challenge'){ // Challenge mode
-    modeSpeedMult = 1.3;
-    moodChip?.classList.add('hiddenChip');
-    if (camBtnEl) camBtnEl.style.display = 'none';
-  } else { // Mood mode
-    refreshCameraBtn();
+  if (currentMode === 'mood'){
+    // Show camera + mood chip
+    if (camBtnEl) { refreshCameraBtn(); camBtnEl.style.display = 'inline-flex'; }
     moodChip?.classList.remove('hiddenChip');
 
-    const emo = dominantEmotion();
-    moodChip.textContent = emo.toUpperCase();
+    const emo = dominantEmotion() || 'neutral';
+    const p = EMO_PRESET[emo] || EMO_PRESET.neutral;
 
-    // Define mood properties for background, emoji, speed, and scoring
-    let moodConfig = {
-      bgColor: '#f3f4f6', // NEW: Light gray for Neutral
-      chipColor: '#e5e7eb',
-      emoji: '', // No emoji for neutral
-      speedMult: 1.0,
-    };
-
-    if (emo === 'happy') {
-      moodConfig = { bgColor: '#dcfce7', chipColor: '#a7f3d0', emoji: '😊', speedMult: 1.3 };
-    } else if (emo === 'sad') {
-      moodConfig = { bgColor: '#bfdbfe', chipColor: '#93c5fd', emoji: '😢', speedMult: 0.8 }; // NEW: More distinct blue
-    } else if (emo === 'angry') {
-      moodConfig = { bgColor: '#fee2e2', chipColor: '#fca5a5', emoji: '😠', speedMult: 1.0 };
-    } else if (emo === 'stressed') {
-      moodConfig = { bgColor: '#fef3c7', chipColor: '#fde047', emoji: '😟', speedMult: 0.6 };
+    if (moodChip){
+      moodChip.textContent = emo.toUpperCase();
+      moodChip.style.background = p.chip;
     }
+    // Push mood visuals via CSS vars
+    document.body.style.setProperty('--mood-background-color', p.bg);
+    document.body.style.setProperty('--mood-emoji-url', p.emoji);
 
-    // Apply the color to the moodChip
-    moodChip.style.background = moodConfig.chipColor;
-
-    // Apply the changes to the CSS variables
-    document.body.style.setProperty('--mood-background-color', moodConfig.bgColor);
-    document.body.style.setProperty('--mood-emoji-url', moodConfig.emoji);
-
-    // Set the speed multiplier for the bubbles
-    modeSpeedMult = moodConfig.speedMult;
+    modeSpeedMult = p.speed;
+  } else {
+    // Non-mood: hide extras
+    moodChip?.classList.add('hiddenChip');
+    if (camBtnEl) camBtnEl.style.display = 'none';
+    modeSpeedMult = (currentMode === 'classic') ? CLASSIC_SPEED_SCALE : 1.3; // challenge default
   }
 
   const sTop = safeTopPx();
-  const MINF = MIN_PLAY_SPEED;
+  const MINF  = MIN_PLAY_SPEED;
 
-  // Guard against uninitialized bubbles & surface errors instead of hard-crashing the frame
-  if (!bubbles || typeof bubbles.length !== 'number') return;
+  // Guard against uninitialized bubbles & surface errors (keep the frame alive)
+  if (!bubbles || typeof bubbles.length !== 'number'){
+    console.warn('[draw] bubbles not initialized yet');
+    return;
+  }
 
+  // --- Draw/animate all bubbles ---
   try {
-
     for (let i = 0; i < bubbles.length; i++){
       const b = bubbles[i];
+      if (!b) continue;
 
-      // === Pop animation check ===
-      if (b._popping) {
-        const elapsed = (millis ? millis() : Date.now()) - (b._popStart || 0);
-        const t = Math.min(1, elapsed / 200); // 200ms animation
+      // Skip invisible or dead bubbles early
+      if (b.hidden === true) continue;
 
-        const r = currentRadius(b) * (1 - t);
-        const d = r * 2;
-        const alpha = 200 * (1 - t);
-
-        fill(red(b._tint), green(b._tint), blue(b._tint), alpha);
+      // Handle popping animation / removal
+      if (b._popping === true){
+        // simple expand + fade pop
+        const popAge = millis() - (b._popStart || millis());
+        const d = max(0, (b.radius || 12) * (1 + Math.min(0.9, popAge / 160)));
+        noFill();
+        strokeWeight(2);
+        stroke(255, 255, 255, 235 - Math.min(235, popAge * 1.2));
         circle(b.x, b.y, d);
 
-        if (t >= 1) {
-          if (b._respawnAfterPop) {
+        // cleanup & respawn logic
+        if (popAge > 160){
+          if (b._respawnAfterPop){
             if (typeof b.remove === 'function') b.remove();
             spawnBubble();
             b._respawnAfterPop = false;
@@ -1667,16 +1695,15 @@ function draw(){
           b._popping = false;
         }
 
-        continue; // 🔑 skip normal drawing for this bubble
+        continue; // skip normal drawing for this bubble
       }
 
-      // --- v10.0.0 Step 3C: Classic draw & dead-skip ---
+      // --- Classic draw quirks & dead-skip ---
       if (currentMode === 'classic') {
         // If we already "popped" it in classic, don't draw or move it
         if (b.alive === false) continue;
 
         // Force a single tint for normal bubbles, and red for penalties
-        // (we bypass the usual palette/trick tints)
         b._tint = (b.kind === 'trick') ? color(...COLOR_RED) : color(...COLOR_TEAL);
       }
 
@@ -1685,76 +1712,85 @@ function draw(){
         b.direction += random(-0.35, 0.35);
         const r = currentRadius(b);
 
-        if (currentMode === 'classic')      b.speed = max(min(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), CLASSIC_SPEED_CAP), MINF);
-        else if (currentMode === 'challenge') b.speed = max(b._baseSpeed * modeSpeedMult * rubberSpeedFactor(), MINF);
-        else                                  b.speed = max(b._baseSpeed * constrain(modeSpeedMult, 0.5, 1.6) * rubberSpeedFactor(), MINF);
+        // Unified speed computation (caps Classic only)
+        const __cap = (typeof CLASSIC_SPEED_CAP !== 'undefined' && currentMode === 'classic') ? CLASSIC_SPEED_CAP : Infinity;
+        b.speed = max(
+          min(
+            b._baseSpeed * (currentMode==='mood' ? constrain(modeSpeedMult, 0.5, 1.6) : modeSpeedMult) * rubberSpeedFactor(),
+            __cap
+          ),
+          MINF
+        );
 
-        if (b.x < r){ b.x = r + 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-        if (b.x > width - r){ b.x = width - r - 0.5; b.direction = 180 - b.direction; b.direction += random(-1.5,1.5); }
-        if (b.y < sTop + r){ b.y = sTop + r + 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
-        if (b.y > height - r){ b.y = height - r - 0.5; b.direction = 360 - b.direction; b.direction += random(-1.5,1.5); }
+        // Move
+        b.x += cos(b.direction) * b.speed;
+        b.y += sin(b.direction) * b.speed;
 
-        const d = r * 2;
-        fill(b._tint);
-        circle(b.x, b.y, d);
-        fill(255,255,255,60);
-        circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
+        // Keep inside bounds with a "soft bounce"
+        if (b.y - r <= sTop){ b.y = sTop + r + 0.5;  b.direction = 360 - b.direction; }
+        if (b.y + r >= height){ b.y = height - r - 0.5; b.direction = 360 - b.direction; }
+        if (b.x - r <= 0){ b.x = r + 0.5;  b.direction = 180 - b.direction; }
+        if (b.x + r >= width){ b.x = width - r - 0.5; b.direction = 180 - b.direction; }
 
+        // Unstick if too slow for too long
         if (b._stuck == null) b._stuck = 0;
         if (b.speed < 0.15) b._stuck++; else b._stuck = 0;
         if (b._stuck > 18){
-          b.direction = random(360); b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
-          if (b.y - r <= sTop + 1) b.y = sTop + r + 2; else if (b.y + r >= height - 1) b.y = height - r - 2;
-          if (b.x - r <= 1) b.x = r + 2; else if (b.x + r >= width - 1) b.x = width - r - 2;
-          b._stuck = 0;
+          b.direction = random(360);
+          b.speed = max(b._baseSpeed * 1.05, MINF + 0.2);
+          if (b.y - r <= sTop + 1)         b.y = sTop + r + 2;
+          else if (b.y + r >= height - 1)  b.y = height - r - 2;
+          if (b.x - r <= 1)                 b.x = r + 2;
+          else if (b.x + r >= width - 1)    b.x = width - r - 2;
         }
       }
 
-      // NEW: Classic draw when movement is skipped
-      if (currentMode === 'classic') {
-        const r = currentRadius(b), d = r * 2;
-        fill(b._tint);           // you set this earlier based on (b.kind === 'trick')
-        circle(b.x, b.y, d);
-        fill(255,255,255,60);    // highlight
-        circle(b.x - d*0.2, b.y - d*0.2, d*0.4);
-      }
+      // --- Render bubble (fill + stroke) ---
+      noStroke();
+      const rr = currentRadius(b);
+      const tintCol = b._tint || (b.kind === 'trick' ? color(...COLOR_RED) : color(...COLOR_TEAL));
+      fill(tintCol);
+      circle(b.x, b.y, rr * 2);
+
+      // Subtle outline
+      noFill();
+      stroke(255, 255, 255, 60);
+      strokeWeight(1.5);
+      circle(b.x - rr*0.2, b.y - rr*0.2, rr*0.4);
     }
   } catch (err) {
     console.warn('[draw] bubble loop error:', err);
   }
 
+  // End-game trigger
   if (!gameOver && timeLeft != null && timeLeft <= 0) endGame();
 
-  // Classic end logic:
-  // - RELAX (endless): when all teal are popped, rebuild a fresh board and keep playing.
-  // - TIMED: when the clock expires, end the round.
+  // Classic “relax” refill logic: when all teal popped, auto-refill
   const anyTealAlive = Array.isArray(bubbles) && bubbles.some(b => b.alive && b.kind !== 'trick');
 
   if (currentMode === 'classic') {
     if (window.__classicRelax) {
       if (!anyTealAlive) {
-        // e.g., tiny difficulty bump each refill (cap to keep fair)
         window.__relaxRefills = (window.__relaxRefills || 0) + 1;
-        // example: nudge trick rate a hair every 2 refills (bounded)
-        const bump = Math.min(0.04, (Math.floor(window.__relaxRefills/2) * 0.01));
-        window.__dynamicRedRate = Math.min(0.25, (RED_RATE || 0.15) + bump);
-
-        // Refill the static grid and continue (no Game Over)
-        buildClassicBoard();          // reuse your existing builder
-        // ensure UI stays consistent
-        refreshQuitBtn?.();
+        refillClassicBoard();
       }
     } else {
-      // Timed variant: still end when all teal are gone OR time expires
-      if (!anyTealAlive) endGame();
-      if (classicDeadline && Date.now() >= classicDeadline) endGame();
+      // Classic timed variant: already handled by timeLeft/endGame above
     }
-  }  
+  }
 
-  if (currentMode !== 'classic' || !window.__classicStatic){ /* move */ }
-
+  // HUD timer text (right chip)
+  const timeChip = document.getElementById('timeChip');
+  if (timeChip){
+    if (timeLeft == null) {
+      timeChip.textContent = '∞';
+    } else {
+      const mm = Math.floor(timeLeft / 60);
+      const ss = (timeLeft % 60).toString().padStart(2, '0');
+      timeChip.textContent = `${mm}:${ss}`;
+    }
+  }
 } // end of draw()
-
 
 /* =============================
  *        Gameplay

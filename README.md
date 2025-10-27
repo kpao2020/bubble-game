@@ -312,5 +312,13 @@ This project is for **educational and research purposes**. Not intended for comm
 - Stats modal flow — pressing **Close** returns to the post-game screen instead of leaving the UI blank.
 - Leaderboard polish — shows only **Rank / Name / Score / Acc**; your row flashes teal when in Top 5, or appears as a 6th highlighted row if outside Top 5.
 - Copy cleanup — helper text uses the new mode display names (Zen / Focus / Emotion); “Round complete” title remains static.
+### v10.5.1
+- Removed **all pre/post-game survey UI & wiring**. Login “Feedback” and Post-game “Feedback” buttons are no longer shown; the reusable survey modal is no longer opened from the flow. Gameplay start → end is now streamlined (Mode Picker → Gameplay → Post-game). (minor)
+### v10.5.2
+- **Draw-loop de-duplication & mode consolidation.** Replaced repeated `if (currentMode === 'classic' | 'challenge' | 'mood')` blocks with small helpers and tables:
+  - `MODE_LABEL` for Mode chip text, `applyModeUI(mode)` for chip/camera visibility
+  - `EMO_PRESET` for Mood background/chip/speed
+  - `getModeSpeedMult(mode, emo)` and optional `MODE_SPEED_CAP` for per-mode speed rules
+- Results: smaller `draw()`; single source of truth for mode labels, UI, speed multipliers; easier to tune Classic/Challenge/Mood without touching multiple branches. (refactor)
 
 ---
