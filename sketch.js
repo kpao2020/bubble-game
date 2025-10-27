@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.5.0';                 // game version number
+const GV = 'v10.5.1';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -1432,10 +1432,6 @@ function setup(){
     showModePicker();
   };
 
-  // --- Post-game "Feedback" button (after-game feedback) ---
-  const pgFeedback = document.getElementById('postFeedbackBtn');
-  if (pgFeedback) pgFeedback.onclick = () => openFeedbackModal('after');
-
   // --- Login "Feedback" button (before-game feedback) ---
   const loginFb = document.getElementById('preFeedbackBtn');
   if (loginFb) loginFb.onclick = () => openFeedbackModal('before');
@@ -1985,8 +1981,7 @@ function restart(fromModeButton){
     tapsTotal = 0; tapsMissed = 0;
     bubblesPopped = 0; bubblesPoppedGood = 0; bubblesPoppedTrick = 0;
     window.__feedbackAfter = '';
-    const pgFeedback = document.getElementById('postFeedbackBtn');
-    if (pgFeedback) { pgFeedback.classList.remove('is-disabled'); pgFeedback.innerHTML = '📝<br>Feedback'; pgFeedback.onclick = () => openFeedbackModal('after'); }
+    
     window.__runSubmitted = false;
     score = 0; startTime = millis(); gameOver = false;
     closePostGameModal();
@@ -2031,13 +2026,7 @@ function restart(fromModeButton){
   bubblesPoppedTrick = 0;
   // v9.0.1 — feedback + submit guards (per round)
   window.__feedbackAfter = '';   // only after-feedback is cleared each round
-  // v9.2.1 — reset post-game Feedback button state for the new round
-  const pgFeedback = document.getElementById('postFeedbackBtn');
-  if (pgFeedback) {
-    pgFeedback.classList.remove('is-disabled');
-    pgFeedback.innerHTML = '📝<br>Feedback';   // original label
-    pgFeedback.onclick = () => openFeedbackModal('after');  // re-bind
-  }
+
 
   window.__runSubmitted  = false;
 
@@ -2425,14 +2414,7 @@ function wireFeedbackModal(){
     if (__feedbackContext === 'after'){
       window.__feedbackAfter = json;     // lock-in for this round
 
-      // Disable the post-game Feedback button and mark as saved
-      const pgFeedback = document.getElementById('postFeedbackBtn');
-      if (pgFeedback) {
-        pgFeedback.classList.add('is-disabled');
-        pgFeedback.innerHTML = '✅<br>Saved';
-        // Prevent reopening (optional hard block)
-        pgFeedback.onclick = null;
-      }
+
 
       // Show thank-you in the modal immediately
       renderFeedbackThanks('after');

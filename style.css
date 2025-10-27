@@ -1026,4 +1026,5 @@ button,
 .iconTile.tileStats:hover { background: #0284c7; }
 .iconTile.tileStats:active { background: #0369a1; transform: translateY(1px) scale(0.96); }
 
-
+/* Disable legacy survey modal entirely */
+#feedbackModal { display: none !important; }
