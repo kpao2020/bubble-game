@@ -1749,14 +1749,17 @@ function draw(){
       noStroke();
       const rr = currentRadius(b);
       const tintCol = b._tint || (b.kind === 'trick' ? color(...COLOR_RED) : color(...COLOR_TEAL));
+      
+      // Clean bubble rendering
+      noStroke();
       fill(tintCol);
       circle(b.x, b.y, rr * 2);
 
       // Subtle outline
-      noFill();
       stroke(255, 255, 255, 60);
-      strokeWeight(1.5);
-      circle(b.x - rr*0.2, b.y - rr*0.2, rr*0.4);
+      strokeWeight(1);
+      noFill();
+      circle(b.x - rr*0.2, b.y - rr*2*0.98);
     }
   } catch (err) {
     console.warn('[draw] bubble loop error:', err);
