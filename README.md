@@ -320,5 +320,13 @@ This project is for **educational and research purposes**. Not intended for comm
   - `EMO_PRESET` for Mood background/chip/speed
   - `getModeSpeedMult(mode, emo)` and optional `MODE_SPEED_CAP` for per-mode speed rules
 - Results: smaller `draw()`; single source of truth for mode labels, UI, speed multipliers; easier to tune Classic/Challenge/Mood without touching multiple branches. (refactor)
-
+### v10.5.3
+- **UI Fix — Unified Background & Modal Theming**
+- Adds global fallback so Login, Mode Select, and Game screens inherit the same light splash tone instead of black.
+- Normalizes modal contrast:
+- Login popup → soft translucent light glass (dark mode: smoky glass).
+- Mode-Select popup → matches login glass (no pure white).
+- Post-game popup → gentle neutral gray instead of white.
+- Ensures all intermediate screens share the CSS variable --mood-background-color (#b8e1ff) as default.
+- Keeps existing dark-mode helper text intact.
 ---

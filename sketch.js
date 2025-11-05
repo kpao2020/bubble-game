@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.5.2';                 // game version number
+const GV = 'v10.5.3';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -346,6 +346,18 @@ function rebuildWallsIfNeeded(){
   if (need) buildWalls();
 }
 
+// ----- Background utilities (safe, non-black from frame 1) -----
+function __getGameBG() {
+  const v = getComputedStyle(document.body)
+    .getPropertyValue('--mood-background-color')
+    .trim();
+  return v || '#b8e1ff'; // fallback close to splash palette
+}
+
+function __applyBG() {
+  try { background(color(__getGameBG())); } catch (_) { /* p5 not ready yet */ }
+}
+
 /** Create/position overlay canvas over the on-screen preview video */
 function ensureOverlay(){
   if (!overlay){
@@ -513,6 +525,9 @@ function showModePicker(){
     }
   };
 }
+
+// Force a bright default before the first draw() after splash
+document.body.style.setProperty('--mood-background-color', '#b8e1ff');
 
 async function afterModeSelected(isMood){
   // show the top bar again
@@ -1069,7 +1084,9 @@ function showCountdown(onFinish) {
 
   // 🔹 Clear old gameplay before countdown
   try {
-    background(255); // plain white; or use background(color('#e0f2f1')) for teal fade
+    // Countdown / pre-game clear
+    __applyBG();
+    // background(255); // plain white; or use background(color('#e0f2f1')) for teal fade
   } catch (_) {}
   if (bubbles && typeof bubbles.removeAll === 'function') {
     bubbles.removeAll();
@@ -1573,9 +1590,9 @@ function draw(){
   if (window.__splashActive || !window.__playerReady) return; // do nothing until after login
   fitCanvasToViewport();
 
-  // Read the dynamic background color from our CSS variable
-  const bgColor = getComputedStyle(document.body).getPropertyValue('--mood-background-color');
-  background(color(bgColor));
+  // Frame background (never black)
+  __applyBG();
+
 
   // Draw a giant, faint emoji when in Mood mode (purely decorative)
   if (isMoodMode()) {
@@ -1745,21 +1762,39 @@ function draw(){
         }
       }
 
-      // --- Render bubble (fill + stroke) ---
+      // Glossy bubble (radial gradient + rim + specular)
       noStroke();
-      const rr = currentRadius(b);
-      const tintCol = b._tint || (b.kind === 'trick' ? color(...COLOR_RED) : color(...COLOR_TEAL));
-      
-      // Clean bubble rendering
-      noStroke();
-      fill(tintCol);
-      circle(b.x, b.y, rr * 2);
+      const ctx   = drawingContext;
+      const rr    = currentRadius(b);
+      const tint  = b._tint || (b.kind === 'trick' ? color(...COLOR_RED) : color(...COLOR_TEAL));
+      const cx    = b.x, cy = b.y;
 
-      // Subtle outline
+      // Pull RGBA from p5.Color
+      const r = red(tint), g = green(tint), bl = blue(tint), a = alpha(tint) / 255;
+
+      // Radial gradient (lighter core -> tinted mid -> darker rim)
+      const innerX = cx - rr * 0.35, innerY = cy - rr * 0.35;
+      const grad = ctx.createRadialGradient(innerX, innerY, rr * 0.10, cx, cy, rr);
+      grad.addColorStop(0.00, `rgba(${Math.min(255, r+55)},${Math.min(255, g+55)},${Math.min(255, bl+55)},${Math.min(1, a)})`);
+      grad.addColorStop(0.60, `rgba(${r},${g},${bl},${Math.min(0.9, a)})`);
+      grad.addColorStop(1.00, `rgba(${Math.max(0, r-40)},${Math.max(0, g-40)},${Math.max(0, bl-40)},${Math.min(0.95, a)})`);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Specular highlight (soft white ellipse, top-left)
+      noStroke();
+      fill(255, 255, 255, 85);
+      ellipse(cx - rr * 0.35, cy - rr * 0.35, rr * 0.45, rr * 0.35);
+
+      // Subtle rim light (keeps the crisp edge)
       stroke(255, 255, 255, 60);
       strokeWeight(1);
       noFill();
-      circle(b.x - rr*0.2, b.y - rr*2*0.98);
+      circle(cx - rr * 0.2, cy - rr * 0.98 * 2);
+
     }
   } catch (err) {
     console.warn('[draw] bubble loop error:', err);
