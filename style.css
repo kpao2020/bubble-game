@@ -1026,4 +1026,87 @@ button,
 .iconTile.tileStats:hover { background: #0284c7; }
 .iconTile.tileStats:active { background: #0369a1; transform: translateY(1px) scale(0.96); }
 
+/* Disable legacy survey modal entirely */
+#feedbackModal { display: none !important; }
 
+/* --- Accessibility: readable helper text on dark backgrounds --- */
+@media (prefers-color-scheme: dark) {
+  /* Login helper line colors are already defined; ensure good contrast for other helpers */
+  .studyNote {
+    color: #cfe7ff !important;         /* light blue for readability */
+  }
+  .disclaimerBox {
+    color: #e8eef6 !important;
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.16) !important;
+  }
+  /* Chips & tiny UI bits stay readable in dark */
+  .chip { color: #0b2a45; }             /* already good on light chips */
+}
+
+/* ===== GAME BACKGROUND RELIABILITY =====
+   Ensure the page always paints a bright, splash-matching background,
+   and the p5 canvas never forces black. */
+
+:root {
+  /* Keep whatever you already use here;
+     this is just a safe default for early frames */
+  --mood-background-color: #b8e1ff;
+}
+
+/* Page background follows the variable with a safe fallback */
+body {
+  background: var(--mood-background-color, #b8e1ff) !important;
+}
+
+/* p5 canvas should never fight the page background */
+canvas {
+  background: transparent !important;
+}
+
+/* === v10.5.3 — Unified Background & Modal Theming === */
+
+/* 1.  Safe default for every screen after splash */
+:root {
+  --mood-background-color: #b8e1ff; /* light-blue base, same as splash mid-tone */
+}
+body {
+  background: var(--mood-background-color) !important;
+  transition: background 0.6s ease;
+}
+
+/* 2.  Prevent black flash between splash → login → mode select → game */
+canvas { background: transparent !important; }
+
+/* 3.  Login & Mode Select pop-ups — soft glass, not pure white */
+#loginModal .modalContent,
+#modeModal  .modalContent {
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.5);
+  color: #0b2540;
+}
+
+/* 4.  Post-game modal — neutral gray glass for consistency */
+#postGameModal .modalContent {
+  background: rgba(250,250,252,0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* 5.  Dark-mode variants: smoky glass cards, light text */
+@media (prefers-color-scheme: dark) {
+  body {
+    --mood-background-color: #1a1f27;
+    background: var(--mood-background-color) !important;
+  }
+  #loginModal .modalContent,
+  #modeModal  .modalContent,
+  #postGameModal .modalContent {
+    background: rgba(24,28,36,0.78);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e6eef7;
+  }
+}
