@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.5.3';                 // game version number
+const GV = 'v10.5.6';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -668,6 +668,8 @@ document.addEventListener('keydown', swallowKeysIfModal, true);
 document.addEventListener('keyup', swallowKeysIfModal, true);
 
 function setLoginStatus(msg, cls='info') {
+  // Only update the login helper while the login screen is active
+  if (!document.body.classList.contains('login-active')) return;
   const el = document.getElementById('loginStatus');
   if (!el) return;
 
@@ -892,6 +894,16 @@ function onMiss(){
   comboHitStreak = 0;
   comboMult = 1.0;
   showComboBadge();
+}
+
+function refillClassicBoard(){
+  // Gently vary the red/trick ratio so each refill feels a bit different
+  const prev = (window.__dynamicRedRate ?? RED_RATE);
+  const next = Math.max(0.05, Math.min(0.35, prev + (Math.random() * 0.12 - 0.06)));
+  window.__dynamicRedRate = next;
+
+  // Rebuild the static grid (buildClassicBoard uses window.__classicRelax to choose the ratio)
+  buildClassicBoard();
 }
 
 function getComboMultiplier(){
@@ -1201,9 +1213,9 @@ async function submitRun(){
 
 // Submit exactly once per round; includes any after-feedback if present
 function submitRunOnce(){
-  if (window.__runSubmitted) return;
+  if (window.__runSubmitted) return Promise.resolve();
   window.__runSubmitted = true;
-  submitRun();
+  return submitRun(); // return the Promise so callers can await it
 }
 
 // v9.9.7 — leaderboard (no separate rank endpoint)
@@ -1301,7 +1313,7 @@ async function hydratePostGame(){
   }
   __lastLbFetch = now;
   try {
-    submitRunOnce();                       // ensure row exists before reading
+    await submitRunOnce();                       // ensure row exists before reading
     const username = (playerUsername || '').trim();
     const mode = (currentMode || 'classic');
     const accuracyPct = computeAccuracyPct();

@@ -329,4 +329,11 @@ This project is for **educational and research purposes**. Not intended for comm
 - Post-game popup → gentle neutral gray instead of white.
 - Ensures all intermediate screens share the CSS variable --mood-background-color (#b8e1ff) as default.
 - Keeps existing dark-mode helper text intact.
+### v10.5.4  
+- Helper text now only appears on the login/splash screen, matching correct mode contexts.  
+### v10.5.5  
+- Fixed leaderboard delay: ranks now update immediately after your first game.  
+### v10.5.6  
+- Zen Relax mode now refills automatically with new bubble patterns after clearing all greens.  
+
 ---
