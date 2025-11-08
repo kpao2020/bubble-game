@@ -335,5 +335,17 @@ This project is for **educational and research purposes**. Not intended for comm
 - Fixed leaderboard delay: ranks now update immediately after your first game.  
 ### v10.5.6  
 - Zen Relax mode now refills automatically with new bubble patterns after clearing all greens.  
+### v10.5.7
+- Emotion mode: camera button fully hidden again (no camera control visible during gameplay).
+### v10.5.8
+- Top bar hidden during countdown and resets on “Change Mode / Stats / Play Again”; returns only in active play/post-game. Emotion text updated to “Preparing emotion detection…”.
+### v10.5.9
+- Zen (Classic) top bar visibility adjusted to stay hidden until gameplay actually starts.
+### v10.6.0
+- Removed feedback helper box (kept Study Note). Cleanup of all related styles and dark-mode overrides.
+### v10.6.1
+- Moved Emotion camera disclaimer from Mode Picker to Emotion loading screen; shows only after mode selection.
+### v10.6.2
+- Added a 3-second pause on the Emotion loading screen so users can read the camera disclaimer before gameplay begins.
 
 ---

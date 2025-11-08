@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.5.6';                 // game version number
+const GV = 'v10.6.2';                 // game version number
 const GAME_DURATION = 30;             // seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
@@ -98,7 +98,7 @@ function applyModeUI(mode, emo /* string or null */){
   // Camera + mood chip visibility
   if (mode === 'mood'){
     moodChip?.classList.remove('hiddenChip');
-    if (camBtnEl) camBtnEl.style.display = 'inline-flex';
+    if (camBtnEl) camBtnEl.style.display = 'none';
     const p = EMO_PRESET[emo || 'neutral'];
     if (moodChip) moodChip.style.background = p.chip;
     document.body.style.setProperty('--mood-background-color', p.bg);
@@ -530,11 +530,11 @@ function showModePicker(){
 document.body.style.setProperty('--mood-background-color', '#b8e1ff');
 
 async function afterModeSelected(isMood){
-  // show the top bar again
+  // keep top bar hidden until actual gameplay starts
   const topBar = document.getElementById('topBar');
   if (topBar){
-    topBar.classList.remove('hidden');
-    topBar.style.display = 'grid';   // ensure visibility even if a previous style lingered
+    topBar.classList.add('hidden');
+    topBar.style.removeProperty('display'); // let CSS + .hidden control visibility
   }
 
   document.body.classList.remove('login-active');
@@ -569,8 +569,14 @@ async function afterModeSelected(isMood){
       if (loadingBar) loadingBar.style.width = '80%';
 
       // show progress while waiting for first sample
+      const loadingTitle = document.getElementById('loadingTitle');
+      if (loadingTitle) loadingTitle.textContent = 'Preparing emotion detection…';
+
       const loadingMsg = document.getElementById('loadingMsg');
-      if (loadingMsg) loadingMsg.textContent = 'Analyzing first frame…';
+      if (loadingMsg) loadingMsg.textContent = 'Emotion uses your camera locally to estimate expressions. No video is sent or saved.';
+
+      // ⏸️ Wait at least 3 seconds so users can read the disclaimer
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // wait for first sample (with 3s fail-safe so mobiles don't get stuck)
       await new Promise((resolve) => {
@@ -845,7 +851,14 @@ function startClassicRound(){
   currentMode = 'classic';
   setBodyModeClass?.();          // if you have it
   refreshCameraBtn?.();          // safe no-op outside Mood
-  restart(false);                // your existing game start/reset
+   // Hide top bar until actual gameplay begins; reveal at the end of countdown
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.add('hidden');
+
+  showCountdown(() => {
+    if (topBar) topBar.classList.remove('hidden'); // show at “GO!”
+    restart(false);                                 // start the Zen round
+  });
 }
 
 function buildClassicBoard(){
@@ -1100,6 +1113,11 @@ function showCountdown(onFinish) {
     __applyBG();
     // background(255); // plain white; or use background(color('#e0f2f1')) for teal fade
   } catch (_) {}
+
+  // hide top bar during countdown
+  const topBar = document.getElementById('topBar');
+  if (topBar) topBar.classList.add('hidden');
+
   if (bubbles && typeof bubbles.removeAll === 'function') {
     bubbles.removeAll();
   } else {
@@ -1131,6 +1149,8 @@ function showCountdown(onFinish) {
       } else {
         centerEl.style.display = 'none';
         centerEl.textContent = '';
+        // show top bar as the game starts
+        if (topBar) topBar.classList.remove('hidden');
         onFinish?.();
       }
     }
@@ -1662,7 +1682,7 @@ function draw(){
 
   if (currentMode === 'mood'){
     // Show camera + mood chip
-    if (camBtnEl) { refreshCameraBtn(); camBtnEl.style.display = 'inline-flex'; }
+    // if (camBtnEl) { refreshCameraBtn(); camBtnEl.style.display = 'inline-flex'; }
     moodChip?.classList.remove('hiddenChip');
 
     const emo = dominantEmotion() || 'neutral';
