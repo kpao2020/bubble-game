@@ -547,15 +547,6 @@ button,
   line-height: 1.35;
   color: #34536d;
 }
-.disclaimerBox {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #2b4a62;
-  background: rgba(0,0,0,.04);
-  padding: 10px 12px;
-  border-radius: 12px;
-}
 
 /* Buttons: colors + hover/active */
 /* Primary/Accent buttons (Login) */
@@ -1034,11 +1025,6 @@ button,
   /* Login helper line colors are already defined; ensure good contrast for other helpers */
   .studyNote {
     color: #cfe7ff !important;         /* light blue for readability */
-  }
-  .disclaimerBox {
-    color: #e8eef6 !important;
-    background: rgba(255,255,255,0.06) !important;
-    border-color: rgba(255,255,255,0.16) !important;
   }
   /* Chips & tiny UI bits stay readable in dark */
   .chip { color: #0b2a45; }             /* already good on light chips */
