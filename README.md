@@ -358,5 +358,6 @@ This project is for **educational and research purposes**. Not intended for comm
 - UI copy — replaced “Quit” with “Home” in top bar and post-game; IDs unchanged to keep existing handlers intact.
 ### v10.6.7
 - Home button restyled with neutral gray background to distinguish from teal gameplay/bubble color. (minor)
-
+### v10.6.8
+- Zen Timed mode now ends immediately when all green bubbles are cleared (or when the timer expires); Endless Zen continues refilling as before.
 ---
