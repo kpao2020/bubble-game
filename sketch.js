@@ -31,14 +31,14 @@
 // NOTE: 
 // a. Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // b. Coding with ChatGPT assistance
-//
+// 
 // ============================================================================
 
 
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.6.5';                 // game version number
+const GV = 'v10.6.7';                 // game version number
 const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
 const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
 const START_BUBBLES_CLASSIC   = 12;

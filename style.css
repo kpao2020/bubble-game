@@ -1112,3 +1112,13 @@ canvas { background: transparent !important; }
     color: #e6eef7;
   }
 }
+/* v10.6.5 — distinct color for Home button (was teal like bubbles) */
+#quitBtn {
+  background-color: #f59e0b !important;   /* amber */
+  color: #ffffff !important;
+  opacity: 0.9;
+  backdrop-filter: blur(4px);
+  font-weight: 600;
+}
+#quitBtn:hover  { background-color: #52525b !important; }
+#quitBtn:active { background-color: #3f3f46 !important; transform: translateY(1px) scale(0.98); }
