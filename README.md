@@ -347,5 +347,10 @@ This project is for **educational and research purposes**. Not intended for comm
 - Moved Emotion camera disclaimer from Mode Picker to Emotion loading screen; shows only after mode selection.
 ### v10.6.2
 - Added a 3-second pause on the Emotion loading screen so users can read the camera disclaimer before gameplay begins.
+### v10.6.3
+- Post-game polish — added friendly “Thanks for playing! Loading leaderboard for this round…” message with smooth, single-load transition (no flicker).
+### v10.6.4
+- Emotion mode timer set to 60s; introduced per-mode duration map (Challenge 30s, Emotion 60s) and removed duplicate constants in draw(); minor HUD update throttling.
+- Kept Focus (Challenge) at 30s and Emotion at 60s; removed duplicate EMO_PRESET in draw(); cached HUD chips and only update on change to reduce DOM work.
 
 ---

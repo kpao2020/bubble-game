@@ -38,8 +38,9 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.6.2';                 // game version number
-const GAME_DURATION = 30;             // seconds
+const GV = 'v10.6.4';                 // game version number
+const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
+const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
 const START_BUBBLES_CLASSIC   = 12;
 const START_BUBBLES_CHALLENGE = 16;
 const START_BUBBLES_MOOD      = 10;
@@ -70,11 +71,11 @@ let classicVariant = null;
 let classicDeadline = 0;             // ms; 0 => relax (no timer)
 
 const EMO_PRESET = {
-  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
-  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.3, emoji: '😊' },
-  sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.8, emoji: '😢' },
-  angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.0, emoji: '😠' },
-  stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.6, emoji: '😟' },
+  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 0.8, emoji: '' },
+  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.0, emoji: '😊' },
+  sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.5, emoji: '😢' },
+  angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.3, emoji: '😠' },
+  stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.2, emoji: '😟' },
 };
 
 const MODE_SPEED_BASE = { classic: (typeof CLASSIC_SPEED_SCALE!=='undefined'?CLASSIC_SPEED_SCALE:1.0), challenge: 1.3, mood: 1.0 };
@@ -145,6 +146,11 @@ let prevSafeTop = -1;      // last safe top for wall rebuild
 let score = 0;
 let startTime = 0;
 let gameOver = false;
+
+// Cached HUD elements + last-known values (reduces DOM churn each frame)
+let $scoreChip = null, $timeChip = null;
+window.__lastScore = -1;
+window.__lastTimeLeft = undefined;
 
 let missStreak = 0;    // consecutive misses since last hit
 let rubberSlow = 0;    // 0..MISS_STREAK_SLOW_CAP
@@ -1326,12 +1332,13 @@ let __lastLbFetch = 0;   // <-- put this at top level (file scope)
 
 // Save the run (once), then fetch & render stats
 async function hydratePostGame(){
-  const now = Date.now();
-  if (now - __lastLbFetch < 5000) {
-    console.warn('[leaderboard] Skipping fetch (debounced)');
-    return;
+  const elapsed = Date.now() - __lastLbFetch;
+  if (elapsed < 5000) {
+    const waitMs = 5000 - elapsed;
+    await new Promise(res => setTimeout(res, waitMs));
   }
-  __lastLbFetch = now;
+  __lastLbFetch = Date.now();
+
   try {
     await submitRunOnce();                       // ensure row exists before reading
     const username = (playerUsername || '').trim();
@@ -1341,7 +1348,7 @@ async function hydratePostGame(){
     // Leaderboard
     const lbEl = document.getElementById('leaderboard');
     if (lbEl) {
-      lbEl.innerHTML = `<p style="opacity:.7;">Loading leaderboard…</p>`;
+      lbEl.innerHTML = `<p style="opacity:.7;">Fetching updated data…</p>`;
     }
 
     // Fetch leaderboard (includes top + rank if username provided)
@@ -1387,7 +1394,11 @@ async function hydratePostGame(){
 
     const lbEl = document.getElementById('leaderboard');
     if (lbEl) {
-      lbEl.innerHTML = `<p style="opacity:.7;">Leaderboard unavailable (please try again later).</p>`;
+      lbEl.innerHTML = `
+        <p class="lbMsg">Couldn’t load the leaderboard. </p>
+        <button id="lbRetryBtn" class="btn">Try again</button>
+      `;
+      document.getElementById('lbRetryBtn')?.addEventListener('click', hydratePostGame);
     }
   }
 }
@@ -1404,6 +1415,10 @@ function setup(){
   world.gravity.y = 0;
 
   setBodyModeClass();
+
+  // Cache HUD chips once
+  $scoreChip = document.getElementById('scoreChip');
+  $timeChip  = document.getElementById('timeChip');
 
   // Camera modal buttons
   const camBtn = document.getElementById('cameraBtn');
@@ -1652,11 +1667,15 @@ function draw(){
       timeLeft = null; // relax (endless) variant
     }
   } else {
-    timeLeft = Math.max(0, GAME_DURATION - Math.floor((millis() - startTime)/1000));
+    const dur = (MODE_DURATION && MODE_DURATION[currentMode]) || GAME_DURATION;
+    timeLeft = Math.max(0, dur - Math.floor((millis() - startTime)/1000));
   }
 
   // --- Top HUD chips ---
-  document.getElementById('scoreChip').textContent = `Score: ${score}`;
+  if ($scoreChip && score !== window.__lastScore) {
+    $scoreChip.textContent = `Score: ${score}`;
+    window.__lastScore = score;
+  }
 
   // Consolidated Mode UI + speed presets
   const modeChip = document.getElementById('modeChip');
@@ -1664,14 +1683,14 @@ function draw(){
   const camBtnEl = document.getElementById('cameraBtn');
 
   // Local lookups to avoid if/else spam
-  const MODE_LABEL = { classic: 'Zen', challenge: 'Focus', mood: 'Emotion' };
-  const EMO_PRESET = {
-    neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
-    happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.3, emoji: '😊' },
-    sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.8, emoji: '😢' },
-    angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.0, emoji: '😠' },
-    stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.6, emoji: '😟' },
-  };
+  // const MODE_LABEL = { classic: 'Zen', challenge: 'Focus', mood: 'Emotion' };
+  // const EMO_PRESET = {
+  //   neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
+  //   happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.3, emoji: '😊' },
+  //   sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.8, emoji: '😢' },
+  //   angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.0, emoji: '😠' },
+  //   stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.6, emoji: '😟' },
+  // };
 
   if (modeChip){
     modeChip.textContent = `Mode: ${MODE_LABEL[currentMode] || '—'}`;
@@ -1849,16 +1868,16 @@ function draw(){
     }
   }
 
-  // HUD timer text (right chip)
-  const timeChip = document.getElementById('timeChip');
-  if (timeChip){
+  // HUD timer text (right chip) — only update when it changes
+  if ($timeChip && timeLeft !== window.__lastTimeLeft) {
     if (timeLeft == null) {
-      timeChip.textContent = '∞';
+      $timeChip.textContent = '∞';
     } else {
       const mm = Math.floor(timeLeft / 60);
       const ss = (timeLeft % 60).toString().padStart(2, '0');
-      timeChip.textContent = `${mm}:${ss}`;
+      $timeChip.textContent = `${mm}:${ss}`;
     }
+    window.__lastTimeLeft = timeLeft;
   }
 } // end of draw()
 
@@ -2765,7 +2784,25 @@ window.onSplashDismiss = function () {
   showLoginScreen(playerDeviceId); // open login after splash
 };
 
-function openPostGameModal(){ closeAllModalsExcept('postGameModal'); document.getElementById('postGameModal')?.classList.remove('hidden'); }
+function openPostGameModal(){
+  closeAllModalsExcept('postGameModal');
+  const m = document.getElementById('postGameModal');
+  const title = document.getElementById('postGameTitle');
+  const lbEl  = document.getElementById('leaderboard');
+
+  if (title) title.textContent = 'Round Complete';
+
+  // ✅ Clear any previous table immediately to prevent old-board flash
+  if (lbEl) {
+    lbEl.innerHTML = `
+      <p class="lbMsg">Thanks for playing! Loading the leaderboard for this round…</p>
+      <div class="lbSkeleton" aria-hidden="true"></div>
+    `;
+  }
+
+  m?.classList.remove('hidden');
+}
+
 function closePostGameModal(){ document.getElementById('postGameModal')?.classList.add('hidden'); }
 
 
