@@ -31,14 +31,14 @@
 // NOTE: 
 // a. Do not rename existing variables/IDs. UI and Sheets integrations depend on current names.
 // b. Coding with ChatGPT assistance
-//
+// 
 // ============================================================================
 
 
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.6.4';                 // game version number
+const GV = 'v10.6.8';                 // game version number
 const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
 const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
 const START_BUBBLES_CLASSIC   = 12;
@@ -66,7 +66,7 @@ const CLASSIC_SPEED_CAP   = 3.0;
 const MODE_LABEL = { classic: 'Zen', challenge: 'Focus', mood: 'Emotion' };
 
 // v10.0.0 — Classic variants + static board (Step 2)
-const CLASSIC_TIME_MS = 60000;       // 60s for Timed
+const CLASSIC_TIME_MS = 30000;       // 30s for Timed
 let classicVariant = null;
 let classicDeadline = 0;             // ms; 0 => relax (no timer)
 
@@ -1513,8 +1513,8 @@ function setup(){
   if (statsClose) statsClose.onclick = () => {
     const sm = document.getElementById('statsModal');
     if (sm) sm.classList.add('hidden');
-    // If a round just ended, reopen the post-game modal
-    if (typeof openPostGameModal === 'function') openPostGameModal();
+    // Re-show post-game WITHOUT resetting its contents
+    pg?.classList.remove('hidden');
   };
 
   // prevent the game close if not clicking the play again button or change mode button
@@ -1864,7 +1864,11 @@ function draw(){
         refillClassicBoard();
       }
     } else {
-      // Classic timed variant: already handled by timeLeft/endGame above
+      // Timed variant — end immediately if all greens are gone
+      if (!anyTealAlive && !gameOver) {
+        endGame();
+      }
+      // else timer logic already handles timeout-based ending
     }
   }
 
