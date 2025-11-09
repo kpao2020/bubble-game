@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.6.4';                 // game version number
+const GV = 'v10.6.5';                 // game version number
 const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
 const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
 const START_BUBBLES_CLASSIC   = 12;
@@ -1513,8 +1513,8 @@ function setup(){
   if (statsClose) statsClose.onclick = () => {
     const sm = document.getElementById('statsModal');
     if (sm) sm.classList.add('hidden');
-    // If a round just ended, reopen the post-game modal
-    if (typeof openPostGameModal === 'function') openPostGameModal();
+    // Re-show post-game WITHOUT resetting its contents
+    pg?.classList.remove('hidden');
   };
 
   // prevent the game close if not clicking the play again button or change mode button

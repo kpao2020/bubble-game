@@ -352,5 +352,7 @@ This project is for **educational and research purposes**. Not intended for comm
 ### v10.6.4
 - Emotion mode timer set to 60s; introduced per-mode duration map (Challenge 30s, Emotion 60s) and removed duplicate constants in draw(); minor HUD update throttling.
 - Kept Focus (Challenge) at 30s and Emotion at 60s; removed duplicate EMO_PRESET in draw(); cached HUD chips and only update on change to reduce DOM work.
+### v10.6.5
+- Stats close returns to Post-game without reloading leaderboard (reuse pg var, no skeleton flash). (minor)
 
 ---
