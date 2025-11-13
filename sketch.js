@@ -38,20 +38,20 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.6.8';                 // game version number
+const GV = 'v10.7.0';                 // game version number
 const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
 const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
-const START_BUBBLES_CLASSIC   = 12;
-const START_BUBBLES_CHALLENGE = 16;
-const START_BUBBLES_MOOD      = 10;
+const START_BUBBLES_CLASSIC   = 10;
+const START_BUBBLES_CHALLENGE = 15;
+const START_BUBBLES_MOOD      = 8;
 
 const MIN_DIAM = 50, MAX_DIAM = 88;   // bubble size range
-const MIN_SPEED = 1.6, MAX_SPEED = 3.8;
-const MIN_PLAY_SPEED = 0.9;           // floor after multipliers
+const MIN_SPEED = 1.0, MAX_SPEED = 3.8;
+const MIN_PLAY_SPEED = 0.5;           // floor after multipliers
 
 // Scoring (size-based): smaller bubbles => more points
 const SCORE_BASE = 1;                  // base points for a normal pop
-const SCORE_SIZE_MULTIPLIER = 1.8;     // tune how much small size boosts score
+const SCORE_SIZE_MULTIPLIER = 2;       // tune how much small size boosts score
 const SCORE_TRICK_PENALTY = 1;         // points removed for trick bubbles
 
 // Miss-streak easing (reduce frustration on phones)
@@ -71,8 +71,8 @@ let classicVariant = null;
 let classicDeadline = 0;             // ms; 0 => relax (no timer)
 
 const EMO_PRESET = {
-  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 0.8, emoji: '' },
-  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.0, emoji: '😊' },
+  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
+  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.2, emoji: '😊' },
   sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.5, emoji: '😢' },
   angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.3, emoji: '😠' },
   stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.2, emoji: '😟' },
@@ -129,8 +129,8 @@ const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
 
 
-const CHALLENGE_TRICK_RATE = 0.22;
-const MOOD_TRICK_RATE = 0.18;
+const CHALLENGE_TRICK_RATE = 0.25;
+const MOOD_TRICK_RATE = 0.20;
 const MAX_TRICK_RATIO = 0.5;   // at most 50% of on-screen bubbles can be red/trick
 
 // Extra scoring juice for tougher modes
@@ -1921,6 +1921,17 @@ function spawnBubble(){
   const __red  = (typeof COLOR_RED  !== 'undefined') ? color(...COLOR_RED)  : color(198,40,40,200);
   b._tint = (b.kind === 'trick') ? __red : __teal;
 
+  // --- Gold Smile Bubble (when happy in Emotion mode) ---
+  b.isGold = false;
+  if (isMoodMode() && dominantEmotion() === 'happy' && b.kind === 'normal') {
+    // ~10% chance while happy; tweak rate as you like
+    if (Math.random() < 0.10) {
+      b.isGold = true;
+      // warm gold tint (Tailwind amber-400-ish)
+      b._tint = color(250, 204, 21, 220);
+    }
+  }
+
   b.direction = degrees(angle);
   b.speed = speed;
   b._baseSpeed = speed;
@@ -2010,6 +2021,11 @@ function handlePop(px, py){
           if (emo === 'stressed') moodScoreMult = 1.5; // 1.5x score as a bonus for playing while stressed
         }
         
+        // Gold Smile: per-pop double (on top of mood/combo/mode)
+        if (b.isGold && delta > 0) {
+          delta *= 2;
+        }
+
         // Apply multipliers (combo → mood → mode) only to positive scores
         if (delta > 0) {
           const modeMult = MODE_SCORE_MULT[currentMode] || 1.0;
@@ -2038,7 +2054,9 @@ function handlePop(px, py){
 
         // burst effect
         const mood = isMoodMode() ? dominantEmotion() : 'neutral';
-        spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e', mood);
+        const burstColor = b.isGold ? '#facc15' : ((b.kind === 'trick') ? '#c62828' : '#0f766e');
+        spawnBurst(b.x, b.y, burstColor, mood);
+        // spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e', mood);
         b._popping = true;
         b._popStart = millis ? millis() : Date.now();
         b._respawnAfterPop = true; // mark to respawn after animation

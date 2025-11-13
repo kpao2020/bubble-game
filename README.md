@@ -360,4 +360,7 @@ This project is for **educational and research purposes**. Not intended for comm
 - Home button restyled with neutral gray background to distinguish from teal gameplay/bubble color. (minor)
 ### v10.6.8
 - Zen Timed mode now ends immediately when all green bubbles are cleared (or when the timer expires); Endless Zen continues refilling as before.
+### v10.7.0
+- Emotion mode tuning — neutral=1.0, happy=1.2; added rare Gold Smile bubble (2× points) and happy-only 2× score; lowered speed floors for smoother mobile play.
+
 ---
