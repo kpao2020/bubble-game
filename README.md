@@ -361,6 +361,11 @@ This project is for **educational and research purposes**. Not intended for comm
 ### v10.6.8
 - Zen Timed mode now ends immediately when all green bubbles are cleared (or when the timer expires); Endless Zen continues refilling as before.
 ### v10.7.0
-- Emotion mode tuning — neutral=1.0, happy=1.2; added rare Gold Smile bubble (2× points) and happy-only 2× score; lowered speed floors for smoother mobile play.
-
+- Emotion: neutral speed = 1.0, happy speed = 1.2; added Gold Smile bubble (10% chance while happy, ×2 per-pop bonus) and happy-only 2× global score.
+### v10.7.1
+- Balance: tuned red (trick) bubbles ~35% globally; standardized red penalty to −1; smoother mobile pacing adjustments.
+### v10.7.2
+- Emotion: while happy, red bubbles capped to 35% spawn rate and softened penalty to −1; retained happy 2× and Gold Smile bonuses.
+### v10.7.3
+- Visual: added “×2 GOLD” label to Gold Smile flyout with gold tint and glow; kept happy red cap and −1 penalty rules.
 ---

@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.7.0';                 // game version number
+const GV = 'v10.7.3';                 // game version number
 const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
 const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
 const START_BUBBLES_CLASSIC   = 10;
@@ -993,6 +993,15 @@ function shouldSpawnTrick(mode){
   if (ratio >= MAX_TRICK_RATIO) return false;
 
   // Otherwise, use the mode’s base probability
+  // MOD: In Mood mode, when HAPPY, soften reds by capping to 35% of the usual rate
+  let eff = base;
+  if (mode === 'mood') {
+    const emo = dominantEmotion();
+    if (emo === 'happy') {
+      eff = Math.min(eff, 0.35);   // 35% cap while happy
+    }
+  }
+  
   return random() < base;
 }
 
@@ -1016,6 +1025,13 @@ function spawnFlyout(x, y, points, opts = {}) {
   const el = document.createElement('div');
   el.className = 'flyoutScore';
   el.textContent = (points > 0 ? `+${points}` : `${points}`);
+
+  // GOLD label when this pop came from a gold bubble
+  if (opts.gold && points > 0) {
+    el.textContent += ' ×2 GOLD';
+    el.style.color = '#f59e0b';              // subtle gold tint
+    el.style.textShadow = '0 0 8px rgba(245,158,11,.45)';
+  }
 
   // Position relative to canvas
   el.style.left = `${x}px`;
@@ -2006,8 +2022,13 @@ function handlePop(px, py){
         const diameterNow = r * 2;
         const sizeBoost = Math.min(3, Math.max(1, (MIN_DIAM / diameterNow) * SCORE_SIZE_MULTIPLIER));
 
-        // Tougher red penalty outside Classic (min 2)
-        const trickPenalty = Math.max(2, SCORE_TRICK_PENALTY);
+        // Trick penalty:
+        //  - Default (non-happy): tougher min 2 (as before)
+        //  - While HAPPY in Mood: soft penalty = 1
+        let trickPenalty = Math.max(2, SCORE_TRICK_PENALTY);
+        if (currentMode === 'mood' && dominantEmotion() === 'happy') {
+          trickPenalty = 1;  // <- MOD: -1 in happy mood
+        }
 
         let delta = (b.kind === 'trick')
           ? -trickPenalty
@@ -2050,13 +2071,14 @@ function handlePop(px, py){
         else bubblesPoppedGood++;
 
         // animation for pop bubbles
-        spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: ((currentMode === 'challenge' || currentMode === 'mood') && getComboMultiplier() > 1.0) });
+        spawnFlyout(b.x, b.y - b.diameter * 0.6, delta, { combo: ((currentMode === 'challenge' || currentMode === 'mood') && getComboMultiplier() > 1.0), gold: b.isGold });
 
-        // burst effect
+        // burst effect (gold → amber, trick → red, normal → teal)
         const mood = isMoodMode() ? dominantEmotion() : 'neutral';
         const burstColor = b.isGold ? '#facc15' : ((b.kind === 'trick') ? '#c62828' : '#0f766e');
         spawnBurst(b.x, b.y, burstColor, mood);
-        // spawnBurst(b.x, b.y, (b.kind === 'trick') ? '#c62828' : '#0f766e', mood);
+        
+        // remove & respawn
         b._popping = true;
         b._popStart = millis ? millis() : Date.now();
         b._respawnAfterPop = true; // mark to respawn after animation
