@@ -368,4 +368,12 @@ This project is for **educational and research purposes**. Not intended for comm
 - Emotion: while happy, red bubbles capped to 35% spawn rate and softened penalty to −1; retained happy 2× and Gold Smile bonuses.
 ### v10.7.3
 - Visual: added “×2 GOLD” label to Gold Smile flyout with gold tint and glow; kept happy red cap and −1 penalty rules.
+### v11.0
+- Visual: modernized bubble rendering to a glassy, semi-transparent look (radial gradient, specular highlight, and refined rim/outer glow).
+### v11.1
+- Balance: reset versioning to the 11.x line and slowed Mood/Happy bubble speed so happy mode feels calmer but still slightly brisk.
+### v11.2
+- Visual: replaced flat backgrounds with generated gradients per mode (Zen/Focus/Emotion) and per Emotion state (neutral/happy/sad/angry/stressed) for a more modern 2025 feel.
+### v11.3
+- Visual: adjust gradients color more contrasted and soften. 
 ---

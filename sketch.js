@@ -38,7 +38,7 @@
 /* =============================
  *        Game constants
  * ============================= */
-const GV = 'v10.7.3';                 // game version number
+const GV = 'v11.3';                   // game version number
 const GAME_DURATION = 30;             // seconds (fallback for non-mapped modes)
 const MODE_DURATION = { challenge: 30, mood: 60 }; // per-mode seconds
 const START_BUBBLES_CLASSIC   = 10;
@@ -71,11 +71,27 @@ let classicVariant = null;
 let classicDeadline = 0;             // ms; 0 => relax (no timer)
 
 const EMO_PRESET = {
-  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 1.0, emoji: '' },
-  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.2, emoji: '😊' },
+  neutral: { bg: '#f3f4f6', chip: '#e5e7eb', speed: 0.95, emoji: '' },
+  happy:   { bg: '#dcfce7', chip: '#a7f3d0', speed: 1.05, emoji: '😊' },
   sad:     { bg: '#bfdbfe', chip: '#93c5fd', speed: 0.5, emoji: '😢' },
   angry:   { bg: '#fee2e2', chip: '#fca5a5', speed: 1.3, emoji: '😠' },
   stressed:{ bg: '#fef3c7', chip: '#fde047', speed: 0.2, emoji: '😟' },
+};
+
+// Lighter, high-contrast gradients per mode (Zen / Focus / Emotion)
+const MODE_BG_GRADIENT = {
+  classic:   { from: '#ddd6fe', to: '#2b5486ff' }, // light lilac → blue
+  challenge: { from: '#a7f3d0', to: '#b6a561ff' }, // mint → pale yellow
+  mood:      { from: '#f0c4ddff', to: '#6f9fbfff' }  // very soft pink → light blue
+};
+
+// Lighter gradients per emotion (within Emotion mode)
+const EMO_BG_GRADIENT = {
+  neutral:  { from: '#797f89ff', to: '#f9fafb' },  // medium gray → near white
+  happy:    { from: '#e0f064ff', to: '#fef9c3' },  // light green → soft yellow
+  sad:      { from: '#cb8dd7ff', to: '#a7c7e7' },  // light blue → pastel blue
+  angry:    { from: '#f87474ff', to: '#eb9269ff' },  // soft red → peach
+  stressed: { from: '#e7c435ff', to: '#ebcf93ff' }   // warm yellow → very light rose
 };
 
 const MODE_SPEED_BASE = { classic: (typeof CLASSIC_SPEED_SCALE!=='undefined'?CLASSIC_SPEED_SCALE:1.0), challenge: 1.3, mood: 1.0 };
@@ -353,6 +369,17 @@ function rebuildWallsIfNeeded(){
 }
 
 // ----- Background utilities (safe, non-black from frame 1) -----
+function __getGameBGStops() {
+  const mode = (typeof currentMode !== 'undefined' && currentMode) ? currentMode : 'classic';
+  const isEmotionMode = (mode === 'mood');
+  const emo = isEmotionMode ? (dominantEmotion() || 'neutral') : null;
+
+  if (isEmotionMode) {
+    return EMO_BG_GRADIENT[emo] || EMO_BG_GRADIENT.neutral;
+  }
+  return MODE_BG_GRADIENT[mode] || MODE_BG_GRADIENT.classic;
+}
+
 function __getGameBG() {
   const v = getComputedStyle(document.body)
     .getPropertyValue('--mood-background-color')
@@ -361,7 +388,40 @@ function __getGameBG() {
 }
 
 function __applyBG() {
-  try { background(color(__getGameBG())); } catch (_) { /* p5 not ready yet */ }
+  try {
+    const ctx = drawingContext;
+    if (!ctx || typeof ctx.createLinearGradient !== 'function') {
+      // Fallback: plain color if we don't have a 2D context yet
+      background(color(__getGameBG()));
+      return;
+    }
+
+    const stops = __getGameBGStops();
+    const from = stops.from || __getGameBG();
+    const to   = stops.to   || from;
+
+    // Keep CSS var roughly in sync so modals / non-canvas UI match the gradient
+    document.body.style.setProperty('--mood-background-color', from);
+
+    ctx.save();
+    // Reset any transforms so the gradient always covers the full canvas backing store
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    const cw = ctx.canvas ? ctx.canvas.width  : width;
+    const ch = ctx.canvas ? ctx.canvas.height : height;
+
+    // Diagonal gradient: top-left -> bottom-right across full canvas
+    const grad = ctx.createLinearGradient(0, 0, cw, ch);
+    grad.addColorStop(0, from);
+    grad.addColorStop(1, to);
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.restore();
+  } catch (_) {
+    // Absolute safety net
+    try { background(color(__getGameBG())); } catch (__) {}
+  }
 }
 
 /** Create/position overlay canvas over the on-screen preview video */
@@ -1841,10 +1901,10 @@ function draw(){
 
       // Radial gradient (lighter core -> tinted mid -> darker rim)
       const innerX = cx - rr * 0.35, innerY = cy - rr * 0.35;
-      const grad = ctx.createRadialGradient(innerX, innerY, rr * 0.10, cx, cy, rr);
-      grad.addColorStop(0.00, `rgba(${Math.min(255, r+55)},${Math.min(255, g+55)},${Math.min(255, bl+55)},${Math.min(1, a)})`);
-      grad.addColorStop(0.60, `rgba(${r},${g},${bl},${Math.min(0.9, a)})`);
-      grad.addColorStop(1.00, `rgba(${Math.max(0, r-40)},${Math.max(0, g-40)},${Math.max(0, bl-40)},${Math.min(0.95, a)})`);
+      const grad = ctx.createRadialGradient(innerX, innerY, rr * 0.08, cx, cy, rr);
+      grad.addColorStop(0.00, `rgba(${Math.min(255, r+80)},${Math.min(255, g+80)},${Math.min(255, bl+80)},${Math.min(0.95, a)})`);
+      grad.addColorStop(0.55, `rgba(${r},${g},${bl},${Math.min(0.82, a)})`);
+      grad.addColorStop(0.95, `rgba(${Math.max(0, r-35)},${Math.max(0, g-35)},${Math.max(0, bl-35)},${Math.min(0.65, a)})`);
 
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -1853,14 +1913,19 @@ function draw(){
 
       // Specular highlight (soft white ellipse, top-left)
       noStroke();
-      fill(255, 255, 255, 85);
-      ellipse(cx - rr * 0.35, cy - rr * 0.35, rr * 0.45, rr * 0.35);
+      fill(255, 255, 255, 96);
+      ellipse(cx - rr * 0.35, cy - rr * 0.35, rr * 0.50, rr * 0.38);
 
-      // Subtle rim light (keeps the crisp edge)
-      stroke(255, 255, 255, 60);
-      strokeWeight(1);
+      // Inner rim light for glass edge
       noFill();
-      circle(cx - rr * 0.2, cy - rr * 0.98 * 2);
+      stroke(255, 255, 255, 70);
+      strokeWeight(1.2);
+      circle(cx, cy, rr * 1.8);
+
+      // Very soft outer glow for depth
+      stroke(255, 255, 255, 28);
+      strokeWeight(3);
+      circle(cx, cy, rr * 2.2);
 
     }
   } catch (err) {
